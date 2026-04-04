@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>WhisperDesk</string>
+  <key>CFBundleDisplayName</key>
+  <string>WhisperDesk</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.whisperdesk.app</string>
+  <key>CFBundleVersion</key>
+  <string>1.0.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleSignature</key>
+  <string>????</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+
+  <!-- Required for microphone recording -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>WhisperDesk needs microphone access to record audio for transcription.</string>
+
+  <!-- Required for ScreenCaptureKit (system audio capture) -->
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>WhisperDesk needs screen recording permission to capture system audio for transcription.</string>
+
+  <!-- Required for Accessibility API (dictation text insertion) -->
+  <!-- Granted via System Settings > Privacy & Security > Accessibility -->
+
+  <!-- Menubar tray icon support -->
+  <key>LSUIElement</key>
+  <false/>
+
+  <!-- Background modes (for watch folder, ongoing recording) -->
+  <key>LSBackgroundOnly</key>
+  <false/>
+
+  <!-- Document types that WhisperDesk can open -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>WhisperDesk Archive</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>whisper</string>
+      </array>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Audio File</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>mp3</string>
+        <string>wav</string>
+        <string>m4a</string>
+        <string>flac</string>
+        <string>ogg</string>
+        <string>opus</string>
+        <string>mp4</string>
+        <string>mov</string>
+      </array>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+    </dict>
+  </array>
+</dict>
+</plist>

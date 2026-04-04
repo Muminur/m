@@ -1,0 +1,60 @@
+{
+  "nav": {
+    "library": "Bibliothek",
+    "starred": "Favoriten",
+    "recording": "Aufnahme",
+    "models": "Modelle",
+    "trash": "Papierkorb",
+    "settings": "Einstellungen"
+  },
+  "library": {
+    "loading": "Transkriptionen werden geladen...",
+    "empty": "Noch keine Transkriptionen",
+    "empty_hint": "Audiodatei ablegen oder Aufnahme starten",
+    "search_placeholder": "Transkriptionen suchen..."
+  },
+  "recording": {
+    "start": "Aufnahme starten",
+    "stop": "Aufnahme stoppen",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "mic": "Mikrofon",
+    "system": "Systemton",
+    "both": "Mikrofon + System"
+  },
+  "models": {
+    "download": "Herunterladen",
+    "delete": "Löschen",
+    "set_default": "Als Standard festlegen",
+    "downloading": "Wird heruntergeladen...",
+    "downloaded": "Heruntergeladen",
+    "default": "Standard"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "theme": "Design",
+    "theme_light": "Hell",
+    "theme_dark": "Dunkel",
+    "theme_system": "System",
+    "language": "Sprache",
+    "network": "Netzwerkrichtlinie",
+    "network_offline": "Offline",
+    "network_local_only": "Nur lokal",
+    "network_allow_all": "Alles erlauben"
+  },
+  "export": {
+    "title": "Exportieren",
+    "format": "Format",
+    "export": "Exportieren",
+    "copy": "In Zwischenablage kopieren"
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "restore": "Wiederherstellen",
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg"
+  }
+}

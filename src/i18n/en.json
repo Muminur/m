@@ -1,0 +1,60 @@
+{
+  "nav": {
+    "library": "Library",
+    "starred": "Starred",
+    "recording": "Recording",
+    "models": "Models",
+    "trash": "Trash",
+    "settings": "Settings"
+  },
+  "library": {
+    "loading": "Loading transcripts...",
+    "empty": "No transcripts yet",
+    "empty_hint": "Drop an audio file or start recording",
+    "search_placeholder": "Search transcripts..."
+  },
+  "recording": {
+    "start": "Start Recording",
+    "stop": "Stop Recording",
+    "pause": "Pause",
+    "resume": "Resume",
+    "mic": "Microphone",
+    "system": "System Audio",
+    "both": "Mic + System"
+  },
+  "models": {
+    "download": "Download",
+    "delete": "Delete",
+    "set_default": "Set as Default",
+    "downloading": "Downloading...",
+    "downloaded": "Downloaded",
+    "default": "Default"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "theme_system": "System",
+    "language": "Language",
+    "network": "Network Policy",
+    "network_offline": "Offline",
+    "network_local_only": "Local Only",
+    "network_allow_all": "Allow All"
+  },
+  "export": {
+    "title": "Export",
+    "format": "Format",
+    "export": "Export",
+    "copy": "Copy to Clipboard"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "restore": "Restore",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  }
+}

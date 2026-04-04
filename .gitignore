@@ -1,0 +1,51 @@
+# Binaries
+node_modules
+dist
+dist-ssr
+
+# AI / planning artifacts (never commit)
+.omc/
+.serena/
+CLAUDE.md
+AGENTS.md
+PLAN.md
+TASKS.md
+tasks.md
+*.prd
+prd.docx
+PRD*.md
+PRD*.docx
+
+# Tauri
+src-tauri/target
+src-tauri/WixTools
+
+# Rust
+target/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test results
+playwright-report/
+test-results/

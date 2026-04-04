@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Hardened Runtime required for notarization -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!-- Audio input for microphone recording -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+
+  <!-- Camera (future use for screen recording permission UI) -->
+  <!-- <key>com.apple.security.device.camera</key> -->
+  <!-- <false/> -->
+
+  <!-- Outgoing network connections for model downloads, cloud services -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!-- File access: user-selected files (Open panel, drag-and-drop) -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+
+  <!-- File access: downloads folder -->
+  <key>com.apple.security.files.downloads.read-write</key>
+  <true/>
+
+  <!-- Accessibility API for dictation text insertion -->
+  <!-- Granted via System Settings, not an entitlement -->
+
+  <!-- App Sandbox: disabled for direct distribution (enables ScreenCaptureKit, Accessibility) -->
+  <!-- Note: App Store submission requires sandbox - will revisit in v1.1 -->
+</dict>
+</plist>

@@ -1,0 +1,4 @@
+disallowed-methods = [
+    { path = "reqwest::Client::new", reason = "Use NetworkGuard::request() instead. All HTTP must go through network/guard.rs." },
+    { path = "reqwest::Client::builder", reason = "Use NetworkGuard::new() instead. Only network/guard.rs may construct HTTP clients." },
+]

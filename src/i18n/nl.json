@@ -1,0 +1,60 @@
+{
+  "nav": {
+    "library": "Bibliotheek",
+    "starred": "Favorieten",
+    "recording": "Opname",
+    "models": "Modellen",
+    "trash": "Prullenbak",
+    "settings": "Instellingen"
+  },
+  "library": {
+    "loading": "Transcripties laden...",
+    "empty": "Nog geen transcripties",
+    "empty_hint": "Zet een audiobestand neer of start een opname",
+    "search_placeholder": "Transcripties zoeken..."
+  },
+  "recording": {
+    "start": "Opname starten",
+    "stop": "Opname stoppen",
+    "pause": "Pauzeren",
+    "resume": "Hervatten",
+    "mic": "Microfoon",
+    "system": "Systeemaudio",
+    "both": "Microfoon + Systeem"
+  },
+  "models": {
+    "download": "Downloaden",
+    "delete": "Verwijderen",
+    "set_default": "Als standaard instellen",
+    "downloading": "Downloaden...",
+    "downloaded": "Gedownload",
+    "default": "Standaard"
+  },
+  "settings": {
+    "title": "Instellingen",
+    "theme": "Thema",
+    "theme_light": "Licht",
+    "theme_dark": "Donker",
+    "theme_system": "Systeem",
+    "language": "Taal",
+    "network": "Netwerkbeleid",
+    "network_offline": "Offline",
+    "network_local_only": "Alleen lokaal",
+    "network_allow_all": "Alles toestaan"
+  },
+  "export": {
+    "title": "Exporteren",
+    "format": "Formaat",
+    "export": "Exporteren",
+    "copy": "Kopiëren naar klembord"
+  },
+  "common": {
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "delete": "Verwijderen",
+    "restore": "Herstellen",
+    "loading": "Laden...",
+    "error": "Fout",
+    "success": "Geslaagd"
+  }
+}
