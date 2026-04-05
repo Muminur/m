@@ -17,9 +17,10 @@ export interface CaptionPosition {
 /** A single caption segment received from the backend */
 export interface CaptionSegment {
   text: string;
-  timestamp: number;
+  startMs: number;
+  endMs: number;
   isFinal: boolean;
-  speakerId?: string;
+  confidence: number;
 }
 
 /** Audio source for captioning */

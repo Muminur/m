@@ -32,8 +32,8 @@ pub async fn start_dictation(
     let current = manager.state();
     if current != DictationState::Idle {
         tracing::warn!(state = ?current, "Cannot start dictation: not idle");
-        return Err(AppError::AudioError {
-            code: crate::error::AudioErrorCode::CaptureFailure,
+        return Err(AppError::DictationError {
+            code: crate::error::DictationErrorCode::InvalidState,
             message: format!("Cannot start dictation from state: {:?}", current),
         });
     }

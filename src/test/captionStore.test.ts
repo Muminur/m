@@ -61,8 +61,10 @@ describe("captionStore", () => {
     it("adds a segment to the list", () => {
       const segment: CaptionSegment = {
         text: "Hello",
-        timestamp: 1000,
+        startMs: 1000,
+        endMs: 2000,
         isFinal: true,
+        confidence: 0.9,
       };
       useCaptionStore.getState().addSegment(segment);
       expect(useCaptionStore.getState().segments).toHaveLength(1);
@@ -73,8 +75,10 @@ describe("captionStore", () => {
       for (let i = 0; i < 55; i++) {
         useCaptionStore.getState().addSegment({
           text: `Segment ${i}`,
-          timestamp: i * 100,
+          startMs: i * 100,
+          endMs: i * 100 + 100,
           isFinal: true,
+          confidence: 0.9,
         });
       }
       expect(useCaptionStore.getState().segments.length).toBeLessThanOrEqual(50);
@@ -84,8 +88,10 @@ describe("captionStore", () => {
       useCaptionStore.getState().setSpotlightVisible(true);
       useCaptionStore.getState().addSegment({
         text: "dictated text",
-        timestamp: 1000,
+        startMs: 1000,
+        endMs: 2000,
         isFinal: true,
+        confidence: 0.9,
       });
       expect(useCaptionStore.getState().spotlightText).toContain("dictated text");
     });
@@ -95,8 +101,10 @@ describe("captionStore", () => {
     it("removes all segments", () => {
       useCaptionStore.getState().addSegment({
         text: "test",
-        timestamp: 0,
+        startMs: 0,
+        endMs: 100,
         isFinal: true,
+        confidence: 0.9,
       });
       useCaptionStore.getState().clearSegments();
       expect(useCaptionStore.getState().segments).toHaveLength(0);
@@ -150,8 +158,10 @@ describe("captionStore", () => {
       useCaptionStore.getState().setSource("System");
       useCaptionStore.getState().addSegment({
         text: "test",
-        timestamp: 0,
+        startMs: 0,
+        endMs: 100,
         isFinal: true,
+        confidence: 0.9,
       });
       useCaptionStore.getState().setOverlayVisible(true);
       useCaptionStore.getState().setError("something");

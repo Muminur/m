@@ -4,6 +4,7 @@ use crate::error::{AppError, StorageErrorCode};
 
 /// A single dictation history entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoryEntry {
     pub id: String,
     pub text: String,

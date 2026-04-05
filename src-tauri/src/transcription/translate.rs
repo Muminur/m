@@ -52,6 +52,7 @@ pub struct SupportedLanguage {
 
 /// Result of a translation call.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TranslationResult {
     pub translated_text: String,
     pub source_language: String,

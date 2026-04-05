@@ -79,12 +79,14 @@ describe("captionTypes", () => {
     it("CaptionSegment has required fields", () => {
       const segment: CaptionSegment = {
         text: "Hello world",
-        timestamp: Date.now(),
+        startMs: Date.now(),
+        endMs: Date.now() + 3000,
         isFinal: true,
+        confidence: 0.95,
       };
       expect(segment.text).toBe("Hello world");
       expect(segment.isFinal).toBe(true);
-      expect(segment.speakerId).toBeUndefined();
+      expect(segment.confidence).toBe(0.95);
     });
 
     it("CaptionSource accepts valid values", () => {

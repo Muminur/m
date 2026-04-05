@@ -52,8 +52,10 @@ describe("CaptionOverlay", () => {
   it("shows segments when present", () => {
     useCaptionStore.getState().addSegment({
       text: "Hello world",
-      timestamp: 1000,
+      startMs: 1000,
+      endMs: 2000,
       isFinal: true,
+      confidence: 0.9,
     });
     render(<CaptionOverlay />);
     expect(screen.getByText("Hello world")).toBeInTheDocument();
@@ -88,8 +90,10 @@ describe("CaptionOverlay", () => {
     for (let i = 0; i < 5; i++) {
       useCaptionStore.getState().addSegment({
         text: `Line ${i}`,
-        timestamp: i * 100,
+        startMs: i * 100,
+        endMs: i * 100 + 100,
         isFinal: true,
+        confidence: 0.9,
       });
     }
     render(<CaptionOverlay />);

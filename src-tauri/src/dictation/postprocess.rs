@@ -131,38 +131,38 @@ impl PostProcessor {
 
     /// Capitalize the character following sentence-ending punctuation (. ? !).
     fn auto_capitalize(text: &mut String) {
-        let bytes = text.as_bytes().to_vec();
-        let mut i = 0;
-        while i < bytes.len() {
-            if matches!(bytes[i], b'.' | b'?' | b'!') {
-                // Skip whitespace after punctuation and capitalize the next letter
-                let mut j = i + 1;
-                while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\n' || bytes[j] == b'\t') {
-                    j += 1;
+        let mut result = String::with_capacity(text.len());
+        let mut capitalize_next = false;
+        for ch in text.chars() {
+            if matches!(ch, '.' | '?' | '!') {
+                capitalize_next = true;
+                result.push(ch);
+            } else if capitalize_next && ch.is_ascii_lowercase() {
+                result.push(ch.to_ascii_uppercase());
+                capitalize_next = false;
+            } else {
+                if !ch.is_whitespace() {
+                    capitalize_next = false;
                 }
-                if j < bytes.len() && bytes[j].is_ascii_lowercase() {
-                    // Safe: we verified it's ASCII
-                    let upper = bytes[j].to_ascii_uppercase();
-                    // SAFETY: replacing one ASCII byte with another ASCII byte
-                    unsafe {
-                        text.as_bytes_mut()[j] = upper;
-                    }
-                }
+                result.push(ch);
             }
-            i += 1;
         }
+        *text = result;
     }
 
     /// Capitalize the first alphabetic character in the text.
     fn capitalize_first(text: &mut String) {
-        if let Some(pos) = text.bytes().position(|b| b.is_ascii_alphabetic()) {
-            if text.as_bytes()[pos].is_ascii_lowercase() {
-                let upper = text.as_bytes()[pos].to_ascii_uppercase();
-                unsafe {
-                    text.as_bytes_mut()[pos] = upper;
-                }
+        let mut result = String::with_capacity(text.len());
+        let mut found = false;
+        for ch in text.chars() {
+            if !found && ch.is_ascii_lowercase() {
+                result.push(ch.to_ascii_uppercase());
+                found = true;
+            } else {
+                result.push(ch);
             }
         }
+        *text = result;
     }
 }
 

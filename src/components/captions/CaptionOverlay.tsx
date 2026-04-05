@@ -143,7 +143,7 @@ export function CaptionOverlay() {
         ) : (
           displayLines.map((seg, i) => (
             <p
-              key={`${seg.timestamp}-${i}`}
+              key={`${seg.startMs}-${i}`}
               data-caption-line
               className={`leading-relaxed ${!seg.isFinal ? "opacity-60" : ""}`}
             >
