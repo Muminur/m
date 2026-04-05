@@ -71,19 +71,6 @@ impl CombinedCapture {
         self.mic.get_level_db()
     }
 
-    #[cfg(target_os = "windows")]
-    pub fn get_system_level_db(&self) -> f32 {
-        self.system
-            .as_ref()
-            .map(|s| s.get_level_db())
-            .unwrap_or(-60.0)
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    pub fn get_system_level_db(&self) -> f32 {
-        -60.0
-    }
-
     pub fn duration_ms(&self) -> u64 {
         self.mic.duration_ms()
     }
@@ -112,14 +99,4 @@ impl CombinedCapture {
         Ok((mic_path, sys_path))
     }
 
-    pub fn has_system_audio(&self) -> bool {
-        #[cfg(target_os = "windows")]
-        {
-            self.system.is_some()
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            false
-        }
-    }
 }

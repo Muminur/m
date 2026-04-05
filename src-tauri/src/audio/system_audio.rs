@@ -198,14 +198,3 @@ pub mod wasapi_loopback {
 pub fn is_system_audio_available() -> bool {
     cfg!(target_os = "windows")
 }
-
-/// Get a descriptive string for the system audio method on this platform.
-pub fn system_audio_method() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "WASAPI Loopback"
-    } else if cfg!(target_os = "macos") {
-        "ScreenCaptureKit (not yet implemented)"
-    } else {
-        "Not supported on this platform"
-    }
-}

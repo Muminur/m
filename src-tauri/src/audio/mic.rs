@@ -248,10 +248,6 @@ impl MicRecorder {
         self.is_paused.store(false, Ordering::Relaxed);
     }
 
-    pub fn is_paused(&self) -> bool {
-        self.is_paused.load(Ordering::Relaxed)
-    }
-
     pub fn get_level_db(&self) -> f32 {
         self.level_db.lock().map(|l| *l).unwrap_or(-60.0)
     }
@@ -270,10 +266,6 @@ impl MicRecorder {
 
     pub fn channels(&self) -> u16 {
         self.channels
-    }
-
-    pub fn output_path(&self) -> &PathBuf {
-        &self.output_path
     }
 
     pub fn stop(mut self) -> Result<PathBuf, AppError> {
