@@ -9,6 +9,7 @@ pub mod logging;
 pub mod models;
 pub mod network;
 pub mod settings;
+pub mod shortcuts;
 pub mod transcription;
 pub mod watch;
 
@@ -73,6 +74,14 @@ pub fn run() {
             // Initialize dictation manager
             let dictation_manager = Arc::new(dictation::DictationManager::new());
             app.manage(Arc::clone(&dictation_manager));
+
+            // Initialize translation manager
+            let translation_manager = Arc::new(transcription::translate::TranslationManager::new());
+            app.manage(Arc::clone(&translation_manager));
+
+            // Initialize shortcut manager
+            let shortcut_manager = Arc::new(shortcuts::ShortcutManager::new());
+            app.manage(Arc::clone(&shortcut_manager));
 
             // Initialize watch folder manager
             let watch_manager = Arc::new(watch::WatchFolderManager::new());
@@ -161,6 +170,17 @@ pub fn run() {
             commands::dictation::list_dictation_history,
             commands::dictation::delete_dictation_history_entry,
             commands::dictation::clear_dictation_history,
+            // Translation
+            commands::translate::translate_text,
+            commands::translate::set_translation_config,
+            commands::translate::get_translation_config,
+            commands::translate::get_supported_languages,
+            // Shortcuts
+            commands::shortcuts::register_shortcut,
+            commands::shortcuts::unregister_shortcut,
+            commands::shortcuts::list_shortcuts,
+            commands::shortcuts::update_shortcut,
+            commands::shortcuts::check_shortcut_conflict,
             // Watch folders
             commands::watch::add_watch_folder,
             commands::watch::remove_watch_folder,

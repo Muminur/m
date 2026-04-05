@@ -38,7 +38,7 @@ export function CaptionOverlay() {
 
   // Get the most recent lines to display based on maxLines config
   const displayLines = segments
-    .filter((s) => s.isFinal || segments.indexOf(s) === segments.length - 1)
+    .filter((s, i) => s.isFinal || i === segments.length - 1)
     .slice(-config.maxLines);
 
   const handleClose = () => {
@@ -51,7 +51,7 @@ export function CaptionOverlay() {
         "@tauri-apps/api/webviewWindow"
       );
       const win = getCurrentWebviewWindow();
-      await win.close();
+      await win.minimize();
     } catch {
       // Fallback: just hide
       useCaptionStore.getState().setOverlayVisible(false);
@@ -75,6 +75,14 @@ export function CaptionOverlay() {
   };
 
   const handleMouseUp = () => {
+    if (isDragging && containerRef.current) {
+      updateConfig({
+        position: {
+          x: containerRef.current.offsetLeft,
+          y: containerRef.current.offsetTop,
+        },
+      });
+    }
     setIsDragging(false);
   };
 

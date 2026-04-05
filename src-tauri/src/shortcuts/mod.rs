@@ -15,6 +15,7 @@ use crate::error::{AppError, IntegrationErrorCode};
 
 /// A single shortcut binding.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ShortcutBinding {
     /// Stable identifier, e.g. `"dictation_toggle"`.
     pub id: String,
@@ -28,6 +29,7 @@ pub struct ShortcutBinding {
 
 /// Conflict information returned by collision detection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ShortcutConflict {
     pub conflicting_id: String,
     pub conflicting_accelerator: String,
@@ -351,7 +353,7 @@ mod tests {
         let json = serde_json::to_value(&binding).unwrap();
         assert_eq!(json["id"], "test");
         assert_eq!(json["accelerator"], "Ctrl+Shift+T");
-        assert_eq!(json["is_active"], true);
+        assert_eq!(json["isActive"], true);
     }
 
     #[test]
@@ -523,7 +525,7 @@ mod tests {
             description: "Test".into(),
         };
         let json = serde_json::to_value(&conflict).unwrap();
-        assert_eq!(json["conflicting_id"], "test");
+        assert_eq!(json["conflictingId"], "test");
     }
 
     #[test]

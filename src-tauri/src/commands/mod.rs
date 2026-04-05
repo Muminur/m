@@ -3,5 +3,7 @@ pub mod export;
 pub mod library;
 pub mod recording;
 pub mod settings;
+pub mod shortcuts;
 pub mod transcription;
+pub mod translate;
 pub mod watch;

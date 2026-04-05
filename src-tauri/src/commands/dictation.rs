@@ -11,6 +11,7 @@ use crate::error::AppError;
 
 /// Status response for the dictation system.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DictationStatusResponse {
     pub state: DictationState,
     pub accessibility_granted: bool,
@@ -18,6 +19,7 @@ pub struct DictationStatusResponse {
 
 /// Response after dictation produces text.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DictationTextResponse {
     pub raw_text: String,
     pub processed_text: String,

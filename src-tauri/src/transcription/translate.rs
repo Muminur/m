@@ -25,6 +25,7 @@ pub enum TranslationProviderKind {
 
 /// Persistent configuration stored in settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TranslationConfig {
     pub enabled: bool,
     pub provider: TranslationProviderKind,
@@ -555,9 +556,9 @@ mod tests {
             target_language: "DE".into(),
         };
         let json = serde_json::to_value(&result).unwrap();
-        assert_eq!(json["translated_text"], "Hallo");
-        assert_eq!(json["source_language"], "EN");
-        assert_eq!(json["target_language"], "DE");
+        assert_eq!(json["translatedText"], "Hallo");
+        assert_eq!(json["sourceLanguage"], "EN");
+        assert_eq!(json["targetLanguage"], "DE");
     }
 
     #[test]

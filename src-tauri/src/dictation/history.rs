@@ -254,8 +254,8 @@ mod tests {
         let json = serde_json::to_value(&entry).unwrap();
         assert_eq!(json["id"], "test-id");
         assert_eq!(json["text"], "hello world");
-        assert_eq!(json["app_target"], "Notepad");
-        assert_eq!(json["created_at"], 1700000000);
+        assert_eq!(json["appTarget"], "Notepad");
+        assert_eq!(json["createdAt"], 1700000000);
     }
 
     #[test]
@@ -267,6 +267,6 @@ mod tests {
             created_at: 1700000000,
         };
         let json = serde_json::to_value(&entry).unwrap();
-        assert!(json["app_target"].is_null());
+        assert!(json["appTarget"].is_null());
     }
 }
