@@ -41,6 +41,13 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Spotlight bar** — Cmd+Shift+Space global input bar: speak, see text, copy or insert
 - **Live translation** — real-time caption translation via Whisper translate mode or DeepL API
 - **Global shortcuts** — configurable hotkeys with collision detection and conflict resolution
+- **Speaker diarization** — local tinydiarize speaker turn detection; cloud diarization via ElevenLabs Scribe and Deepgram Nova
+- **Speaker labels** — per-speaker colors, inline rename; speaker count hint before transcription
+- **Batch processing** — queue multiple files with configurable concurrency (1-4); per-file progress, pause/resume/cancel
+- **Batch export** — export all completed batch items to TXT/SRT/VTT in one operation
+- **YouTube import** — paste YouTube URL; audio extracted via yt-dlp and queued for transcription
+- **yt-dlp detection** — auto-detect yt-dlp in PATH, Homebrew, or local app data
+- **Filler word removal** — configurable word list (um, uh, er, like, you know); word-boundary aware
 
 ## Tech Stack
 
@@ -86,6 +93,7 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | V010 | Recordings and watch folder events |
 | V011 | System audio path for recordings |
 | V012 | Dictation history (text, app target, timestamps) |
+| V013 | Batch jobs and batch job items |
 
 ## Acceleration Backends
 
@@ -119,32 +127,36 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 src/                    # React frontend
   components/
     common/             # Layout, Sidebar
-    editor/             # Waveform, TranscriptView, SegmentEditor, FindReplace, VideoPlayer
+    editor/             # Waveform, TranscriptView, SegmentEditor, FindReplace, VideoPlayer, SpeakerLabels
     export/             # ExportDialog
     library/            # LibraryList, LibraryFilters, SearchBar, FolderTree
+    batch/              # BatchDashboard
     captions/           # CaptionOverlay, CaptionControls, SpotlightBar
-    recording/          # RecordingPanel, DeviceSelector
+    recording/          # RecordingPanel, DeviceSelector, SpeakerCountHint
     settings/           # AccelerationSettings, WatchFolderSettings
     transcription/      # DropZone, ModelManager, PerformanceBar
   hooks/                # usePlayer (wavesurfer.js audio player hook)
   pages/                # SettingsPage
-  stores/               # Zustand stores (settings, transcript, model, recording, library)
+  stores/               # Zustand stores (settings, transcript, model, recording, library, caption, batch)
   lib/                  # types.ts
 
 src-tauri/              # Rust backend
   src/
     audio/              # Decode, resample, mic recording, system audio, combined capture
-    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts)
+    batch/              # Batch processing queue and export
+    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts, batch, diarization, import)
     database/           # SQLite + migrations, search, smart_folders, recordings, undo
     dictation/          # Dictation pipeline: accessibility, postprocessing, AI correction, history
+    diarization/        # Speaker diarization: tinydiarize, ElevenLabs, Deepgram providers
     export/             # TXT, SRT, VTT renderers + .whisper archive
+    import/             # YouTube import via yt-dlp, yt-dlp detection
     models/             # Model manager (download, verify, manage)
     shortcuts/          # Global shortcut manager with collision detection
-    transcription/      # WhisperEngine + pipeline + streaming + VAD + translation
+    transcription/      # WhisperEngine + pipeline + streaming + VAD + translation + filler word removal
     watch/              # Watch folder manager + audio file handler
     settings.rs         # AppSettings with AccelerationBackend
     error.rs            # Typed error enum
-  migrations/           # SQL migration files (V001-V012)
+  migrations/           # SQL migration files (V001-V013)
   benches/              # Criterion benchmark suite
 ```
 
