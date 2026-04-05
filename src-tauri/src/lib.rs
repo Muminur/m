@@ -2,6 +2,7 @@ pub mod audio;
 pub mod commands;
 pub mod database;
 pub mod error;
+pub mod export;
 pub mod keychain;
 pub mod logging;
 pub mod models;
@@ -59,6 +60,10 @@ pub fn run() {
                 Arc::new(transcription::pipeline::TranscriptionManager::new());
             app.manage(Arc::clone(&transcription_manager));
 
+            // Initialize undo manager
+            let undo_manager = crate::database::undo::UndoManager::new();
+            app.manage(undo_manager);
+
             tracing::info!("WhisperDesk initialized");
             Ok(())
         })
@@ -79,6 +84,39 @@ pub fn run() {
             commands::transcription::get_transcript,
             commands::transcription::list_transcripts,
             commands::transcription::update_segment,
+            // Library
+            commands::library::list_folders,
+            commands::library::create_folder,
+            commands::library::rename_folder,
+            commands::library::delete_folder,
+            commands::library::move_to_folder,
+            commands::library::list_tags,
+            commands::library::create_tag,
+            commands::library::delete_tag,
+            commands::library::tag_transcript,
+            commands::library::untag_transcript,
+            commands::library::get_transcript_tags,
+            commands::library::toggle_star,
+            commands::library::trash_transcript,
+            commands::library::restore_transcript,
+            commands::library::list_trash,
+            commands::library::permanently_delete_transcript,
+            commands::library::purge_old_trash,
+            commands::library::search_transcripts,
+            commands::library::list_smart_folders,
+            commands::library::create_smart_folder,
+            commands::library::update_smart_folder,
+            commands::library::delete_smart_folder,
+            commands::library::merge_segments,
+            commands::library::split_segment,
+            commands::library::delete_segment,
+            commands::library::undo,
+            commands::library::redo,
+            commands::library::can_undo,
+            // Export
+            commands::export::export_transcript,
+            commands::export::export_to_file,
+            commands::export::copy_transcript_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

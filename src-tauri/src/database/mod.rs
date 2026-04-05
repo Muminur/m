@@ -1,6 +1,9 @@
 pub mod migrations;
+pub mod search;
 pub mod segments;
+pub mod smart_folders;
 pub mod transcripts;
+pub mod undo;
 
 use rusqlite::Connection;
 use std::sync::Mutex;

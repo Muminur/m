@@ -53,6 +53,7 @@ pub struct TranscriptionOutput {
 
 #[derive(Debug)]
 pub struct WhisperEngine {
+    #[allow(dead_code)] // Stored for future use (benchmarks, logging)
     model_path: std::path::PathBuf,
     pub backend: AccelerationBackend,
 }
@@ -194,7 +195,6 @@ impl WhisperEngine {
                         message: format!("Failed to get segment text: {}", e),
                     })?;
 
-                // whisper timestamps are in centiseconds → convert to ms
                 let start_ms = state
                     .full_get_segment_t0(i)
                     .map_err(|_| AppError::TranscriptionError {
@@ -211,7 +211,6 @@ impl WhisperEngine {
                     })?
                     * 10;
 
-                // Average token probability as segment confidence
                 let n_tokens = state.full_n_tokens(i).unwrap_or(0);
                 let confidence = if n_tokens > 0 {
                     let sum: f32 = (0..n_tokens)

@@ -157,3 +157,17 @@ export interface AppError {
     message: string;
   };
 }
+
+export interface SmartFolder {
+  id: string;
+  name: string;
+  filterJson: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ExportOptions {
+  format: "txt" | "srt" | "vtt" | "whisper";
+  includeTimestamps: boolean;
+  includeSpeakers: boolean;
+}

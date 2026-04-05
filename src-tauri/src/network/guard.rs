@@ -9,6 +9,7 @@ pub struct NetworkGuard {
 
 impl NetworkGuard {
     /// Only place in codebase allowed to call Client::builder()
+    #[allow(clippy::disallowed_methods)]
     pub fn new(policy: NetworkPolicy) -> Result<Self, AppError> {
         let client = Client::builder()
             .user_agent("WhisperDesk/1.0")

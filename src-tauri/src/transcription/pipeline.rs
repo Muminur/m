@@ -8,16 +8,6 @@ use crate::transcription::engine::{WhisperEngine, TranscriptionParams, SegmentRe
 use crate::audio::decode;
 use crate::settings::AccelerationBackend;
 
-/// Convert AccelerationBackend to its serde snake_case string (matches DB CHECK constraint).
-fn backend_str(b: &AccelerationBackend) -> &'static str {
-    match b {
-        AccelerationBackend::Auto  => "auto",
-        AccelerationBackend::Cpu   => "cpu",
-        AccelerationBackend::Metal => "metal",
-        AccelerationBackend::CoreMl => "core_ml",
-    }
-}
-
 // ─── Active job ───────────────────────────────────────────────────────────────
 
 #[derive(Debug)]
@@ -118,6 +108,7 @@ impl TranscriptionManager {
 
     /// Kick off transcription. Returns (job_id, transcript_id) immediately.
     /// Progress and results are delivered via Tauri events.
+    #[allow(clippy::too_many_arguments)]
     pub fn start_transcription(
         manager: Arc<TranscriptionManager>,
         audio_path: String,
@@ -194,6 +185,12 @@ impl TranscriptionManager {
         let manager_clone = Arc::clone(&manager);
         let job_id_event = job_id.clone();
         let transcript_id_event = transcript_id.clone();
+        let model_id_for_stats = manager_clone
+            .active_job
+            .lock()
+            .ok()
+            .and_then(|j| j.as_ref().map(|aj| aj.model_id.clone()))
+            .unwrap_or_default();
 
         // Spawn a dedicated OS thread — whisper-rs is CPU-bound and synchronous
         std::thread::spawn(move || {
@@ -204,6 +201,7 @@ impl TranscriptionManager {
                 backend,
                 &job_id_event,
                 &transcript_id_event,
+                &model_id_for_stats,
                 Arc::clone(&abort_flag),
                 &app_handle,
                 &db,
@@ -245,6 +243,7 @@ impl Default for TranscriptionManager {
 
 // ─── Thread implementation ────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn run_transcription_thread(
     audio_path: &std::path::Path,
     model_path: &std::path::Path,
@@ -252,11 +251,12 @@ fn run_transcription_thread(
     backend: AccelerationBackend,
     job_id: &str,
     transcript_id: &str,
+    model_id: &str,
     abort_flag: Arc<AtomicBool>,
     app_handle: &AppHandle,
     db: &Database,
 ) -> Result<(), AppError> {
-    tracing::info!("Starting transcription job={} transcript={} backend={}", job_id, transcript_id, backend_str(&backend));
+    tracing::info!("Starting transcription job={} transcript={} backend={}", job_id, transcript_id, backend);
 
     // Step 1: Decode audio file
     let decoded = decode::decode_file(audio_path)?;
@@ -310,12 +310,12 @@ fn run_transcription_thread(
                 "transcription:backend_fallback",
                 BackendFallbackEvent {
                     job_id: job_id.to_string(),
-                    requested_backend: backend_str(&backend).to_string(),
-                    actual_backend: backend_str(&AccelerationBackend::Cpu).to_string(),
+                    requested_backend: backend.to_string(),
+                    actual_backend: AccelerationBackend::Cpu.to_string(),
                     reason: reason_str,
                 },
             );
-            tracing::warn!("Backend {} unavailable, falling back to CPU", backend_str(&backend));
+            tracing::warn!("Backend {} unavailable, falling back to CPU", backend);
             match run_inference(AccelerationBackend::Cpu) {
                 Ok(out) => out,
                 Err(AppError::TranscriptionError { code: TranscriptionErrorCode::Cancelled, .. }) => {
@@ -379,13 +379,13 @@ fn run_transcription_thread(
         0.0
     };
     {
-        let bstr = backend_str(&backend_used);
         let stat_id = uuid::Uuid::new_v4().to_string();
+        let backend_name = backend_used.to_string();
         if let Ok(conn) = db.get() {
             let _ = conn.execute(
                 "INSERT INTO acceleration_stats (id, model_id, backend, audio_duration_ms, wall_time_ms, realtime_factor) \
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![stat_id, "unknown", bstr, duration_ms as i64, wall_time_ms as i64, realtime_factor],
+                rusqlite::params![stat_id, model_id, backend_name, duration_ms as i64, wall_time_ms as i64, realtime_factor],
             );
         }
     }
@@ -398,7 +398,7 @@ fn run_transcription_thread(
             transcript_id: transcript_id.to_string(),
             segment_count,
             duration_ms,
-            backend_used: backend_str(&backend_used).to_string(),
+            backend_used: backend_used.to_string(),
             realtime_factor,
             wall_time_ms,
         },
@@ -406,7 +406,7 @@ fn run_transcription_thread(
 
     tracing::info!(
         "Transcription done: job={} segments={} duration_ms={} backend={} realtime_factor={:.2}x",
-        job_id, segment_count, duration_ms, backend_str(&backend_used), realtime_factor
+        job_id, segment_count, duration_ms, backend_used, realtime_factor
     );
 
     Ok(())

@@ -14,18 +14,17 @@ use criterion::{criterion_group, criterion_main, Criterion};
 mod macos_benches {
     use std::path::PathBuf;
     use criterion::Criterion;
+    use whisper_desk_app_lib::transcription::engine::{WhisperEngine, TranscriptionParams};
+    use whisper_desk_app_lib::settings::AccelerationBackend;
+    use std::sync::{Arc, atomic::AtomicBool};
 
-    /// Locate a whisper model file for benchmarking.
-    /// Checks WHISPER_BENCH_MODEL_PATH env var, then common locations.
     fn find_model() -> Option<PathBuf> {
-        // Explicit override via env var
         if let Ok(path) = std::env::var("WHISPER_BENCH_MODEL_PATH") {
             let p = PathBuf::from(path);
             if p.exists() {
                 return Some(p);
             }
         }
-        // Common locations: project fixtures dir
         let candidates = [
             PathBuf::from("benches/fixtures/ggml-tiny.en.bin"),
             PathBuf::from("benches/fixtures/ggml-base.en.bin"),
@@ -38,38 +37,29 @@ mod macos_benches {
         None
     }
 
-    /// 10-second silent PCM at 16 kHz mono f32 (for compile-time bench validation).
-    /// Real benchmarks should use an actual speech fixture for meaningful realtime factors.
     fn silent_pcm_10s() -> Vec<f32> {
         vec![0.0f32; 16_000 * 10]
     }
 
-    pub fn bench_cpu(c: &mut Criterion) {
+    fn bench_backend(c: &mut Criterion, backend: AccelerationBackend, name: &str) {
         let model_path = match find_model() {
             Some(p) => p,
             None => {
-                eprintln!("transcription_bench: skipping CPU bench — no model found");
+                eprintln!("transcription_bench: skipping {} bench — no model found", name);
                 eprintln!("  Set WHISPER_BENCH_MODEL_PATH or place a model in benches/fixtures/");
                 return;
             }
         };
-
-        use whisper_desk_app_lib::transcription::engine::{WhisperEngine, TranscriptionParams};
-        use whisper_desk_app_lib::settings::AccelerationBackend;
-        use std::sync::{Arc, atomic::AtomicBool};
-
-        let engine = match WhisperEngine::new(&model_path, AccelerationBackend::Cpu) {
+        let engine = match WhisperEngine::new(&model_path, backend) {
             Ok(e) => e,
             Err(e) => {
-                eprintln!("transcription_bench: failed to load model: {}", e);
+                eprintln!("transcription_bench: failed to load model for {}: {}", name, e);
                 return;
             }
         };
-
         let pcm = silent_pcm_10s();
         let params = TranscriptionParams::default();
-
-        c.bench_function("transcription_cpu_tiny_10s", |b| {
+        c.bench_function(&format!("transcription_{}_tiny_10s", name), |b| {
             b.iter(|| {
                 let abort = Arc::new(AtomicBool::new(false));
                 let _ = engine.transcribe(&params, &pcm, |_| {}, Arc::clone(&abort));
@@ -77,36 +67,12 @@ mod macos_benches {
         });
     }
 
+    pub fn bench_cpu(c: &mut Criterion) {
+        bench_backend(c, AccelerationBackend::Cpu, "cpu");
+    }
+
     pub fn bench_metal(c: &mut Criterion) {
-        let model_path = match find_model() {
-            Some(p) => p,
-            None => {
-                eprintln!("transcription_bench: skipping Metal bench — no model found");
-                return;
-            }
-        };
-
-        use whisper_desk_app_lib::transcription::engine::{WhisperEngine, TranscriptionParams};
-        use whisper_desk_app_lib::settings::AccelerationBackend;
-        use std::sync::{Arc, atomic::AtomicBool};
-
-        let engine = match WhisperEngine::new(&model_path, AccelerationBackend::Metal) {
-            Ok(e) => e,
-            Err(e) => {
-                eprintln!("transcription_bench: failed to load model for Metal: {}", e);
-                return;
-            }
-        };
-
-        let pcm = silent_pcm_10s();
-        let params = TranscriptionParams::default();
-
-        c.bench_function("transcription_metal_tiny_10s", |b| {
-            b.iter(|| {
-                let abort = Arc::new(AtomicBool::new(false));
-                let _ = engine.transcribe(&params, &pcm, |_| {}, Arc::clone(&abort));
-            });
-        });
+        bench_backend(c, AccelerationBackend::Metal, "metal");
     }
 }
 

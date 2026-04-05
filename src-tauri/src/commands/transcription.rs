@@ -107,6 +107,7 @@ pub async fn set_default_model(
 // ─── Transcription commands ───────────────────────────────────────────────────
 
 #[command]
+#[allow(clippy::too_many_arguments)]
 pub async fn transcribe_file(
     audio_path: String,
     model_id: String,

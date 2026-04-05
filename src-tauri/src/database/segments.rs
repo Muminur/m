@@ -87,6 +87,29 @@ pub fn get_by_transcript(
     Ok(rows)
 }
 
+pub fn get_by_id(conn: &Connection, segment_id: &str) -> Result<SegmentRow, AppError> {
+    conn.query_row(
+        "SELECT id, transcript_id, index_num, start_ms, end_ms, text, speaker_id, confidence, is_deleted
+         FROM segments WHERE id = ?1",
+        params![segment_id],
+        |row| Ok(SegmentRow {
+            id: row.get(0)?,
+            transcript_id: row.get(1)?,
+            index_num: row.get(2)?,
+            start_ms: row.get(3)?,
+            end_ms: row.get(4)?,
+            text: row.get(5)?,
+            speaker_id: row.get(6)?,
+            confidence: row.get(7)?,
+            is_deleted: row.get::<_, i64>(8)? != 0,
+        }),
+    )
+    .map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Segment '{}' not found: {}", segment_id, e),
+    })
+}
+
 pub fn update_text(conn: &Connection, segment_id: &str, text: &str) -> Result<(), AppError> {
     conn.execute(
         "UPDATE segments SET text = ?2 WHERE id = ?1 AND is_deleted = 0",

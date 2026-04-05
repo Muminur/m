@@ -1,51 +1,46 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use crate::error::{AppError, StorageErrorCode};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum NetworkPolicy {
     Offline,
     LocalOnly,
+    #[default]
     AllowAll,
 }
 
-impl Default for NetworkPolicy {
-    fn default() -> Self {
-        NetworkPolicy::AllowAll
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
     Light,
     Dark,
+    #[default]
     System,
 }
 
-impl Default for Theme {
-    fn default() -> Self {
-        Theme::System
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AccelerationBackend {
+    #[default]
     Auto,
     Cpu,
     Metal,
-    // UNIMPLEMENTED: CoreML requires .mlmodelc packages not yet available on any CDN.
-    // Engine returns BackendUnavailable and falls back to Metal/CPU.
-    // Enable in UI and implement download when packages are available.
+    /// Coming soon: requires .mlmodelc packages not yet available on any CDN.
     CoreMl,
 }
 
-impl Default for AccelerationBackend {
-    fn default() -> Self {
-        AccelerationBackend::Auto
+impl fmt::Display for AccelerationBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            AccelerationBackend::Auto => "auto",
+            AccelerationBackend::Cpu => "cpu",
+            AccelerationBackend::Metal => "metal",
+            AccelerationBackend::CoreMl => "core_ml",
+        })
     }
 }
 

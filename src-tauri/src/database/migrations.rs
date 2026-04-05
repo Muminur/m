@@ -10,6 +10,8 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
         ("V005", include_str!("../../migrations/V005__export_presets.sql")),
         ("V006", include_str!("../../migrations/V006__whisper_jobs.sql")),
         ("V007", include_str!("../../migrations/V007__acceleration_stats.sql")),
+        ("V008", include_str!("../../migrations/V008__smart_folders.sql")),
+        ("V009", include_str!("../../migrations/V009__segments_fts_population.sql")),
     ];
 
     conn.execute_batch(

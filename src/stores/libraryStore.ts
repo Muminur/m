@@ -33,8 +33,15 @@ interface LibraryState {
   setPage: (page: number) => void;
   deleteTranscript: (id: string, permanent?: boolean) => Promise<void>;
   restoreTranscript: (id: string) => Promise<void>;
-  starTranscript: (id: string, starred: boolean) => Promise<void>;
+  starTranscript: (id: string) => Promise<void>;
   loadFolders: () => Promise<void>;
+  createFolder: (name: string, parentId?: string, color?: string) => Promise<void>;
+  renameFolder: (id: string, name: string) => Promise<void>;
+  deleteFolder: (id: string) => Promise<void>;
+  moveTranscriptToFolder: (transcriptId: string, folderId: string | null) => Promise<void>;
+  loadTags: () => Promise<void>;
+  addTagToTranscript: (transcriptId: string, tagName: string) => Promise<void>;
+  removeTagFromTranscript: (transcriptId: string, tagId: string) => Promise<void>;
 }
 
 const DEFAULT_FILTER: TranscriptFilter = { isDeleted: false };
@@ -93,7 +100,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   deleteTranscript: async (id, permanent = false) => {
     try {
-      await invoke("delete_transcript", { id, permanent });
+      if (permanent) {
+        await invoke("permanently_delete_transcript", { transcriptId: id });
+      } else {
+        await invoke("trash_transcript", { transcriptId: id });
+      }
       await get().loadTranscripts();
     } catch (err) {
       set({ error: String(err) });
@@ -102,19 +113,19 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   restoreTranscript: async (id) => {
     try {
-      await invoke("restore_transcript", { id });
+      await invoke("restore_transcript", { transcriptId: id });
       await get().loadTranscripts();
     } catch (err) {
       set({ error: String(err) });
     }
   },
 
-  starTranscript: async (id, starred) => {
+  starTranscript: async (id) => {
     try {
-      await invoke("update_transcript", { id, updates: { is_starred: starred } });
+      const newVal = await invoke<boolean>("toggle_star", { transcriptId: id });
       set((s) => ({
         transcripts: s.transcripts.map((t) =>
-          t.id === id ? { ...t, isStarred: starred } : t
+          t.id === id ? { ...t, isStarred: newVal } : t
         ),
       }));
     } catch (err) {
@@ -124,8 +135,76 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   loadFolders: async () => {
     try {
-      const folders = await invoke<Folder[]>("get_folders");
+      const folders = await invoke<Folder[]>("list_folders");
       set({ folders });
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  createFolder: async (name, parentId, color) => {
+    try {
+      await invoke("create_folder", { name, parentId: parentId ?? null, color: color ?? null });
+      await get().loadFolders();
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  renameFolder: async (id, name) => {
+    try {
+      await invoke("rename_folder", { id, name });
+      await get().loadFolders();
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  deleteFolder: async (id) => {
+    try {
+      await invoke("delete_folder", { id });
+      await get().loadFolders();
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  moveTranscriptToFolder: async (transcriptId, folderId) => {
+    try {
+      await invoke("move_to_folder", { transcriptId, folderId });
+      set((s) => ({
+        transcripts: s.transcripts.map((t) =>
+          t.id === transcriptId ? { ...t, folderId: folderId ?? undefined } : t
+        ),
+      }));
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  loadTags: async () => {
+    try {
+      const tags = await invoke<Tag[]>("list_tags");
+      set({ tags });
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  addTagToTranscript: async (transcriptId, tagName) => {
+    try {
+      const tagId = await invoke<string>("create_tag", { name: tagName });
+      await invoke("tag_transcript", { transcriptId, tagId });
+      await get().loadTags();
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  removeTagFromTranscript: async (transcriptId, tagId) => {
+    try {
+      await invoke("untag_transcript", { transcriptId, tagId });
+      await get().loadTags();
     } catch (err) {
       set({ error: String(err) });
     }
