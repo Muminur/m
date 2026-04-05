@@ -2,7 +2,7 @@ use std::sync::Mutex;
 use tauri::{command, AppHandle, State};
 
 use crate::error::AppError;
-use crate::import::youtube::{YouTubeImporter, YouTubeImportResult};
+use crate::import::youtube::{YouTubeImportResult, YouTubeImporter};
 use crate::import::ytdlp::{YtDlpManager, YtDlpStatus};
 use crate::transcription::postprocess::{FillerConfig, FillerWordRemover};
 
@@ -24,10 +24,7 @@ impl Default for FillerConfigState {
 /// The caller is responsible for queuing the resulting `audio_path` for
 /// transcription using the existing transcription pipeline.
 #[command]
-pub async fn import_youtube(
-    url: String,
-    app: AppHandle,
-) -> Result<YouTubeImportResult, AppError> {
+pub async fn import_youtube(url: String, app: AppHandle) -> Result<YouTubeImportResult, AppError> {
     // Resolve a per-session temp directory for the download.
     let output_dir = std::env::temp_dir().join("whisperdesk_yt_imports");
     YouTubeImporter::import(&url, &output_dir, Some(&app))

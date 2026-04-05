@@ -9,7 +9,7 @@ use tauri::{command, State};
 
 use crate::database::{segments as db_segments, transcripts as db_transcripts, Database};
 use crate::diarization::{
-    available_providers, tinydiarize::TinydiarizeProvider, DiarizedSegment, DiarizationProvider,
+    available_providers, tinydiarize::TinydiarizeProvider, DiarizationProvider, DiarizedSegment,
     ProviderInfo, TranscriptSegment,
 };
 use crate::error::{AppError, DiarizationErrorCode};
@@ -70,10 +70,7 @@ pub async fn diarize_transcript(
     if raw_segments.is_empty() {
         return Err(AppError::DiarizationError {
             code: DiarizationErrorCode::InvalidTranscript,
-            message: format!(
-                "Transcript '{}' has no segments to diarize",
-                transcript_id
-            ),
+            message: format!("Transcript '{}' has no segments to diarize", transcript_id),
         });
     }
 
@@ -89,7 +86,7 @@ pub async fn diarize_transcript(
             // to construct a provider-scoped guard instance.
             use crate::diarization::elevenlabs::ElevenLabsProvider;
             use crate::network::guard::NetworkGuard as NG;
-            
+
             let policy = guard.policy().clone();
             let new_guard = NG::new(policy)?;
             let p = ElevenLabsProvider::new(new_guard);
@@ -121,7 +118,10 @@ pub async fn diarize_transcript(
             )
             .map_err(|e| AppError::StorageError {
                 code: crate::error::StorageErrorCode::DatabaseError,
-                message: format!("Failed to persist speaker_id for segment {}: {}", orig.id, e),
+                message: format!(
+                    "Failed to persist speaker_id for segment {}: {}",
+                    orig.id, e
+                ),
             })?;
         }
     }
@@ -178,11 +178,9 @@ pub async fn update_speaker_label(
     let conn = db.get()?;
 
     // Verify transcript exists before touching rows.
-    db_transcripts::get_by_id(&conn, &transcript_id).map_err(|_| {
-        AppError::DiarizationError {
-            code: DiarizationErrorCode::InvalidTranscript,
-            message: format!("Transcript '{}' not found", transcript_id),
-        }
+    db_transcripts::get_by_id(&conn, &transcript_id).map_err(|_| AppError::DiarizationError {
+        code: DiarizationErrorCode::InvalidTranscript,
+        message: format!("Transcript '{}' not found", transcript_id),
     })?;
 
     // speaker_label is stored on each segment individually so a single UPDATE

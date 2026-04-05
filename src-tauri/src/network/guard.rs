@@ -1,6 +1,6 @@
-use reqwest::{Client, RequestBuilder, Response};
 use crate::error::{AppError, NetworkErrorCode};
 use crate::settings::NetworkPolicy;
+use reqwest::{Client, RequestBuilder, Response};
 
 pub struct NetworkGuard {
     client: Client,
@@ -33,11 +33,7 @@ impl NetworkGuard {
                     code: NetworkErrorCode::ConnectionFailed,
                     message: e.to_string(),
                 })?;
-                let host = built
-                    .url()
-                    .host_str()
-                    .unwrap_or("")
-                    .to_lowercase();
+                let host = built.url().host_str().unwrap_or("").to_lowercase();
 
                 let is_local = host == "localhost"
                     || host == "127.0.0.1"
@@ -68,7 +64,9 @@ impl NetworkGuard {
                 } else if e.is_connect() {
                     NetworkErrorCode::ConnectionFailed
                 } else if let Some(status) = e.status() {
-                    NetworkErrorCode::HttpError { status: status.as_u16() }
+                    NetworkErrorCode::HttpError {
+                        status: status.as_u16(),
+                    }
                 } else {
                     NetworkErrorCode::ConnectionFailed
                 };
@@ -100,7 +98,10 @@ mod tests {
         let result = guard.request(req).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::NetworkError { code: NetworkErrorCode::PolicyBlocked, .. } => {}
+            AppError::NetworkError {
+                code: NetworkErrorCode::PolicyBlocked,
+                ..
+            } => {}
             other => panic!("Expected PolicyBlocked, got {:?}", other),
         }
     }
@@ -112,7 +113,10 @@ mod tests {
         let result = guard.request(req).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::NetworkError { code: NetworkErrorCode::PolicyBlocked, .. } => {}
+            AppError::NetworkError {
+                code: NetworkErrorCode::PolicyBlocked,
+                ..
+            } => {}
             other => panic!("Expected PolicyBlocked, got {:?}", other),
         }
     }

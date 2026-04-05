@@ -1,12 +1,12 @@
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter};
-use crate::database::{Database, transcripts, segments};
+use crate::audio::decode;
+use crate::database::{segments, transcripts, Database};
 use crate::error::{AppError, TranscriptionErrorCode};
 use crate::models::manager::ModelManager;
-use crate::transcription::engine::{WhisperEngine, TranscriptionParams, SegmentResult};
-use crate::audio::decode;
 use crate::settings::AccelerationBackend;
+use crate::transcription::engine::{SegmentResult, TranscriptionParams, WhisperEngine};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter};
 
 // ─── Active job ───────────────────────────────────────────────────────────────
 
@@ -85,10 +85,7 @@ impl TranscriptionManager {
     }
 
     pub fn is_running(&self) -> bool {
-        self.active_job
-            .lock()
-            .map(|j| j.is_some())
-            .unwrap_or(false)
+        self.active_job.lock().map(|j| j.is_some()).unwrap_or(false)
     }
 
     pub fn active_model_id(&self) -> Option<String> {
@@ -121,10 +118,13 @@ impl TranscriptionManager {
     ) -> Result<(String, String), AppError> {
         // Guard: only one job at a time
         {
-            let lock = manager.active_job.lock().map_err(|_| AppError::TranscriptionError {
-                code: TranscriptionErrorCode::InferenceFailure,
-                message: "Failed to acquire transcription job lock".into(),
-            })?;
+            let lock = manager
+                .active_job
+                .lock()
+                .map_err(|_| AppError::TranscriptionError {
+                    code: TranscriptionErrorCode::InferenceFailure,
+                    message: "Failed to acquire transcription job lock".into(),
+                })?;
             if lock.is_some() {
                 return Err(AppError::TranscriptionError {
                     code: TranscriptionErrorCode::InferenceFailure,
@@ -171,10 +171,13 @@ impl TranscriptionManager {
         let abort_flag = Arc::new(AtomicBool::new(false));
 
         {
-            let mut lock = manager.active_job.lock().map_err(|_| AppError::TranscriptionError {
-                code: TranscriptionErrorCode::InferenceFailure,
-                message: "Failed to register active job".into(),
-            })?;
+            let mut lock = manager
+                .active_job
+                .lock()
+                .map_err(|_| AppError::TranscriptionError {
+                    code: TranscriptionErrorCode::InferenceFailure,
+                    message: "Failed to register active job".into(),
+                })?;
             *lock = Some(ActiveJob {
                 job_id: job_id.clone(),
                 model_id,
@@ -216,7 +219,10 @@ impl TranscriptionManager {
                 // Cancelled is not an error — the event was already emitted inside the thread
                 let is_cancelled = matches!(
                     &e,
-                    AppError::TranscriptionError { code: TranscriptionErrorCode::Cancelled, .. }
+                    AppError::TranscriptionError {
+                        code: TranscriptionErrorCode::Cancelled,
+                        ..
+                    }
                 );
                 if !is_cancelled {
                     let _ = app_handle.emit(
@@ -256,7 +262,12 @@ fn run_transcription_thread(
     app_handle: &AppHandle,
     db: &Database,
 ) -> Result<(), AppError> {
-    tracing::info!("Starting transcription job={} transcript={} backend={}", job_id, transcript_id, backend);
+    tracing::info!(
+        "Starting transcription job={} transcript={} backend={}",
+        job_id,
+        transcript_id,
+        backend
+    );
 
     // Step 1: Decode audio file
     let decoded = decode::decode_file(audio_path)?;
@@ -296,14 +307,20 @@ fn run_transcription_thread(
 
     let output = match run_inference(backend.clone()) {
         Ok(out) => out,
-        Err(AppError::TranscriptionError { code: TranscriptionErrorCode::Cancelled, .. }) => {
+        Err(AppError::TranscriptionError {
+            code: TranscriptionErrorCode::Cancelled,
+            ..
+        }) => {
             emit_cancelled(app_handle, job_id, transcript_id, 0);
             return Err(AppError::TranscriptionError {
                 code: TranscriptionErrorCode::Cancelled,
                 message: "Cancelled during inference".into(),
             });
         }
-        Err(AppError::TranscriptionError { code: TranscriptionErrorCode::BackendUnavailable, message: ref reason }) => {
+        Err(AppError::TranscriptionError {
+            code: TranscriptionErrorCode::BackendUnavailable,
+            message: ref reason,
+        }) => {
             // Fallback: retry with CPU
             let reason_str = reason.clone();
             let _ = app_handle.emit(
@@ -318,7 +335,10 @@ fn run_transcription_thread(
             tracing::warn!("Backend {} unavailable, falling back to CPU", backend);
             match run_inference(AccelerationBackend::Cpu) {
                 Ok(out) => out,
-                Err(AppError::TranscriptionError { code: TranscriptionErrorCode::Cancelled, .. }) => {
+                Err(AppError::TranscriptionError {
+                    code: TranscriptionErrorCode::Cancelled,
+                    ..
+                }) => {
                     emit_cancelled(app_handle, job_id, transcript_id, 0);
                     return Err(AppError::TranscriptionError {
                         code: TranscriptionErrorCode::Cancelled,
@@ -406,7 +426,11 @@ fn run_transcription_thread(
 
     tracing::info!(
         "Transcription done: job={} segments={} duration_ms={} backend={} realtime_factor={:.2}x",
-        job_id, segment_count, duration_ms, backend_used, realtime_factor
+        job_id,
+        segment_count,
+        duration_ms,
+        backend_used,
+        realtime_factor
     );
 
     Ok(())

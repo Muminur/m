@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use crate::error::AppError;
 use crate::audio::mic::{self, MicRecorder};
+use crate::error::AppError;
+use std::path::PathBuf;
 
 /// Combined audio capture: microphone + system audio mixed together.
 ///
@@ -106,5 +106,4 @@ impl CombinedCapture {
 
         Ok((mic_path, sys_path))
     }
-
 }

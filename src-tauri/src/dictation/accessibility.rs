@@ -34,7 +34,10 @@ pub struct MacOSTextInserter;
 impl TextInserter for MacOSTextInserter {
     fn insert_text(&self, text: &str) -> Result<(), AppError> {
         // Will be implemented via Swift plugin bridge
-        tracing::warn!(len = text.len(), "MacOS text insertion not yet bridged to Swift");
+        tracing::warn!(
+            len = text.len(),
+            "MacOS text insertion not yet bridged to Swift"
+        );
         Ok(())
     }
 

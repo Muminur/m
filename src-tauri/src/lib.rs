@@ -1,9 +1,9 @@
-pub mod batch;
-pub mod diarization;
-pub mod dictation;
 pub mod audio;
+pub mod batch;
 pub mod commands;
 pub mod database;
+pub mod diarization;
+pub mod dictation;
 pub mod error;
 pub mod export;
 pub mod import;
@@ -43,8 +43,7 @@ pub fn run() {
             let settings = settings::AppSettings::load(&app_handle)?;
 
             // Initialize NetworkGuard from network policy (must be before settings is managed)
-            let network_guard =
-                network::guard::NetworkGuard::new(settings.network_policy.clone())?;
+            let network_guard = network::guard::NetworkGuard::new(settings.network_policy.clone())?;
             app.manage(network_guard);
 
             app.manage(std::sync::Mutex::new(settings));

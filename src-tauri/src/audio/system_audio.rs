@@ -98,11 +98,7 @@ pub mod wasapi_loopback {
                             let sum: f64 = data.iter().map(|&s| (s as f64).powi(2)).sum();
                             (sum / data.len() as f64).sqrt() as f32
                         };
-                        let db = if rms > 0.0 {
-                            20.0 * rms.log10()
-                        } else {
-                            -60.0
-                        };
+                        let db = if rms > 0.0 { 20.0 * rms.log10() } else { -60.0 };
                         if let Ok(mut level) = level_db_clone.lock() {
                             *level = db.max(-60.0);
                         }
@@ -116,8 +112,7 @@ pub mod wasapi_loopback {
                         if let Ok(mut guard) = writer_clone.lock() {
                             if let Some(ref mut w) = *guard {
                                 for &sample in data {
-                                    let s16 =
-                                        (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+                                    let s16 = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
                                     let _ = w.write_sample(s16);
                                 }
                             }

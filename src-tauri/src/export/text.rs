@@ -1,6 +1,11 @@
-use crate::database::{transcripts::TranscriptRow, segments::SegmentRow};
+use crate::database::{segments::SegmentRow, transcripts::TranscriptRow};
 
-pub fn render(transcript: &TranscriptRow, segments: &[SegmentRow], include_timestamps: bool, include_speakers: bool) -> String {
+pub fn render(
+    transcript: &TranscriptRow,
+    segments: &[SegmentRow],
+    include_timestamps: bool,
+    include_speakers: bool,
+) -> String {
     let mut output = String::new();
     output.push_str(&format!("# {}\n\n", transcript.title));
     if let Some(lang) = &transcript.language {
@@ -41,18 +46,50 @@ mod tests {
 
     fn sample_transcript() -> TranscriptRow {
         TranscriptRow {
-            id: "t1".into(), title: "Test".into(), created_at: 0, updated_at: 0,
-            duration_ms: Some(120000), language: Some("en".into()), model_id: None,
-            source_type: None, source_url: None, audio_path: None, folder_id: None,
-            is_starred: false, is_deleted: false, deleted_at: None,
-            speaker_count: 0, word_count: 0, metadata: "{}".into(),
+            id: "t1".into(),
+            title: "Test".into(),
+            created_at: 0,
+            updated_at: 0,
+            duration_ms: Some(120000),
+            language: Some("en".into()),
+            model_id: None,
+            source_type: None,
+            source_url: None,
+            audio_path: None,
+            folder_id: None,
+            is_starred: false,
+            is_deleted: false,
+            deleted_at: None,
+            speaker_count: 0,
+            word_count: 0,
+            metadata: "{}".into(),
         }
     }
 
     fn sample_segments() -> Vec<SegmentRow> {
         vec![
-            SegmentRow { id: "s1".into(), transcript_id: "t1".into(), index_num: 0, start_ms: 0, end_ms: 5000, text: "Hello world".into(), speaker_id: None, confidence: Some(0.9), is_deleted: false },
-            SegmentRow { id: "s2".into(), transcript_id: "t1".into(), index_num: 1, start_ms: 5000, end_ms: 10000, text: "How are you".into(), speaker_id: None, confidence: Some(0.8), is_deleted: false },
+            SegmentRow {
+                id: "s1".into(),
+                transcript_id: "t1".into(),
+                index_num: 0,
+                start_ms: 0,
+                end_ms: 5000,
+                text: "Hello world".into(),
+                speaker_id: None,
+                confidence: Some(0.9),
+                is_deleted: false,
+            },
+            SegmentRow {
+                id: "s2".into(),
+                transcript_id: "t1".into(),
+                index_num: 1,
+                start_ms: 5000,
+                end_ms: 10000,
+                text: "How are you".into(),
+                speaker_id: None,
+                confidence: Some(0.8),
+                is_deleted: false,
+            },
         ]
     }
 

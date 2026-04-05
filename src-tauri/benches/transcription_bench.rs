@@ -12,11 +12,11 @@ use criterion::{criterion_group, criterion_main, Criterion};
 
 #[cfg(target_os = "macos")]
 mod macos_benches {
-    use std::path::PathBuf;
     use criterion::Criterion;
-    use whisper_desk_app_lib::transcription::engine::{WhisperEngine, TranscriptionParams};
+    use std::path::PathBuf;
+    use std::sync::{atomic::AtomicBool, Arc};
     use whisper_desk_app_lib::settings::AccelerationBackend;
-    use std::sync::{Arc, atomic::AtomicBool};
+    use whisper_desk_app_lib::transcription::engine::{TranscriptionParams, WhisperEngine};
 
     fn find_model() -> Option<PathBuf> {
         if let Ok(path) = std::env::var("WHISPER_BENCH_MODEL_PATH") {
@@ -45,7 +45,10 @@ mod macos_benches {
         let model_path = match find_model() {
             Some(p) => p,
             None => {
-                eprintln!("transcription_bench: skipping {} bench — no model found", name);
+                eprintln!(
+                    "transcription_bench: skipping {} bench — no model found",
+                    name
+                );
                 eprintln!("  Set WHISPER_BENCH_MODEL_PATH or place a model in benches/fixtures/");
                 return;
             }
@@ -53,7 +56,10 @@ mod macos_benches {
         let engine = match WhisperEngine::new(&model_path, backend) {
             Ok(e) => e,
             Err(e) => {
-                eprintln!("transcription_bench: failed to load model for {}: {}", name, e);
+                eprintln!(
+                    "transcription_bench: failed to load model for {}: {}",
+                    name, e
+                );
                 return;
             }
         };
@@ -77,7 +83,11 @@ mod macos_benches {
 }
 
 #[cfg(target_os = "macos")]
-criterion_group!(benches, macos_benches::bench_cpu, macos_benches::bench_metal);
+criterion_group!(
+    benches,
+    macos_benches::bench_cpu,
+    macos_benches::bench_metal
+);
 
 #[cfg(not(target_os = "macos"))]
 fn noop_bench(_c: &mut Criterion) {

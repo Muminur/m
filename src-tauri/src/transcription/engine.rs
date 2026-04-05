@@ -1,12 +1,12 @@
-use std::path::Path;
-use std::sync::Arc;
-#[cfg(target_os = "macos")]
-use std::sync::atomic::Ordering;
-use std::sync::atomic::AtomicBool;
-use crate::error::{AppError, TranscriptionErrorCode};
 #[cfg(target_os = "macos")]
 use crate::error::AudioErrorCode;
+use crate::error::{AppError, TranscriptionErrorCode};
 use crate::settings::AccelerationBackend;
+use std::path::Path;
+use std::sync::atomic::AtomicBool;
+#[cfg(target_os = "macos")]
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TranscriptionParams {
@@ -81,13 +81,16 @@ impl WhisperEngine {
     ) -> Result<TranscriptionOutput, AppError> {
         #[cfg(target_os = "macos")]
         {
-            use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+            use whisper_rs::{
+                FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
+            };
 
             // CoreML is unimplemented — no .mlmodelc packages available on CDN yet
             if self.backend == AccelerationBackend::CoreMl {
                 return Err(AppError::TranscriptionError {
                     code: TranscriptionErrorCode::BackendUnavailable,
-                    message: "CoreML backend requires .mlmodelc model packages (not yet available)".into(),
+                    message: "CoreML backend requires .mlmodelc model packages (not yet available)"
+                        .into(),
                 });
             }
 
@@ -154,10 +157,12 @@ impl WhisperEngine {
                 progress_callback(progress as f32 / 100.0);
             });
 
-            let mut state = ctx.create_state().map_err(|e| AppError::TranscriptionError {
-                code: TranscriptionErrorCode::InferenceFailure,
-                message: format!("Failed to create whisper state: {}", e),
-            })?;
+            let mut state = ctx
+                .create_state()
+                .map_err(|e| AppError::TranscriptionError {
+                    code: TranscriptionErrorCode::InferenceFailure,
+                    message: format!("Failed to create whisper state: {}", e),
+                })?;
 
             let wall_start = std::time::Instant::now();
 
@@ -177,39 +182,41 @@ impl WhisperEngine {
                 });
             }
 
-            let n_segments =
-                state
-                    .full_n_segments()
-                    .map_err(|e| AppError::TranscriptionError {
-                        code: TranscriptionErrorCode::InferenceFailure,
-                        message: format!("Failed to get segment count: {}", e),
-                    })?;
+            let n_segments = state
+                .full_n_segments()
+                .map_err(|e| AppError::TranscriptionError {
+                    code: TranscriptionErrorCode::InferenceFailure,
+                    message: format!("Failed to get segment count: {}", e),
+                })?;
 
             let mut results = Vec::with_capacity(n_segments as usize);
 
             for i in 0..n_segments {
-                let text = state
-                    .full_get_segment_text(i)
-                    .map_err(|e| AppError::TranscriptionError {
-                        code: TranscriptionErrorCode::InferenceFailure,
-                        message: format!("Failed to get segment text: {}", e),
-                    })?;
+                let text =
+                    state
+                        .full_get_segment_text(i)
+                        .map_err(|e| AppError::TranscriptionError {
+                            code: TranscriptionErrorCode::InferenceFailure,
+                            message: format!("Failed to get segment text: {}", e),
+                        })?;
 
-                let start_ms = state
-                    .full_get_segment_t0(i)
-                    .map_err(|_| AppError::TranscriptionError {
-                        code: TranscriptionErrorCode::InferenceFailure,
-                        message: "Failed to get segment start".into(),
-                    })?
-                    * 10;
+                let start_ms =
+                    state
+                        .full_get_segment_t0(i)
+                        .map_err(|_| AppError::TranscriptionError {
+                            code: TranscriptionErrorCode::InferenceFailure,
+                            message: "Failed to get segment start".into(),
+                        })?
+                        * 10;
 
-                let end_ms = state
-                    .full_get_segment_t1(i)
-                    .map_err(|_| AppError::TranscriptionError {
-                        code: TranscriptionErrorCode::InferenceFailure,
-                        message: "Failed to get segment end".into(),
-                    })?
-                    * 10;
+                let end_ms =
+                    state
+                        .full_get_segment_t1(i)
+                        .map_err(|_| AppError::TranscriptionError {
+                            code: TranscriptionErrorCode::InferenceFailure,
+                            message: "Failed to get segment end".into(),
+                        })?
+                        * 10;
 
                 let n_tokens = state.full_n_tokens(i).unwrap_or(0);
                 let confidence = if n_tokens > 0 {
@@ -231,7 +238,9 @@ impl WhisperEngine {
                 });
             }
 
-            let backend_used = if self.backend == AccelerationBackend::Auto || self.backend == AccelerationBackend::Metal {
+            let backend_used = if self.backend == AccelerationBackend::Auto
+                || self.backend == AccelerationBackend::Metal
+            {
                 AccelerationBackend::Metal
             } else {
                 AccelerationBackend::Cpu
@@ -259,15 +268,21 @@ impl WhisperEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use crate::settings::AccelerationBackend;
+    use std::path::PathBuf;
 
     #[test]
     fn test_whisper_engine_rejects_missing_model() {
-        let result = WhisperEngine::new(&PathBuf::from("/nonexistent/model.bin"), AccelerationBackend::Auto);
+        let result = WhisperEngine::new(
+            &PathBuf::from("/nonexistent/model.bin"),
+            AccelerationBackend::Auto,
+        );
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::ModelError { code: crate::error::ModelErrorCode::NotFound, .. } => {}
+            AppError::ModelError {
+                code: crate::error::ModelErrorCode::NotFound,
+                ..
+            } => {}
             other => panic!("Expected ModelNotFound, got {:?}", other),
         }
     }
@@ -292,7 +307,11 @@ mod tests {
         };
         let json = serde_json::to_value(&seg).unwrap();
         let confidence = json["confidence"].as_f64().unwrap();
-        assert!((confidence - 0.95).abs() < 1e-3, "confidence={}", confidence);
+        assert!(
+            (confidence - 0.95).abs() < 1e-3,
+            "confidence={}",
+            confidence
+        );
         assert_eq!(json["text"], "Hello world");
     }
 }

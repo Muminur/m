@@ -1,5 +1,5 @@
-use rusqlite::{Connection, params};
 use crate::error::{AppError, StorageErrorCode};
+use rusqlite::{params, Connection};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchResult {
@@ -24,20 +24,24 @@ pub fn search(conn: &Connection, query: &str, limit: u32) -> Result<Vec<SearchRe
         message: format!("Failed to prepare search: {}", e),
     })?;
 
-    let rows = stmt.query_map(params![query, limit], |row| {
-        Ok(SearchResult {
-            transcript_id: row.get(0)?,
-            title: row.get(1)?,
-            excerpt: row.get(2)?,
-            match_count: row.get(3)?,
+    let rows = stmt
+        .query_map(params![query, limit], |row| {
+            Ok(SearchResult {
+                transcript_id: row.get(0)?,
+                title: row.get(1)?,
+                excerpt: row.get(2)?,
+                match_count: row.get(3)?,
+            })
         })
-    }).map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Search failed: {}", e),
-    })?.collect::<Result<Vec<_>, _>>().map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to collect search results: {}", e),
-    })?;
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Search failed: {}", e),
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to collect search results: {}", e),
+        })?;
 
     Ok(rows)
 }
@@ -45,9 +49,9 @@ pub fn search(conn: &Connection, query: &str, limit: u32) -> Result<Vec<SearchRe
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::Connection;
-    use crate::database::{migrations, transcripts, segments};
+    use crate::database::{migrations, segments, transcripts};
     use crate::transcription::engine::SegmentResult;
+    use rusqlite::Connection;
 
     fn test_db() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -59,14 +63,34 @@ mod tests {
     #[test]
     fn test_search_returns_matching_transcripts() {
         let conn = test_db();
-        let tid = transcripts::insert(&conn, &transcripts::NewTranscript {
-            title: "Meeting Notes".into(),
-            duration_ms: None, language: None, model_id: None,
-            source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
+        let tid = transcripts::insert(
+            &conn,
+            &transcripts::NewTranscript {
+                title: "Meeting Notes".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
         let segs = vec![
-            SegmentResult { index: 0, start_ms: 0, end_ms: 1000, text: "hello world testing search".into(), confidence: 0.9 },
-            SegmentResult { index: 1, start_ms: 1000, end_ms: 2000, text: "another segment here".into(), confidence: 0.9 },
+            SegmentResult {
+                index: 0,
+                start_ms: 0,
+                end_ms: 1000,
+                text: "hello world testing search".into(),
+                confidence: 0.9,
+            },
+            SegmentResult {
+                index: 1,
+                start_ms: 1000,
+                end_ms: 2000,
+                text: "another segment here".into(),
+                confidence: 0.9,
+            },
         ];
         segments::insert_batch(&conn, &tid, &segs).unwrap();
 

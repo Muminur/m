@@ -1,21 +1,60 @@
-use rusqlite::Connection;
 use crate::error::{AppError, StorageErrorCode};
+use rusqlite::Connection;
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {
     let migrations = [
-        ("V001", include_str!("../../migrations/V001__initial_schema.sql")),
-        ("V002", include_str!("../../migrations/V002__fts5_search.sql")),
-        ("V003", include_str!("../../migrations/V003__ai_templates.sql")),
-        ("V004", include_str!("../../migrations/V004__integrations.sql")),
-        ("V005", include_str!("../../migrations/V005__export_presets.sql")),
-        ("V006", include_str!("../../migrations/V006__whisper_jobs.sql")),
-        ("V007", include_str!("../../migrations/V007__acceleration_stats.sql")),
-        ("V008", include_str!("../../migrations/V008__smart_folders.sql")),
-        ("V009", include_str!("../../migrations/V009__segments_fts_population.sql")),
-        ("V010", include_str!("../../migrations/V010__recordings.sql")),
-        ("V011", include_str!("../../migrations/V011__recordings_system_audio_path.sql")),
-        ("V012", include_str!("../../migrations/V012__dictation_history.sql")),
-        ("V013", include_str!("../../migrations/V013__batch_jobs.sql")),
+        (
+            "V001",
+            include_str!("../../migrations/V001__initial_schema.sql"),
+        ),
+        (
+            "V002",
+            include_str!("../../migrations/V002__fts5_search.sql"),
+        ),
+        (
+            "V003",
+            include_str!("../../migrations/V003__ai_templates.sql"),
+        ),
+        (
+            "V004",
+            include_str!("../../migrations/V004__integrations.sql"),
+        ),
+        (
+            "V005",
+            include_str!("../../migrations/V005__export_presets.sql"),
+        ),
+        (
+            "V006",
+            include_str!("../../migrations/V006__whisper_jobs.sql"),
+        ),
+        (
+            "V007",
+            include_str!("../../migrations/V007__acceleration_stats.sql"),
+        ),
+        (
+            "V008",
+            include_str!("../../migrations/V008__smart_folders.sql"),
+        ),
+        (
+            "V009",
+            include_str!("../../migrations/V009__segments_fts_population.sql"),
+        ),
+        (
+            "V010",
+            include_str!("../../migrations/V010__recordings.sql"),
+        ),
+        (
+            "V011",
+            include_str!("../../migrations/V011__recordings_system_audio_path.sql"),
+        ),
+        (
+            "V012",
+            include_str!("../../migrations/V012__dictation_history.sql"),
+        ),
+        (
+            "V013",
+            include_str!("../../migrations/V013__batch_jobs.sql"),
+        ),
     ];
 
     conn.execute_batch(

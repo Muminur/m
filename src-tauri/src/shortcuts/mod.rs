@@ -125,7 +125,10 @@ impl ShortcutManager {
         // All parts except the last must be valid modifiers
         for part in &parts[..parts.len() - 1] {
             let trimmed = part.trim();
-            if !valid_modifiers.iter().any(|m| m.eq_ignore_ascii_case(trimmed)) {
+            if !valid_modifiers
+                .iter()
+                .any(|m| m.eq_ignore_ascii_case(trimmed))
+            {
                 return Err(AppError::IntegrationError {
                     code: IntegrationErrorCode::ConfigurationMissing,
                     message: format!("Unknown modifier '{}' in accelerator", trimmed),
@@ -338,7 +341,11 @@ mod tests {
     #[test]
     fn test_default_shortcuts_inactive_initially() {
         for s in default_shortcuts() {
-            assert!(!s.is_active, "Default shortcut '{}' should start inactive", s.id);
+            assert!(
+                !s.is_active,
+                "Default shortcut '{}' should start inactive",
+                s.id
+            );
         }
     }
 
@@ -386,7 +393,8 @@ mod tests {
     #[test]
     fn test_manager_register_and_list() {
         let mgr = ShortcutManager::new();
-        mgr.register("test_action", "Alt+Shift+T", "Test action").unwrap();
+        mgr.register("test_action", "Alt+Shift+T", "Test action")
+            .unwrap();
 
         let list = mgr.list_registered();
         let found = list.iter().find(|b| b.id == "test_action");
@@ -399,7 +407,8 @@ mod tests {
     #[test]
     fn test_manager_unregister() {
         let mgr = ShortcutManager::new();
-        mgr.register("test_unreg", "Alt+Shift+U", "Test unregister").unwrap();
+        mgr.register("test_unreg", "Alt+Shift+U", "Test unregister")
+            .unwrap();
         assert!(mgr.get("test_unreg").unwrap().is_active);
 
         mgr.unregister("test_unreg").unwrap();
@@ -425,7 +434,8 @@ mod tests {
     #[test]
     fn test_conflict_detection_normalized_aliases() {
         let mgr = ShortcutManager::new();
-        mgr.register("action_b", "CommandOrControl+Shift+K", "Action B").unwrap();
+        mgr.register("action_b", "CommandOrControl+Shift+K", "Action B")
+            .unwrap();
 
         // CmdOrCtrl is an alias for CommandOrControl
         let conflicts = mgr.detect_conflicts("CmdOrCtrl+Shift+K");

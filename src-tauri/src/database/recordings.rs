@@ -1,7 +1,7 @@
-use rusqlite::{Connection, params};
-use uuid::Uuid;
-use chrono::Utc;
 use crate::error::{AppError, StorageErrorCode};
+use chrono::Utc;
+use rusqlite::{params, Connection};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RecordingRow {
@@ -45,7 +45,11 @@ pub fn insert(
     Ok(id.to_string())
 }
 
-pub fn link_transcript(conn: &Connection, recording_id: &str, transcript_id: &str) -> Result<(), AppError> {
+pub fn link_transcript(
+    conn: &Connection,
+    recording_id: &str,
+    transcript_id: &str,
+) -> Result<(), AppError> {
     conn.execute(
         "UPDATE recordings SET transcript_id = ?2 WHERE id = ?1",
         params![recording_id, transcript_id],
@@ -101,27 +105,31 @@ pub fn list_recent(conn: &Connection, limit: u32) -> Result<Vec<RecordingRow>, A
         message: format!("Failed to prepare query: {}", e),
     })?;
 
-    let rows = stmt.query_map(params![limit], |row| {
-        Ok(RecordingRow {
-            id: row.get(0)?,
-            source: row.get(1)?,
-            device_id: row.get(2)?,
-            device_name: row.get(3)?,
-            audio_path: row.get(4)?,
-            system_audio_path: row.get(5)?,
-            duration_ms: row.get(6)?,
-            sample_rate: row.get(7)?,
-            channels: row.get(8)?,
-            transcript_id: row.get(9)?,
-            created_at: row.get(10)?,
+    let rows = stmt
+        .query_map(params![limit], |row| {
+            Ok(RecordingRow {
+                id: row.get(0)?,
+                source: row.get(1)?,
+                device_id: row.get(2)?,
+                device_name: row.get(3)?,
+                audio_path: row.get(4)?,
+                system_audio_path: row.get(5)?,
+                duration_ms: row.get(6)?,
+                sample_rate: row.get(7)?,
+                channels: row.get(8)?,
+                transcript_id: row.get(9)?,
+                created_at: row.get(10)?,
+            })
         })
-    }).map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to list recordings: {}", e),
-    })?.collect::<Result<Vec<_>, _>>().map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to collect recordings: {}", e),
-    })?;
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to list recordings: {}", e),
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to collect recordings: {}", e),
+        })?;
 
     Ok(rows)
 }
@@ -184,8 +192,8 @@ pub fn update_watch_event_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::Connection;
     use crate::database::migrations;
+    use rusqlite::Connection;
 
     fn test_db() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -197,7 +205,19 @@ mod tests {
     #[test]
     fn test_insert_and_get_recording() {
         let conn = test_db();
-        let id = insert(&conn, "rec-001", "mic", Some("dev1"), Some("Built-in Mic"), "/tmp/rec.wav", None, 5000, 16000, 1).unwrap();
+        let id = insert(
+            &conn,
+            "rec-001",
+            "mic",
+            Some("dev1"),
+            Some("Built-in Mic"),
+            "/tmp/rec.wav",
+            None,
+            5000,
+            16000,
+            1,
+        )
+        .unwrap();
         assert_eq!(id, "rec-001");
         assert!(!id.is_empty());
 
@@ -212,16 +232,34 @@ mod tests {
     #[test]
     fn test_link_transcript() {
         let conn = test_db();
-        let rec_id = insert(&conn, "rec-link", "mic", None, None, "/tmp/rec.wav", None, 1000, 16000, 1).unwrap();
+        let rec_id = insert(
+            &conn,
+            "rec-link",
+            "mic",
+            None,
+            None,
+            "/tmp/rec.wav",
+            None,
+            1000,
+            16000,
+            1,
+        )
+        .unwrap();
 
         // Create a transcript to link
-        let tid = crate::database::transcripts::insert(&conn, &crate::database::transcripts::NewTranscript {
-            title: "Recording".into(),
-            duration_ms: Some(1000),
-            language: None, model_id: None,
-            source_type: Some("mic".into()),
-            source_url: None, audio_path: Some("/tmp/rec.wav".into()),
-        }).unwrap();
+        let tid = crate::database::transcripts::insert(
+            &conn,
+            &crate::database::transcripts::NewTranscript {
+                title: "Recording".into(),
+                duration_ms: Some(1000),
+                language: None,
+                model_id: None,
+                source_type: Some("mic".into()),
+                source_url: None,
+                audio_path: Some("/tmp/rec.wav".into()),
+            },
+        )
+        .unwrap();
 
         link_transcript(&conn, &rec_id, &tid).unwrap();
         let rec = get_by_id(&conn, &rec_id).unwrap().unwrap();
@@ -232,7 +270,19 @@ mod tests {
     fn test_list_recent() {
         let conn = test_db();
         for i in 0..5 {
-            insert(&conn, &format!("rec-{}", i), "mic", None, None, &format!("/tmp/rec{}.wav", i), None, 1000, 16000, 1).unwrap();
+            insert(
+                &conn,
+                &format!("rec-{}", i),
+                "mic",
+                None,
+                None,
+                &format!("/tmp/rec{}.wav", i),
+                None,
+                1000,
+                16000,
+                1,
+            )
+            .unwrap();
         }
         let recs = list_recent(&conn, 3).unwrap();
         assert_eq!(recs.len(), 3);
@@ -241,7 +291,19 @@ mod tests {
     #[test]
     fn test_update_duration() {
         let conn = test_db();
-        let id = insert(&conn, "rec-dur", "mic", None, None, "/tmp/rec.wav", None, 0, 16000, 1).unwrap();
+        let id = insert(
+            &conn,
+            "rec-dur",
+            "mic",
+            None,
+            None,
+            "/tmp/rec.wav",
+            None,
+            0,
+            16000,
+            1,
+        )
+        .unwrap();
         update_duration(&conn, &id, 30000).unwrap();
         let rec = get_by_id(&conn, &id).unwrap().unwrap();
         assert_eq!(rec.duration_ms, 30000);

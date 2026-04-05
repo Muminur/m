@@ -87,11 +87,14 @@ impl YouTubeImporter {
         let output = Command::new(&binary)
             .args([
                 "-x",
-                "--audio-format", "wav",
-                "--audio-quality", "0",
+                "--audio-format",
+                "wav",
+                "--audio-quality",
+                "0",
                 "--no-playlist",
                 "--print-json",
-                "-o", &output_template_str,
+                "-o",
+                &output_template_str,
                 url,
             ])
             .output()
@@ -105,27 +108,24 @@ impl YouTubeImporter {
             let code = Self::classify_error(&stderr);
             return Err(AppError::ImportError {
                 code,
-                message: format!("yt-dlp failed: {}", stderr.lines().last().unwrap_or("unknown error")),
+                message: format!(
+                    "yt-dlp failed: {}",
+                    stderr.lines().last().unwrap_or("unknown error")
+                ),
             });
         }
 
         // 6. Parse JSON metadata from stdout
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let meta: serde_json::Value = serde_json::from_str(stdout.trim()).map_err(|_| {
-            AppError::ImportError {
+        let meta: serde_json::Value =
+            serde_json::from_str(stdout.trim()).map_err(|_| AppError::ImportError {
                 code: ImportErrorCode::DownloadFailed,
                 message: "yt-dlp did not return valid JSON metadata".into(),
-            }
-        })?;
+            })?;
 
-        let title = meta["title"]
-            .as_str()
-            .unwrap_or("Untitled")
-            .to_string();
+        let title = meta["title"].as_str().unwrap_or("Untitled").to_string();
 
-        let duration_ms = meta["duration"]
-            .as_f64()
-            .map(|secs| (secs * 1000.0) as u64);
+        let duration_ms = meta["duration"].as_f64().map(|secs| (secs * 1000.0) as u64);
 
         let thumbnail_url = meta["thumbnail"].as_str().map(str::to_string);
 
@@ -185,9 +185,15 @@ impl YouTubeImporter {
         let lower = stderr.to_lowercase();
         if lower.contains("unable to download") || lower.contains("http error") {
             ImportErrorCode::DownloadFailed
-        } else if lower.contains("network") || lower.contains("connection") || lower.contains("timeout") {
+        } else if lower.contains("network")
+            || lower.contains("connection")
+            || lower.contains("timeout")
+        {
             ImportErrorCode::DownloadFailed
-        } else if lower.contains("unavailable") || lower.contains("private") || lower.contains("removed") {
+        } else if lower.contains("unavailable")
+            || lower.contains("private")
+            || lower.contains("removed")
+        {
             ImportErrorCode::DownloadFailed
         } else {
             ImportErrorCode::DownloadFailed
@@ -217,7 +223,13 @@ impl YouTubeImporter {
         // Fallback: find a .wav in the output directory whose name contains the title
         let safe_title: String = title
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
 
         if let Ok(entries) = std::fs::read_dir(output_dir) {
@@ -256,10 +268,9 @@ mod tests {
 
     #[test]
     fn test_validate_url_accepts_youtube_com() {
-        assert!(YouTubeImporter::validate_url(
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        )
-        .is_ok());
+        assert!(
+            YouTubeImporter::validate_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ").is_ok()
+        );
     }
 
     #[test]
@@ -269,10 +280,7 @@ mod tests {
 
     #[test]
     fn test_validate_url_accepts_music_youtube() {
-        assert!(YouTubeImporter::validate_url(
-            "https://music.youtube.com/watch?v=abc123"
-        )
-        .is_ok());
+        assert!(YouTubeImporter::validate_url("https://music.youtube.com/watch?v=abc123").is_ok());
     }
 
     #[test]
@@ -307,10 +315,22 @@ mod tests {
             thumbnail_url: Some("https://i.ytimg.com/vi/abc/hq.jpg".into()),
         };
         let json = serde_json::to_value(&result).unwrap();
-        assert!(json.get("audioPath").is_some(), "expected camelCase audioPath");
-        assert!(json.get("sourceUrl").is_some(), "expected camelCase sourceUrl");
-        assert!(json.get("durationMs").is_some(), "expected camelCase durationMs");
-        assert!(json.get("thumbnailUrl").is_some(), "expected camelCase thumbnailUrl");
+        assert!(
+            json.get("audioPath").is_some(),
+            "expected camelCase audioPath"
+        );
+        assert!(
+            json.get("sourceUrl").is_some(),
+            "expected camelCase sourceUrl"
+        );
+        assert!(
+            json.get("durationMs").is_some(),
+            "expected camelCase durationMs"
+        );
+        assert!(
+            json.get("thumbnailUrl").is_some(),
+            "expected camelCase thumbnailUrl"
+        );
         assert_eq!(json["durationMs"], 180_000u64);
     }
 

@@ -14,7 +14,7 @@ use tracing::debug;
 use crate::error::{AppError, DiarizationErrorCode, NetworkErrorCode};
 use crate::network::guard::NetworkGuard;
 
-use super::{DiarizedSegment, DiarizationProvider, TranscriptSegment};
+use super::{DiarizationProvider, DiarizedSegment, TranscriptSegment};
 
 /// ElevenLabs Scribe speech-to-text endpoint.
 const ELEVENLABS_STT_URL: &str = "https://api.elevenlabs.io/v1/speech-to-text";
@@ -61,21 +61,19 @@ impl DiarizationProvider for ElevenLabsProvider {
         "elevenlabs"
     }
 
-    fn diarize(
-        &self,
-        segments: &[TranscriptSegment],
-    ) -> Result<Vec<DiarizedSegment>, AppError> {
+    fn diarize(&self, segments: &[TranscriptSegment]) -> Result<Vec<DiarizedSegment>, AppError> {
         if segments.is_empty() {
             return Ok(Vec::new());
         }
 
         // Retrieve API key from keychain (macOS) or return an error on other
         // platforms so the caller knows this provider is unavailable.
-        let api_key = crate::keychain::get("elevenlabs", "api_key")?
-            .ok_or_else(|| AppError::DiarizationError {
+        let api_key = crate::keychain::get("elevenlabs", "api_key")?.ok_or_else(|| {
+            AppError::DiarizationError {
                 code: DiarizationErrorCode::ApiError,
                 message: "ElevenLabs API key not found in keychain".into(),
-            })?;
+            }
+        })?;
 
         // Concatenate all segment texts into a single string for the API call.
         let full_text: String = segments

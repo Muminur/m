@@ -247,15 +247,42 @@ mod tests {
     #[test]
     fn test_all_error_kinds_serialize() {
         let errors: Vec<AppError> = vec![
-            AppError::TranscriptionError { code: TranscriptionErrorCode::Cancelled, message: "test".into() },
-            AppError::AudioError { code: AudioErrorCode::DeviceNotFound, message: "test".into() },
-            AppError::ModelError { code: ModelErrorCode::NotFound, message: "test".into() },
-            AppError::ExportError { code: ExportErrorCode::FormatError, message: "test".into() },
-            AppError::IntegrationError { code: IntegrationErrorCode::ApiError, message: "test".into() },
-            AppError::LicenseError { code: LicenseErrorCode::InvalidKey, message: "test".into() },
-            AppError::StorageError { code: StorageErrorCode::DiskFull, message: "test".into() },
-            AppError::NetworkError { code: NetworkErrorCode::Timeout, message: "test".into() },
-            AppError::DictationError { code: DictationErrorCode::InvalidState, message: "test".into() },
+            AppError::TranscriptionError {
+                code: TranscriptionErrorCode::Cancelled,
+                message: "test".into(),
+            },
+            AppError::AudioError {
+                code: AudioErrorCode::DeviceNotFound,
+                message: "test".into(),
+            },
+            AppError::ModelError {
+                code: ModelErrorCode::NotFound,
+                message: "test".into(),
+            },
+            AppError::ExportError {
+                code: ExportErrorCode::FormatError,
+                message: "test".into(),
+            },
+            AppError::IntegrationError {
+                code: IntegrationErrorCode::ApiError,
+                message: "test".into(),
+            },
+            AppError::LicenseError {
+                code: LicenseErrorCode::InvalidKey,
+                message: "test".into(),
+            },
+            AppError::StorageError {
+                code: StorageErrorCode::DiskFull,
+                message: "test".into(),
+            },
+            AppError::NetworkError {
+                code: NetworkErrorCode::Timeout,
+                message: "test".into(),
+            },
+            AppError::DictationError {
+                code: DictationErrorCode::InvalidState,
+                message: "test".into(),
+            },
         ];
         for err in errors {
             let result = serde_json::to_value(&err);

@@ -1,8 +1,8 @@
+use crate::error::{AppError, StorageErrorCode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
-use crate::error::{AppError, StorageErrorCode};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]

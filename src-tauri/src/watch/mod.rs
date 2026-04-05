@@ -1,14 +1,14 @@
 pub mod handler;
 
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use notify::{RecommendedWatcher, RecursiveMode, Watcher, Event, EventKind};
-use tauri::{AppHandle, Emitter, Manager};
 use crate::database::Database;
 use crate::error::{AppError, StorageErrorCode};
 use crate::settings::WatchFolderConfig;
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::sync::Mutex;
 
 #[derive(Clone, serde::Serialize)]
 pub struct WatchFolderEvent {

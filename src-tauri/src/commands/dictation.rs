@@ -1,6 +1,6 @@
+use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
-use serde::Serialize;
 
 use crate::database::Database;
 use crate::dictation::accessibility;
@@ -81,11 +81,7 @@ pub async fn stop_dictation(
 
             // Save to history
             let conn = db.get()?;
-            let history_id = DictationHistory::add_entry(
-                &conn,
-                &processed,
-                app_target.as_deref(),
-            )?;
+            let history_id = DictationHistory::add_entry(&conn, &processed, app_target.as_deref())?;
 
             let response = DictationTextResponse {
                 raw_text: text,
@@ -130,9 +126,7 @@ pub async fn toggle_dictation(
             start_dictation(app, manager).await?;
             Ok(None)
         }
-        DictationState::Listening => {
-            stop_dictation(app, manager, db, raw_text).await
-        }
+        DictationState::Listening => stop_dictation(app, manager, db, raw_text).await,
         other => {
             tracing::warn!(state = ?other, "Cannot toggle dictation in current state");
             Ok(None)
@@ -161,9 +155,7 @@ pub async fn delete_dictation_history_entry(
 }
 
 #[tauri::command]
-pub async fn clear_dictation_history(
-    db: State<'_, Arc<Database>>,
-) -> Result<(), AppError> {
+pub async fn clear_dictation_history(db: State<'_, Arc<Database>>) -> Result<(), AppError> {
     let conn = db.get()?;
     DictationHistory::clear(&conn)
 }

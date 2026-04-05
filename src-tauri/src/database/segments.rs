@@ -1,7 +1,7 @@
-use rusqlite::{Connection, params};
-use uuid::Uuid;
 use crate::error::{AppError, StorageErrorCode};
 use crate::transcription::engine::SegmentResult;
+use rusqlite::{params, Connection};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SegmentRow {
@@ -152,9 +152,9 @@ pub fn count_words(conn: &Connection, transcript_id: &str) -> Result<i64, AppErr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::Connection;
     use crate::database::migrations;
     use crate::database::transcripts;
+    use rusqlite::Connection;
 
     fn test_db() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -178,10 +178,19 @@ mod tests {
     #[test]
     fn test_insert_and_get_segments() {
         let conn = test_db();
-        let tid = transcripts::insert(&conn, &transcripts::NewTranscript {
-            title: "T".into(), duration_ms: None, language: None,
-            model_id: None, source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
+        let tid = transcripts::insert(
+            &conn,
+            &transcripts::NewTranscript {
+                title: "T".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
 
         let segs = make_segments(3);
         insert_batch(&conn, &tid, &segs).unwrap();
@@ -196,10 +205,19 @@ mod tests {
     #[test]
     fn test_update_segment_text() {
         let conn = test_db();
-        let tid = transcripts::insert(&conn, &transcripts::NewTranscript {
-            title: "T".into(), duration_ms: None, language: None,
-            model_id: None, source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
+        let tid = transcripts::insert(
+            &conn,
+            &transcripts::NewTranscript {
+                title: "T".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
         let segs = make_segments(1);
         let ids = insert_batch(&conn, &tid, &segs).unwrap();
 
@@ -211,13 +229,34 @@ mod tests {
     #[test]
     fn test_word_count() {
         let conn = test_db();
-        let tid = transcripts::insert(&conn, &transcripts::NewTranscript {
-            title: "T".into(), duration_ms: None, language: None,
-            model_id: None, source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
+        let tid = transcripts::insert(
+            &conn,
+            &transcripts::NewTranscript {
+                title: "T".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
         let segs = vec![
-            SegmentResult { index: 0, start_ms: 0, end_ms: 1000, text: "hello world".into(), confidence: 0.9 },
-            SegmentResult { index: 1, start_ms: 1000, end_ms: 2000, text: "foo bar baz".into(), confidence: 0.9 },
+            SegmentResult {
+                index: 0,
+                start_ms: 0,
+                end_ms: 1000,
+                text: "hello world".into(),
+                confidence: 0.9,
+            },
+            SegmentResult {
+                index: 1,
+                start_ms: 1000,
+                end_ms: 2000,
+                text: "foo bar baz".into(),
+                confidence: 0.9,
+            },
         ];
         insert_batch(&conn, &tid, &segs).unwrap();
         let count = count_words(&conn, &tid).unwrap();

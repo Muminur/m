@@ -1,7 +1,7 @@
+use crate::error::AppError;
+use crate::watch::WatchFolderManager;
 use std::sync::Arc;
 use tauri::State;
-use crate::watch::WatchFolderManager;
-use crate::error::AppError;
 
 #[tauri::command]
 pub async fn add_watch_folder(

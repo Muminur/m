@@ -13,7 +13,7 @@ use tracing::debug;
 use crate::error::{AppError, DiarizationErrorCode, NetworkErrorCode};
 use crate::network::guard::NetworkGuard;
 
-use super::{DiarizedSegment, DiarizationProvider, TranscriptSegment};
+use super::{DiarizationProvider, DiarizedSegment, TranscriptSegment};
 
 /// Deepgram pre-recorded transcription endpoint.
 const DEEPGRAM_URL: &str =
@@ -76,19 +76,17 @@ impl DiarizationProvider for DeepgramProvider {
         "deepgram"
     }
 
-    fn diarize(
-        &self,
-        segments: &[TranscriptSegment],
-    ) -> Result<Vec<DiarizedSegment>, AppError> {
+    fn diarize(&self, segments: &[TranscriptSegment]) -> Result<Vec<DiarizedSegment>, AppError> {
         if segments.is_empty() {
             return Ok(Vec::new());
         }
 
-        let api_key = crate::keychain::get("deepgram", "api_key")?
-            .ok_or_else(|| AppError::DiarizationError {
+        let api_key = crate::keychain::get("deepgram", "api_key")?.ok_or_else(|| {
+            AppError::DiarizationError {
                 code: DiarizationErrorCode::ApiError,
                 message: "Deepgram API key not found in keychain".into(),
-            })?;
+            }
+        })?;
 
         let full_text: String = segments
             .iter()
@@ -110,10 +108,7 @@ impl DiarizationProvider for DeepgramProvider {
         if status == 401 || status == 403 {
             return Err(AppError::DiarizationError {
                 code: DiarizationErrorCode::ApiError,
-                message: format!(
-                    "Deepgram authentication failed (HTTP {})",
-                    status.as_u16()
-                ),
+                message: format!("Deepgram authentication failed (HTTP {})", status.as_u16()),
             });
         }
         if status == 429 {
@@ -191,11 +186,8 @@ fn map_words_to_diarized_segments(
 
         if seg_words.is_empty() {
             // Fallback: use the first speaker or unknown.
-            let (speaker_id, speaker_label) = speaker_map
-                .values()
-                .next()
-                .cloned()
-                .unwrap_or_else(|| {
+            let (speaker_id, speaker_label) =
+                speaker_map.values().next().cloned().unwrap_or_else(|| {
                     speaker_counter += 1;
                     let id = format!("speaker_{}", speaker_counter);
                     let lbl = format!("Speaker {}", speaker_counter);
@@ -221,10 +213,7 @@ fn map_words_to_diarized_segments(
 
         // Average confidence across words in this segment.
         let avg_confidence = {
-            let sum: f64 = seg_words
-                .iter()
-                .map(|w| w.confidence.unwrap_or(1.0))
-                .sum();
+            let sum: f64 = seg_words.iter().map(|w| w.confidence.unwrap_or(1.0)).sum();
             (sum / seg_words.len() as f64) as f32
         };
 

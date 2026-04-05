@@ -6,10 +6,10 @@ pub mod smart_folders;
 pub mod transcripts;
 pub mod undo;
 
+use crate::error::{AppError, StorageErrorCode};
 use rusqlite::Connection;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use crate::error::{AppError, StorageErrorCode};
 
 pub struct Database {
     pub conn: Mutex<Connection>,
@@ -55,18 +55,21 @@ pub fn init(app: &AppHandle) -> Result<Database, AppError> {
         }
     })?;
 
-    conn.pragma_update(None, "journal_mode", "WAL").map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to set WAL mode: {}", e),
-    })?;
-    conn.pragma_update(None, "foreign_keys", "ON").map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to enable foreign keys: {}", e),
-    })?;
-    conn.pragma_update(None, "synchronous", "NORMAL").map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to set synchronous mode: {}", e),
-    })?;
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to set WAL mode: {}", e),
+        })?;
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to enable foreign keys: {}", e),
+        })?;
+    conn.pragma_update(None, "synchronous", "NORMAL")
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to set synchronous mode: {}", e),
+        })?;
 
     migrations::run(&mut conn)?;
 

@@ -27,21 +27,81 @@ impl PostProcessor {
 
     fn default_commands() -> Vec<PunctuationCommand> {
         vec![
-            PunctuationCommand { phrase: "period", replacement: ".", capitalize_next: true },
-            PunctuationCommand { phrase: "full stop", replacement: ".", capitalize_next: true },
-            PunctuationCommand { phrase: "comma", replacement: ",", capitalize_next: false },
-            PunctuationCommand { phrase: "question mark", replacement: "?", capitalize_next: true },
-            PunctuationCommand { phrase: "exclamation mark", replacement: "!", capitalize_next: true },
-            PunctuationCommand { phrase: "exclamation point", replacement: "!", capitalize_next: true },
-            PunctuationCommand { phrase: "new line", replacement: "\n", capitalize_next: true },
-            PunctuationCommand { phrase: "new paragraph", replacement: "\n\n", capitalize_next: true },
-            PunctuationCommand { phrase: "tab", replacement: "\t", capitalize_next: false },
-            PunctuationCommand { phrase: "colon", replacement: ":", capitalize_next: false },
-            PunctuationCommand { phrase: "semicolon", replacement: ";", capitalize_next: false },
-            PunctuationCommand { phrase: "open quote", replacement: "\"", capitalize_next: false },
-            PunctuationCommand { phrase: "close quote", replacement: "\"", capitalize_next: false },
-            PunctuationCommand { phrase: "dash", replacement: "-", capitalize_next: false },
-            PunctuationCommand { phrase: "hyphen", replacement: "-", capitalize_next: false },
+            PunctuationCommand {
+                phrase: "period",
+                replacement: ".",
+                capitalize_next: true,
+            },
+            PunctuationCommand {
+                phrase: "full stop",
+                replacement: ".",
+                capitalize_next: true,
+            },
+            PunctuationCommand {
+                phrase: "comma",
+                replacement: ",",
+                capitalize_next: false,
+            },
+            PunctuationCommand {
+                phrase: "question mark",
+                replacement: "?",
+                capitalize_next: true,
+            },
+            PunctuationCommand {
+                phrase: "exclamation mark",
+                replacement: "!",
+                capitalize_next: true,
+            },
+            PunctuationCommand {
+                phrase: "exclamation point",
+                replacement: "!",
+                capitalize_next: true,
+            },
+            PunctuationCommand {
+                phrase: "new line",
+                replacement: "\n",
+                capitalize_next: true,
+            },
+            PunctuationCommand {
+                phrase: "new paragraph",
+                replacement: "\n\n",
+                capitalize_next: true,
+            },
+            PunctuationCommand {
+                phrase: "tab",
+                replacement: "\t",
+                capitalize_next: false,
+            },
+            PunctuationCommand {
+                phrase: "colon",
+                replacement: ":",
+                capitalize_next: false,
+            },
+            PunctuationCommand {
+                phrase: "semicolon",
+                replacement: ";",
+                capitalize_next: false,
+            },
+            PunctuationCommand {
+                phrase: "open quote",
+                replacement: "\"",
+                capitalize_next: false,
+            },
+            PunctuationCommand {
+                phrase: "close quote",
+                replacement: "\"",
+                capitalize_next: false,
+            },
+            PunctuationCommand {
+                phrase: "dash",
+                replacement: "-",
+                capitalize_next: false,
+            },
+            PunctuationCommand {
+                phrase: "hyphen",
+                replacement: "-",
+                capitalize_next: false,
+            },
         ]
     }
 
@@ -73,20 +133,19 @@ impl PostProcessor {
 
                     // Check word boundaries: before must be start-of-string or whitespace,
                     // after must be end-of-string or whitespace
-                    let before_ok = abs_pos == 0
-                        || result.as_bytes().get(abs_pos - 1) == Some(&b' ');
-                    let after_ok = end_pos >= result.len()
-                        || result.as_bytes().get(end_pos) == Some(&b' ');
+                    let before_ok =
+                        abs_pos == 0 || result.as_bytes().get(abs_pos - 1) == Some(&b' ');
+                    let after_ok =
+                        end_pos >= result.len() || result.as_bytes().get(end_pos) == Some(&b' ');
 
                     if before_ok && after_ok {
                         // Remove leading space before punctuation if present
-                        let replace_start = if abs_pos > 0
-                            && result.as_bytes().get(abs_pos - 1) == Some(&b' ')
-                        {
-                            abs_pos - 1
-                        } else {
-                            abs_pos
-                        };
+                        let replace_start =
+                            if abs_pos > 0 && result.as_bytes().get(abs_pos - 1) == Some(&b' ') {
+                                abs_pos - 1
+                            } else {
+                                abs_pos
+                            };
 
                         // Remove trailing space after punctuation if present
                         let replace_end = if end_pos < result.len()
@@ -316,7 +375,8 @@ mod tests {
     #[test]
     fn test_multiple_sentences() {
         let pp = PostProcessor::new();
-        let result = pp.process("hello period how are you question mark i am fine exclamation mark");
+        let result =
+            pp.process("hello period how are you question mark i am fine exclamation mark");
         assert_eq!(result, "Hello. How are you? I am fine!");
     }
 }

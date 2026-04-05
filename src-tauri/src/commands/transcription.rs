@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use tauri::{command, AppHandle, State};
-use crate::database::{Database, segments, transcripts};
+use crate::database::{segments, transcripts, Database};
 use crate::error::AppError;
 use crate::models::{manager::ModelManager, registry::ModelInfo};
+use crate::settings::{AccelerationBackend, AppSettings};
 use crate::transcription::{engine::TranscriptionParams, pipeline::TranscriptionManager};
-use crate::settings::{AppSettings, AccelerationBackend};
+use std::sync::Arc;
+use tauri::{command, AppHandle, State};
 
 // ─── Response types ───────────────────────────────────────────────────────────
 
@@ -34,9 +34,7 @@ pub struct StartTranscriptionResult {
 // ─── Model commands ───────────────────────────────────────────────────────────
 
 #[command]
-pub async fn list_models(
-    db: State<'_, Arc<Database>>,
-) -> Result<Vec<ModelInfo>, AppError> {
+pub async fn list_models(db: State<'_, Arc<Database>>) -> Result<Vec<ModelInfo>, AppError> {
     ModelManager::list_models(&db)
 }
 
@@ -136,7 +134,10 @@ pub async fn transcribe_file(
         Arc::clone(&model_manager),
     )?;
 
-    Ok(StartTranscriptionResult { job_id, transcript_id })
+    Ok(StartTranscriptionResult {
+        job_id,
+        transcript_id,
+    })
 }
 
 #[command]

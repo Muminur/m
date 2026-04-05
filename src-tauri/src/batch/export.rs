@@ -1,8 +1,8 @@
-use std::path::Path;
-use std::sync::Arc;
-use crate::database::{Database, transcripts, segments};
+use crate::database::{segments, transcripts, Database};
 use crate::error::{AppError, BatchErrorCode, ExportErrorCode};
 use crate::export;
+use std::path::Path;
+use std::sync::Arc;
 
 /// Supported export formats for batch export.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -83,7 +83,10 @@ impl BatchExporter {
         if rows.is_empty() {
             return Err(AppError::BatchError {
                 code: BatchErrorCode::ExportFailed,
-                message: format!("No completed items with transcripts found for job '{}'", job_id),
+                message: format!(
+                    "No completed items with transcripts found for job '{}'",
+                    job_id
+                ),
             });
         }
 
@@ -93,7 +96,10 @@ impl BatchExporter {
             let transcript = transcripts::get_by_id(&conn, &transcript_id)?.ok_or_else(|| {
                 AppError::BatchError {
                     code: BatchErrorCode::ExportFailed,
-                    message: format!("Transcript '{}' not found during batch export", transcript_id),
+                    message: format!(
+                        "Transcript '{}' not found during batch export",
+                        transcript_id
+                    ),
                 }
             })?;
 
@@ -116,7 +122,11 @@ impl BatchExporter {
 
             std::fs::write(&out_path, &content).map_err(|e| AppError::ExportError {
                 code: ExportErrorCode::IoError,
-                message: format!("Failed to write export file '{}': {}", out_path.display(), e),
+                message: format!(
+                    "Failed to write export file '{}': {}",
+                    out_path.display(),
+                    e
+                ),
             })?;
 
             exported_paths.push(out_path.to_string_lossy().into_owned());
@@ -131,8 +141,8 @@ impl BatchExporter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::Connection;
     use crate::database::migrations;
+    use rusqlite::Connection;
 
     fn make_db() -> Arc<Database> {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -174,6 +184,12 @@ mod tests {
         let dir = std::env::temp_dir().join("batch_export_test_empty");
         let result = exporter.export_completed("job1", ExportFormat::Txt, dir.to_str().unwrap());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::BatchError { code: BatchErrorCode::ExportFailed, .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            AppError::BatchError {
+                code: BatchErrorCode::ExportFailed,
+                ..
+            }
+        ));
     }
 }

@@ -57,10 +57,7 @@ pub struct DiarizedSegment {
 /// Common interface for all diarization back-ends.
 pub trait DiarizationProvider: Send + Sync {
     /// Assign speaker turns to a slice of transcript segments.
-    fn diarize(
-        &self,
-        segments: &[TranscriptSegment],
-    ) -> Result<Vec<DiarizedSegment>, AppError>;
+    fn diarize(&self, segments: &[TranscriptSegment]) -> Result<Vec<DiarizedSegment>, AppError>;
 
     /// Short identifier used in log messages and API responses.
     fn name(&self) -> &str;

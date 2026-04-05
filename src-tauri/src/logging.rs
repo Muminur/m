@@ -1,25 +1,24 @@
-use tracing_subscriber::{
-    fmt,
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    EnvFilter,
-};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 pub fn init() {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| {
-            if cfg!(debug_assertions) {
-                EnvFilter::new("debug")
-            } else {
-                EnvFilter::new("info")
-            }
-        });
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        if cfg!(debug_assertions) {
+            EnvFilter::new("debug")
+        } else {
+            EnvFilter::new("info")
+        }
+    });
 
     #[cfg(debug_assertions)]
     {
         tracing_subscriber::registry()
             .with(filter)
-            .with(fmt::layer().with_target(true).with_thread_ids(false).pretty())
+            .with(
+                fmt::layer()
+                    .with_target(true)
+                    .with_thread_ids(false)
+                    .pretty(),
+            )
             .init();
     }
 

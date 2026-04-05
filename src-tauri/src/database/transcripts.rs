@@ -1,7 +1,7 @@
-use rusqlite::{Connection, params};
-use uuid::Uuid;
-use chrono::Utc;
 use crate::error::{AppError, StorageErrorCode};
+use chrono::Utc;
+use rusqlite::{params, Connection};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TranscriptRow {
@@ -67,15 +67,17 @@ pub fn insert(conn: &Connection, new: &NewTranscript) -> Result<String, AppError
 }
 
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<TranscriptRow>, AppError> {
-    let mut stmt = conn.prepare(
-        "SELECT id, title, created_at, updated_at, duration_ms, language, model_id,
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, created_at, updated_at, duration_ms, language, model_id,
                 source_type, source_url, audio_path, folder_id, is_starred, is_deleted,
                 deleted_at, speaker_count, word_count, metadata
-         FROM transcripts WHERE id = ?1 AND is_deleted = 0"
-    ).map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to prepare query: {}", e),
-    })?;
+         FROM transcripts WHERE id = ?1 AND is_deleted = 0",
+        )
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to prepare query: {}", e),
+        })?;
 
     let result = stmt.query_row(params![id], |row| {
         Ok(TranscriptRow {
@@ -129,18 +131,20 @@ pub fn list(
             message: format!("Failed to count transcripts: {}", e),
         })?;
 
-    let mut stmt = conn.prepare(
-        "SELECT id, title, created_at, updated_at, duration_ms, language, model_id,
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, created_at, updated_at, duration_ms, language, model_id,
                 source_type, source_url, audio_path, folder_id, is_starred, is_deleted,
                 deleted_at, speaker_count, word_count, metadata
          FROM transcripts
          WHERE is_deleted = ?1
          ORDER BY created_at DESC
-         LIMIT ?2 OFFSET ?3"
-    ).map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to prepare list query: {}", e),
-    })?;
+         LIMIT ?2 OFFSET ?3",
+        )
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to prepare list query: {}", e),
+        })?;
 
     let rows = stmt
         .query_map(params![deleted_int, page_size, offset], |row| {
@@ -233,7 +237,10 @@ pub fn list_filtered(
         idx += 1;
     }
     if let Some(ref tid) = filter.tag_id {
-        conditions.push(format!("t.id IN (SELECT transcript_id FROM transcript_tags WHERE tag_id = ?{})", idx));
+        conditions.push(format!(
+            "t.id IN (SELECT transcript_id FROM transcript_tags WHERE tag_id = ?{})",
+            idx
+        ));
         param_values.push(Box::new(tid.clone()));
         idx += 1;
     }
@@ -256,19 +263,25 @@ pub fn list_filtered(
         Some("language") => "t.language",
         _ => "t.created_at",
     };
-    let sort_dir = if sort.direction.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+    let sort_dir = if sort.direction.as_deref() == Some("asc") {
+        "ASC"
+    } else {
+        "DESC"
+    };
 
     // Count
     let count_sql = format!("SELECT COUNT(*) FROM transcripts t {}", where_clause);
     let refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
-    let total: u64 = conn.query_row(&count_sql, refs.as_slice(), |row| row.get(0))
+    let total: u64 = conn
+        .query_row(&count_sql, refs.as_slice(), |row| row.get(0))
         .map_err(|e| AppError::StorageError {
             code: StorageErrorCode::DatabaseError,
             message: format!("Count failed: {}", e),
         })?;
 
     // Data
-    let data_sql = format!(
+    let data_sql =
+        format!(
         "SELECT t.id, t.title, t.created_at, t.updated_at, t.duration_ms, t.language, t.model_id,
                 t.source_type, t.source_url, t.audio_path, t.folder_id, t.is_starred, t.is_deleted,
                 t.deleted_at, t.speaker_count, t.word_count, t.metadata
@@ -279,37 +292,43 @@ pub fn list_filtered(
     param_values.push(Box::new(page * page_size));
     let refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
 
-    let mut stmt = conn.prepare(&data_sql).map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Prepare failed: {}", e),
-    })?;
-    let rows = stmt.query_map(refs.as_slice(), |row| {
-        Ok(TranscriptRow {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            created_at: row.get(2)?,
-            updated_at: row.get(3)?,
-            duration_ms: row.get(4)?,
-            language: row.get(5)?,
-            model_id: row.get(6)?,
-            source_type: row.get(7)?,
-            source_url: row.get(8)?,
-            audio_path: row.get(9)?,
-            folder_id: row.get(10)?,
-            is_starred: row.get::<_, i64>(11)? != 0,
-            is_deleted: row.get::<_, i64>(12)? != 0,
-            deleted_at: row.get(13)?,
-            speaker_count: row.get(14)?,
-            word_count: row.get(15)?,
-            metadata: row.get(16)?,
+    let mut stmt = conn
+        .prepare(&data_sql)
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Prepare failed: {}", e),
+        })?;
+    let rows = stmt
+        .query_map(refs.as_slice(), |row| {
+            Ok(TranscriptRow {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+                duration_ms: row.get(4)?,
+                language: row.get(5)?,
+                model_id: row.get(6)?,
+                source_type: row.get(7)?,
+                source_url: row.get(8)?,
+                audio_path: row.get(9)?,
+                folder_id: row.get(10)?,
+                is_starred: row.get::<_, i64>(11)? != 0,
+                is_deleted: row.get::<_, i64>(12)? != 0,
+                deleted_at: row.get(13)?,
+                speaker_count: row.get(14)?,
+                word_count: row.get(15)?,
+                metadata: row.get(16)?,
+            })
         })
-    }).map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Query failed: {}", e),
-    })?.collect::<Result<Vec<_>, _>>().map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Collect failed: {}", e),
-    })?;
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Query failed: {}", e),
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Collect failed: {}", e),
+        })?;
 
     Ok((rows, total))
 }
@@ -329,10 +348,12 @@ pub fn update(conn: &Connection, id: &str, upd: &TranscriptUpdate) -> Result<(),
          WHERE id = ?1",
         params![
             id,
-            upd.title, upd.language,
+            upd.title,
+            upd.language,
             upd.is_starred.map(|b| b as i64),
             upd.folder_id,
-            upd.word_count, upd.speaker_count,
+            upd.word_count,
+            upd.speaker_count,
             now,
         ],
     )
@@ -382,8 +403,8 @@ pub fn restore(conn: &Connection, id: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::Connection;
     use crate::database::migrations;
+    use rusqlite::Connection;
 
     fn test_db() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -419,15 +440,19 @@ mod tests {
     fn test_list_transcripts() {
         let conn = test_db();
         for i in 0..3 {
-            insert(&conn, &NewTranscript {
-                title: format!("Transcript {}", i),
-                duration_ms: None,
-                language: None,
-                model_id: None,
-                source_type: None,
-                source_url: None,
-                audio_path: None,
-            }).unwrap();
+            insert(
+                &conn,
+                &NewTranscript {
+                    title: format!("Transcript {}", i),
+                    duration_ms: None,
+                    language: None,
+                    model_id: None,
+                    source_type: None,
+                    source_url: None,
+                    audio_path: None,
+                },
+            )
+            .unwrap();
         }
         let (rows, total) = list(&conn, false, 0, 10).unwrap();
         assert_eq!(rows.len(), 3);
@@ -437,11 +462,19 @@ mod tests {
     #[test]
     fn test_soft_delete_and_restore() {
         let conn = test_db();
-        let id = insert(&conn, &NewTranscript {
-            title: "To Delete".into(),
-            duration_ms: None, language: None, model_id: None,
-            source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
+        let id = insert(
+            &conn,
+            &NewTranscript {
+                title: "To Delete".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
 
         soft_delete(&conn, &id).unwrap();
         assert!(get_by_id(&conn, &id).unwrap().is_none()); // soft-deleted, not returned
@@ -453,20 +486,33 @@ mod tests {
     #[test]
     fn test_update_transcript() {
         let conn = test_db();
-        let id = insert(&conn, &NewTranscript {
-            title: "Original".into(),
-            duration_ms: None, language: None, model_id: None,
-            source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
+        let id = insert(
+            &conn,
+            &NewTranscript {
+                title: "Original".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
 
-        update(&conn, &id, &TranscriptUpdate {
-            title: Some("Updated".into()),
-            language: Some("nl".into()),
-            is_starred: Some(true),
-            folder_id: None,
-            word_count: Some(42),
-            speaker_count: None,
-        }).unwrap();
+        update(
+            &conn,
+            &id,
+            &TranscriptUpdate {
+                title: Some("Updated".into()),
+                language: Some("nl".into()),
+                is_starred: Some(true),
+                folder_id: None,
+                word_count: Some(42),
+                speaker_count: None,
+            },
+        )
+        .unwrap();
 
         let t = get_by_id(&conn, &id).unwrap().unwrap();
         assert_eq!(t.title, "Updated");
@@ -478,20 +524,50 @@ mod tests {
     #[test]
     fn test_list_filtered_starred() {
         let conn = test_db();
-        let id1 = insert(&conn, &NewTranscript {
-            title: "Starred".into(), duration_ms: None, language: None,
-            model_id: None, source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
-        let _id2 = insert(&conn, &NewTranscript {
-            title: "Not starred".into(), duration_ms: None, language: None,
-            model_id: None, source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
-        update(&conn, &id1, &TranscriptUpdate {
-            title: None, language: None, is_starred: Some(true),
-            folder_id: None, word_count: None, speaker_count: None,
-        }).unwrap();
+        let id1 = insert(
+            &conn,
+            &NewTranscript {
+                title: "Starred".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
+        let _id2 = insert(
+            &conn,
+            &NewTranscript {
+                title: "Not starred".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
+        update(
+            &conn,
+            &id1,
+            &TranscriptUpdate {
+                title: None,
+                language: None,
+                is_starred: Some(true),
+                folder_id: None,
+                word_count: None,
+                speaker_count: None,
+            },
+        )
+        .unwrap();
 
-        let filter = ListFilter { is_starred: Some(true), ..Default::default() };
+        let filter = ListFilter {
+            is_starred: Some(true),
+            ..Default::default()
+        };
         let sort = ListSort::default();
         let (rows, total) = list_filtered(&conn, &filter, &sort, 0, 50).unwrap();
         assert_eq!(total, 1);
@@ -502,17 +578,38 @@ mod tests {
     #[test]
     fn test_list_filtered_sort_title_asc() {
         let conn = test_db();
-        insert(&conn, &NewTranscript {
-            title: "Bravo".into(), duration_ms: None, language: None,
-            model_id: None, source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
-        insert(&conn, &NewTranscript {
-            title: "Alpha".into(), duration_ms: None, language: None,
-            model_id: None, source_type: None, source_url: None, audio_path: None,
-        }).unwrap();
+        insert(
+            &conn,
+            &NewTranscript {
+                title: "Bravo".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
+        insert(
+            &conn,
+            &NewTranscript {
+                title: "Alpha".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: None,
+                source_url: None,
+                audio_path: None,
+            },
+        )
+        .unwrap();
 
         let filter = ListFilter::default();
-        let sort = ListSort { field: Some("title".into()), direction: Some("asc".into()) };
+        let sort = ListSort {
+            field: Some("title".into()),
+            direction: Some("asc".into()),
+        };
         let (rows, _) = list_filtered(&conn, &filter, &sort, 0, 50).unwrap();
         assert_eq!(rows[0].title, "Alpha");
         assert_eq!(rows[1].title, "Bravo");

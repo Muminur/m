@@ -9,17 +9,11 @@ use crate::error::{AppError, ImportErrorCode};
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum YtDlpStatus {
     /// Binary found and meets minimum version requirement.
-    Available {
-        version: String,
-        path: String,
-    },
+    Available { version: String, path: String },
     /// Binary not found on this system.
     NotFound,
     /// Binary found but version is below the minimum required.
-    Outdated {
-        version: String,
-        minimum: String,
-    },
+    Outdated { version: String, minimum: String },
 }
 
 /// Minimum yt-dlp version required (year.month.day format).
@@ -76,9 +70,13 @@ impl YtDlpManager {
         };
 
         for name in candidates {
-            if let Ok(output) = Command::new(if cfg!(target_os = "windows") { "where" } else { "which" })
-                .arg(name)
-                .output()
+            if let Ok(output) = Command::new(if cfg!(target_os = "windows") {
+                "where"
+            } else {
+                "which"
+            })
+            .arg(name)
+            .output()
             {
                 if output.status.success() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -104,7 +102,10 @@ impl YtDlpManager {
         // 3. Local app data (Windows)
         if cfg!(target_os = "windows") {
             if let Some(local_app_data) = dirs::data_local_dir() {
-                let win_path = local_app_data.join("Programs").join("yt-dlp").join("yt-dlp.exe");
+                let win_path = local_app_data
+                    .join("Programs")
+                    .join("yt-dlp")
+                    .join("yt-dlp.exe");
                 if win_path.exists() {
                     return Some(win_path);
                 }
@@ -124,13 +125,14 @@ impl YtDlpManager {
 
     /// Run `yt-dlp --version` and return the trimmed version string.
     fn query_version(path: &PathBuf) -> Result<String, AppError> {
-        let output = Command::new(path)
-            .arg("--version")
-            .output()
-            .map_err(|e| AppError::ImportError {
-                code: ImportErrorCode::YtDlpNotFound,
-                message: format!("Failed to run yt-dlp --version: {}", e),
-            })?;
+        let output =
+            Command::new(path)
+                .arg("--version")
+                .output()
+                .map_err(|e| AppError::ImportError {
+                    code: ImportErrorCode::YtDlpNotFound,
+                    message: format!("Failed to run yt-dlp --version: {}", e),
+                })?;
 
         if !output.status.success() {
             return Err(AppError::ImportError {
@@ -197,22 +199,37 @@ mod tests {
 
     #[test]
     fn test_version_meets_minimum_equal() {
-        assert!(YtDlpManager::version_meets_minimum("2023.01.01", "2023.01.01"));
+        assert!(YtDlpManager::version_meets_minimum(
+            "2023.01.01",
+            "2023.01.01"
+        ));
     }
 
     #[test]
     fn test_version_meets_minimum_newer() {
-        assert!(YtDlpManager::version_meets_minimum("2024.06.20", "2023.01.01"));
+        assert!(YtDlpManager::version_meets_minimum(
+            "2024.06.20",
+            "2023.01.01"
+        ));
     }
 
     #[test]
     fn test_version_meets_minimum_older() {
-        assert!(!YtDlpManager::version_meets_minimum("2022.12.31", "2023.01.01"));
+        assert!(!YtDlpManager::version_meets_minimum(
+            "2022.12.31",
+            "2023.01.01"
+        ));
     }
 
     #[test]
     fn test_version_month_boundary() {
-        assert!(YtDlpManager::version_meets_minimum("2023.02.01", "2023.01.15"));
-        assert!(!YtDlpManager::version_meets_minimum("2023.01.01", "2023.02.01"));
+        assert!(YtDlpManager::version_meets_minimum(
+            "2023.02.01",
+            "2023.01.15"
+        ));
+        assert!(!YtDlpManager::version_meets_minimum(
+            "2023.01.01",
+            "2023.02.01"
+        ));
     }
 }

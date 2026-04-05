@@ -1,10 +1,10 @@
+use crate::error::{AppError, AudioErrorCode};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, SampleFormat, StreamConfig};
 use hound::{WavSpec, WavWriter};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use crate::error::{AppError, AudioErrorCode};
 
 /// Maximum recording duration: 4 hours in seconds.
 const MAX_RECORDING_DURATION_SECS: u64 = 4 * 60 * 60;
@@ -207,11 +207,7 @@ impl MicRecorder {
                         let sum: f64 = data.iter().map(|&s| (s as f64).powi(2)).sum();
                         (sum / data.len() as f64).sqrt() as f32
                     };
-                    let db = if rms > 0.0 {
-                        20.0 * rms.log10()
-                    } else {
-                        -60.0
-                    };
+                    let db = if rms > 0.0 { 20.0 * rms.log10() } else { -60.0 };
                     if let Ok(mut level) = level_db_clone.lock() {
                         *level = db.max(-60.0);
                     }

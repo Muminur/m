@@ -4,7 +4,11 @@ pub fn render(segments: &[SegmentRow]) -> String {
     let mut output = String::new();
     for (i, seg) in segments.iter().enumerate() {
         output.push_str(&format!("{}\n", i + 1));
-        output.push_str(&format!("{} --> {}\n", format_srt_time(seg.start_ms), format_srt_time(seg.end_ms)));
+        output.push_str(&format!(
+            "{} --> {}\n",
+            format_srt_time(seg.start_ms),
+            format_srt_time(seg.end_ms)
+        ));
         if let Some(ref speaker) = seg.speaker_id {
             output.push_str(&format!("<v {}>{}</v>\n", speaker, seg.text));
         } else {
@@ -38,8 +42,28 @@ mod tests {
     #[test]
     fn test_render_srt() {
         let segs = vec![
-            SegmentRow { id: "s1".into(), transcript_id: "t1".into(), index_num: 0, start_ms: 0, end_ms: 2500, text: "Hello".into(), speaker_id: None, confidence: None, is_deleted: false },
-            SegmentRow { id: "s2".into(), transcript_id: "t1".into(), index_num: 1, start_ms: 3000, end_ms: 5000, text: "World".into(), speaker_id: None, confidence: None, is_deleted: false },
+            SegmentRow {
+                id: "s1".into(),
+                transcript_id: "t1".into(),
+                index_num: 0,
+                start_ms: 0,
+                end_ms: 2500,
+                text: "Hello".into(),
+                speaker_id: None,
+                confidence: None,
+                is_deleted: false,
+            },
+            SegmentRow {
+                id: "s2".into(),
+                transcript_id: "t1".into(),
+                index_num: 1,
+                start_ms: 3000,
+                end_ms: 5000,
+                text: "World".into(),
+                speaker_id: None,
+                confidence: None,
+                is_deleted: false,
+            },
         ];
         let output = render(&segs);
         assert!(output.contains("1\n00:00:00,000 --> 00:00:02,500\nHello"));

@@ -67,10 +67,7 @@ impl ConfiguredCorrector {
 
         let body = self.build_request_body(text);
 
-        let request = network
-            .client()
-            .post(&self.config.endpoint)
-            .json(&body);
+        let request = network.client().post(&self.config.endpoint).json(&body);
 
         let response = match network.request(request).await {
             Ok(resp) => resp,

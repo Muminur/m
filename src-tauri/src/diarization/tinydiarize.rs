@@ -11,7 +11,7 @@ use tracing::debug;
 
 use crate::error::AppError;
 
-use super::{DiarizedSegment, DiarizationProvider, TranscriptSegment};
+use super::{DiarizationProvider, DiarizedSegment, TranscriptSegment};
 
 /// The literal token whisper.cpp inserts at speaker-change boundaries.
 const SPEAKER_TURN_TOKEN: &str = "[SPEAKER_TURN]";
@@ -36,10 +36,7 @@ impl DiarizationProvider for TinydiarizeProvider {
         "tinydiarize"
     }
 
-    fn diarize(
-        &self,
-        segments: &[TranscriptSegment],
-    ) -> Result<Vec<DiarizedSegment>, AppError> {
+    fn diarize(&self, segments: &[TranscriptSegment]) -> Result<Vec<DiarizedSegment>, AppError> {
         if segments.is_empty() {
             return Ok(Vec::new());
         }
@@ -50,10 +47,7 @@ impl DiarizationProvider for TinydiarizeProvider {
         let mut speaker_labels: HashMap<String, String> = HashMap::new();
         // The current speaker id (stable key).
         let mut current_speaker_id = speaker_id_key(speaker_counter);
-        speaker_labels.insert(
-            current_speaker_id.clone(),
-            speaker_label(speaker_counter),
-        );
+        speaker_labels.insert(current_speaker_id.clone(), speaker_label(speaker_counter));
 
         let mut result = Vec::with_capacity(segments.len());
 
@@ -180,10 +174,7 @@ mod tests {
     #[test]
     fn test_single_speaker_no_turn_tokens() {
         let provider = TinydiarizeProvider::new();
-        let segments = vec![
-            seg(0, "Hello world."),
-            seg(1, "How are you?"),
-        ];
+        let segments = vec![seg(0, "Hello world."), seg(1, "How are you?")];
         let result = provider.diarize(&segments).unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].speaker_id, "speaker_1");
@@ -257,17 +248,17 @@ mod tests {
         ];
         let result = provider.diarize(&segments).unwrap();
         assert!(result.len() >= 2);
-        let respond_seg = result.iter().find(|s| s.text.contains("Then I respond")).unwrap();
+        let respond_seg = result
+            .iter()
+            .find(|s| s.text.contains("Then I respond"))
+            .unwrap();
         assert_eq!(respond_seg.speaker_id, "speaker_2");
     }
 
     #[test]
     fn test_speaker_label_persistence() {
         let provider = TinydiarizeProvider::new();
-        let segments = vec![
-            seg(0, "A [SPEAKER_TURN] B"),
-            seg(1, "C"),
-        ];
+        let segments = vec![seg(0, "A [SPEAKER_TURN] B"), seg(1, "C")];
         let result = provider.diarize(&segments).unwrap();
         // "C" in seg 1 should be speaker_2, same as "B"
         let b_seg = result.iter().find(|s| s.text == "B").unwrap();

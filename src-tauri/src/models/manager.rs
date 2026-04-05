@@ -1,13 +1,13 @@
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::io::Write;
-use tauri::{AppHandle, Emitter, Manager};
-use sha2::{Sha256, Digest};
 use crate::database::Database;
 use crate::error::{AppError, ModelErrorCode, StorageErrorCode};
 use crate::models::registry::ModelInfo;
 use crate::network::guard::NetworkGuard;
+use sha2::{Digest, Sha256};
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub struct ModelManager {
     pub models_dir: PathBuf,
@@ -94,10 +94,11 @@ impl ModelManager {
                 message: format!("Failed to query models: {}", e),
             })?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| AppError::StorageError {
-            code: StorageErrorCode::DatabaseError,
-            message: format!("Failed to collect models: {}", e),
-        })
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::StorageError {
+                code: StorageErrorCode::DatabaseError,
+                message: format!("Failed to collect models: {}", e),
+            })
     }
 
     /// Kick off a fire-and-forget download. Returns immediately; progress via events.
@@ -112,10 +113,13 @@ impl ModelManager {
     ) -> Result<(), AppError> {
         // Guard: only one download at a time
         {
-            let lock = manager.active_download.lock().map_err(|_| AppError::ModelError {
-                code: ModelErrorCode::DownloadFailed,
-                message: "Failed to acquire download lock".into(),
-            })?;
+            let lock = manager
+                .active_download
+                .lock()
+                .map_err(|_| AppError::ModelError {
+                    code: ModelErrorCode::DownloadFailed,
+                    message: "Failed to acquire download lock".into(),
+                })?;
             if lock.is_some() {
                 return Err(AppError::ModelError {
                     code: ModelErrorCode::DownloadFailed,
@@ -141,10 +145,13 @@ impl ModelManager {
 
         let abort_flag = Arc::new(AtomicBool::new(false));
         {
-            let mut lock = manager.active_download.lock().map_err(|_| AppError::ModelError {
-                code: ModelErrorCode::DownloadFailed,
-                message: "Failed to set active download".into(),
-            })?;
+            let mut lock = manager
+                .active_download
+                .lock()
+                .map_err(|_| AppError::ModelError {
+                    code: ModelErrorCode::DownloadFailed,
+                    message: "Failed to set active download".into(),
+                })?;
             *lock = Some((model_id.clone(), Arc::clone(&abort_flag)));
         }
 
@@ -172,7 +179,9 @@ impl ModelManager {
                 Ok(()) => {
                     let _ = app_handle.emit(
                         "model:download-complete",
-                        DownloadCompleteEvent { model_id: model_id_event },
+                        DownloadCompleteEvent {
+                            model_id: model_id_event,
+                        },
                     );
                 }
                 Err(e) => {
@@ -193,10 +202,13 @@ impl ModelManager {
     }
 
     pub fn cancel_download(&self, model_id: &str) -> Result<(), AppError> {
-        let lock = self.active_download.lock().map_err(|_| AppError::ModelError {
-            code: ModelErrorCode::DownloadFailed,
-            message: "Failed to acquire download lock".into(),
-        })?;
+        let lock = self
+            .active_download
+            .lock()
+            .map_err(|_| AppError::ModelError {
+                code: ModelErrorCode::DownloadFailed,
+                message: "Failed to acquire download lock".into(),
+            })?;
         match lock.as_ref() {
             Some((id, flag)) if id == model_id => {
                 flag.store(true, Ordering::Relaxed);
@@ -299,7 +311,9 @@ async fn run_download(
 
     // HTTP Range resume: check existing partial bytes
     let existing_bytes = if partial_path.exists() {
-        std::fs::metadata(&partial_path).map(|m| m.len()).unwrap_or(0)
+        std::fs::metadata(&partial_path)
+            .map(|m| m.len())
+            .unwrap_or(0)
     } else {
         0
     };
@@ -309,7 +323,11 @@ async fn run_download(
     let mut req_builder = client.get(download_url);
     if existing_bytes > 0 {
         req_builder = req_builder.header("Range", format!("bytes={}-", existing_bytes));
-        tracing::info!("Resuming download of '{}' from byte {}", model_id, existing_bytes);
+        tracing::info!(
+            "Resuming download of '{}' from byte {}",
+            model_id,
+            existing_bytes
+        );
     }
 
     let response = guard.request(req_builder).await?;
@@ -506,7 +524,10 @@ mod tests {
         let result = m.cancel_download("tiny");
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::ModelError { code: ModelErrorCode::NotFound, .. } => {}
+            AppError::ModelError {
+                code: ModelErrorCode::NotFound,
+                ..
+            } => {}
             other => panic!("Expected NotFound, got {:?}", other),
         }
     }

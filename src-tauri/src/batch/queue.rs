@@ -1,10 +1,10 @@
-use std::sync::{Arc, Mutex};
+use crate::database::Database;
+use crate::error::{AppError, BatchErrorCode};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
 use uuid::Uuid;
-use crate::database::Database;
-use crate::error::{AppError, BatchErrorCode};
 
 // ─── Status enums ─────────────────────────────────────────────────────────────
 
@@ -196,7 +196,13 @@ impl BatchQueue {
 
         // Register control slot
         if let Ok(mut ctrl) = self.controls.lock() {
-            ctrl.insert(job_id.clone(), JobControl { paused: false, cancelled: false });
+            ctrl.insert(
+                job_id.clone(),
+                JobControl {
+                    paused: false,
+                    cancelled: false,
+                },
+            );
         }
 
         Ok(BatchJob {
@@ -233,7 +239,10 @@ impl BatchQueue {
 
         // Ensure control slot is present and not cancelled
         if let Ok(mut ctrl) = self.controls.lock() {
-            let entry = ctrl.entry(job_id.to_string()).or_insert(JobControl { paused: false, cancelled: false });
+            let entry = ctrl.entry(job_id.to_string()).or_insert(JobControl {
+                paused: false,
+                cancelled: false,
+            });
             entry.paused = false;
             // preserve cancelled flag — if already cancelled don't re-run
             if entry.cancelled {
@@ -249,7 +258,10 @@ impl BatchQueue {
 
         // Spawn the orchestrator on the Tauri async runtime
         tauri::async_runtime::spawn(async move {
-            if let Err(e) = queue.run_job(&job_id_owned, job.concurrency, app_handle).await {
+            if let Err(e) = queue
+                .run_job(&job_id_owned, job.concurrency, app_handle)
+                .await
+            {
                 tracing::error!("Batch job {} failed: {}", job_id_owned, e);
             }
         });
@@ -273,7 +285,8 @@ impl BatchQueue {
         let mut handles = Vec::new();
 
         for item in items {
-            if item.status == BatchItemStatus::Completed || item.status == BatchItemStatus::Skipped {
+            if item.status == BatchItemStatus::Completed || item.status == BatchItemStatus::Skipped
+            {
                 completed_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 continue;
             }
@@ -298,10 +311,14 @@ impl BatchQueue {
                 break;
             }
 
-            let permit = Arc::clone(&semaphore).acquire_owned().await.map_err(|_| AppError::BatchError {
-                code: BatchErrorCode::ConcurrencyLimit,
-                message: "Semaphore closed".into(),
-            })?;
+            let permit =
+                Arc::clone(&semaphore)
+                    .acquire_owned()
+                    .await
+                    .map_err(|_| AppError::BatchError {
+                        code: BatchErrorCode::ConcurrencyLimit,
+                        message: "Semaphore closed".into(),
+                    })?;
 
             let queue = Arc::clone(self);
             let item_clone = item.clone();
@@ -313,43 +330,59 @@ impl BatchQueue {
                 let _permit = permit; // Released when this task completes
 
                 // Mark as Processing
-                let _ = queue.set_item_status(&item_clone.id, BatchItemStatus::Processing, None, 0.0);
+                let _ =
+                    queue.set_item_status(&item_clone.id, BatchItemStatus::Processing, None, 0.0);
 
                 // Emit progress start
                 let done = completed_clone.load(std::sync::atomic::Ordering::Relaxed);
-                let _ = app_clone.emit("batch:progress", BatchProgressEvent {
-                    job_id: job_id_clone.clone(),
-                    item_id: item_clone.id.clone(),
-                    progress: 0.0,
-                    completed: done,
-                    total,
-                });
+                let _ = app_clone.emit(
+                    "batch:progress",
+                    BatchProgressEvent {
+                        job_id: job_id_clone.clone(),
+                        item_id: item_clone.id.clone(),
+                        progress: 0.0,
+                        completed: done,
+                        total,
+                    },
+                );
 
                 // Simulate processing — real integration would call TranscriptionManager here.
                 // We mark Processing→Completed immediately; callers wire the real pipeline.
                 // This stub ensures the state machine and events are correct.
-                let (final_status, transcript_id, err_msg) =
-                    queue.process_item(&item_clone, &job_id_clone, &app_clone).await;
+                let (final_status, transcript_id, err_msg) = queue
+                    .process_item(&item_clone, &job_id_clone, &app_clone)
+                    .await;
 
-                let _ = queue.set_item_status(&item_clone.id, final_status.clone(), err_msg.clone(), 1.0);
+                let _ = queue.set_item_status(
+                    &item_clone.id,
+                    final_status.clone(),
+                    err_msg.clone(),
+                    1.0,
+                );
 
                 let done = completed_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
 
-                let _ = app_clone.emit("batch:item-complete", BatchItemCompleteEvent {
-                    job_id: job_id_clone.clone(),
-                    item_id: item_clone.id.clone(),
-                    transcript_id: transcript_id.clone(),
-                    status: final_status,
-                    error: err_msg,
-                });
+                let _ = app_clone.emit(
+                    "batch:item-complete",
+                    BatchItemCompleteEvent {
+                        job_id: job_id_clone.clone(),
+                        item_id: item_clone.id.clone(),
+                        transcript_id: transcript_id.clone(),
+                        status: final_status,
+                        error: err_msg,
+                    },
+                );
 
-                let _ = app_clone.emit("batch:progress", BatchProgressEvent {
-                    job_id: job_id_clone.clone(),
-                    item_id: item_clone.id.clone(),
-                    progress: 1.0,
-                    completed: done,
-                    total,
-                });
+                let _ = app_clone.emit(
+                    "batch:progress",
+                    BatchProgressEvent {
+                        job_id: job_id_clone.clone(),
+                        item_id: item_clone.id.clone(),
+                        progress: 1.0,
+                        completed: done,
+                        total,
+                    },
+                );
             });
 
             handles.push(handle);
@@ -365,9 +398,18 @@ impl BatchQueue {
             BatchJobStatus::Cancelled
         } else {
             let items = self.get_job_items(job_id)?;
-            let failed = items.iter().filter(|i| i.status == BatchItemStatus::Failed).count();
-            let done = items.iter().filter(|i| i.status == BatchItemStatus::Completed).count();
-            let skipped = items.iter().filter(|i| i.status == BatchItemStatus::Skipped).count();
+            let failed = items
+                .iter()
+                .filter(|i| i.status == BatchItemStatus::Failed)
+                .count();
+            let done = items
+                .iter()
+                .filter(|i| i.status == BatchItemStatus::Completed)
+                .count();
+            let skipped = items
+                .iter()
+                .filter(|i| i.status == BatchItemStatus::Skipped)
+                .count();
 
             if failed == 0 {
                 BatchJobStatus::Completed
@@ -381,16 +423,25 @@ impl BatchQueue {
         self.set_job_status(job_id, final_status.clone())?;
 
         let items = self.get_job_items(job_id)?;
-        let failed = items.iter().filter(|i| i.status == BatchItemStatus::Failed).count();
-        let done = items.iter().filter(|i| i.status == BatchItemStatus::Completed).count();
+        let failed = items
+            .iter()
+            .filter(|i| i.status == BatchItemStatus::Failed)
+            .count();
+        let done = items
+            .iter()
+            .filter(|i| i.status == BatchItemStatus::Completed)
+            .count();
 
-        let _ = app_handle.emit("batch:job-complete", BatchJobCompleteEvent {
-            job_id: job_id.to_string(),
-            status: final_status,
-            completed: done,
-            failed,
-            total,
-        });
+        let _ = app_handle.emit(
+            "batch:job-complete",
+            BatchJobCompleteEvent {
+                job_id: job_id.to_string(),
+                status: final_status,
+                completed: done,
+                failed,
+                total,
+            },
+        );
 
         Ok(())
     }
@@ -423,7 +474,10 @@ impl BatchQueue {
         if job.status != BatchJobStatus::Running {
             return Err(AppError::BatchError {
                 code: BatchErrorCode::InvalidState,
-                message: format!("Job must be Running to pause; current state: {:?}", job.status),
+                message: format!(
+                    "Job must be Running to pause; current state: {:?}",
+                    job.status
+                ),
             });
         }
         if let Ok(mut ctrl) = self.controls.lock() {
@@ -436,12 +490,19 @@ impl BatchQueue {
 
     // ─── Resume ───────────────────────────────────────────────────────────────
 
-    pub fn resume_job(self: &Arc<Self>, job_id: &str, app_handle: AppHandle) -> Result<(), AppError> {
+    pub fn resume_job(
+        self: &Arc<Self>,
+        job_id: &str,
+        app_handle: AppHandle,
+    ) -> Result<(), AppError> {
         let job = self.get_job(job_id)?;
         if job.status != BatchJobStatus::Paused {
             return Err(AppError::BatchError {
                 code: BatchErrorCode::InvalidState,
-                message: format!("Job must be Paused to resume; current state: {:?}", job.status),
+                message: format!(
+                    "Job must be Paused to resume; current state: {:?}",
+                    job.status
+                ),
             });
         }
         if let Ok(mut ctrl) = self.controls.lock() {
@@ -459,7 +520,10 @@ impl BatchQueue {
         self.get_job(job_id)?;
 
         if let Ok(mut ctrl) = self.controls.lock() {
-            let entry = ctrl.entry(job_id.to_string()).or_insert(JobControl { paused: false, cancelled: false });
+            let entry = ctrl.entry(job_id.to_string()).or_insert(JobControl {
+                paused: false,
+                cancelled: false,
+            });
             entry.cancelled = true;
             entry.paused = false; // unblock any paused spin-wait
         }
@@ -625,8 +689,8 @@ impl BatchQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::Connection;
     use crate::database::migrations;
+    use rusqlite::Connection;
 
     fn make_queue() -> Arc<BatchQueue> {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -658,7 +722,11 @@ mod tests {
     #[test]
     fn test_items_added_to_db() {
         let q = make_queue();
-        let files = vec!["x.mp3".to_string(), "y.mp3".to_string(), "z.mp3".to_string()];
+        let files = vec![
+            "x.mp3".to_string(),
+            "y.mp3".to_string(),
+            "z.mp3".to_string(),
+        ];
         let job = q.create_job(files, 1).unwrap();
         let items = q.get_job_items(&job.id).unwrap();
         assert_eq!(items.len(), 3);
@@ -678,7 +746,13 @@ mod tests {
     fn test_get_job_not_found() {
         let q = make_queue();
         let err = q.get_job("nonexistent-id").unwrap_err();
-        assert!(matches!(err, AppError::BatchError { code: BatchErrorCode::JobNotFound, .. }));
+        assert!(matches!(
+            err,
+            AppError::BatchError {
+                code: BatchErrorCode::JobNotFound,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -710,7 +784,13 @@ mod tests {
         let job = q.create_job(vec![], 1).unwrap();
         // Job is Pending — pause must fail
         let err = q.pause_job(&job.id).unwrap_err();
-        assert!(matches!(err, AppError::BatchError { code: BatchErrorCode::InvalidState, .. }));
+        assert!(matches!(
+            err,
+            AppError::BatchError {
+                code: BatchErrorCode::InvalidState,
+                ..
+            }
+        ));
     }
 
     #[test]

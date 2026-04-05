@@ -95,7 +95,8 @@ pub struct RecordingManager {
 }
 
 fn lock(m: &Mutex<RecordingManagerInner>) -> std::sync::MutexGuard<'_, RecordingManagerInner> {
-    m.lock().expect("RecordingManager mutex poisoned — audio subsystem in inconsistent state")
+    m.lock()
+        .expect("RecordingManager mutex poisoned — audio subsystem in inconsistent state")
 }
 
 impl RecordingManager {
@@ -203,7 +204,8 @@ impl RecordingManager {
         // Phase 1: Atomically check status, set to Stopping, and take ownership of state
         let (active, source, device_id, rec_id) = {
             let mut inner = lock(&self.inner);
-            if inner.status != RecordingStatus::Recording && inner.status != RecordingStatus::Paused {
+            if inner.status != RecordingStatus::Recording && inner.status != RecordingStatus::Paused
+            {
                 return Err(AppError::AudioError {
                     code: AudioErrorCode::CaptureFailure,
                     message: "Not recording".into(),
@@ -233,7 +235,13 @@ impl RecordingManager {
                 let sr = recorder.sample_rate();
                 let ch = recorder.channels();
                 let path = recorder.stop()?;
-                (path.to_string_lossy().to_string(), None, dur, sr as i64, ch as i64)
+                (
+                    path.to_string_lossy().to_string(),
+                    None,
+                    dur,
+                    sr as i64,
+                    ch as i64,
+                )
             }
             #[cfg(target_os = "windows")]
             Some(ActiveRecording::System(capture)) => {
@@ -241,7 +249,13 @@ impl RecordingManager {
                 let sr = capture.sample_rate();
                 let ch = capture.channels();
                 let path = capture.stop()?;
-                (path.to_string_lossy().to_string(), None, dur, sr as i64, ch as i64)
+                (
+                    path.to_string_lossy().to_string(),
+                    None,
+                    dur,
+                    sr as i64,
+                    ch as i64,
+                )
             }
             Some(ActiveRecording::Combined(combined)) => {
                 let dur = combined.duration_ms();
@@ -249,7 +263,13 @@ impl RecordingManager {
                 let ch = combined.mic_channels();
                 let (mic_path, sys_path) = combined.stop()?;
                 let sys_str = sys_path.map(|p| p.to_string_lossy().to_string());
-                (mic_path.to_string_lossy().to_string(), sys_str, dur, sr as i64, ch as i64)
+                (
+                    mic_path.to_string_lossy().to_string(),
+                    sys_str,
+                    dur,
+                    sr as i64,
+                    ch as i64,
+                )
             }
             None => {
                 lock(&self.inner).status = RecordingStatus::Idle;

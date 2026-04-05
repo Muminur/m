@@ -174,10 +174,13 @@ impl<'a> TranslationProvider for DeepLProvider<'a> {
         }
 
         let body: DeepLResponse =
-            response.json().await.map_err(|e| AppError::IntegrationError {
-                code: IntegrationErrorCode::ApiError,
-                message: format!("Failed to parse DeepL response: {}", e),
-            })?;
+            response
+                .json()
+                .await
+                .map_err(|e| AppError::IntegrationError {
+                    code: IntegrationErrorCode::ApiError,
+                    message: format!("Failed to parse DeepL response: {}", e),
+                })?;
 
         body.translations
             .into_iter()
@@ -269,10 +272,7 @@ impl TranslationManager {
             });
         }
 
-        let source = cfg
-            .source_language
-            .clone()
-            .unwrap_or_default();
+        let source = cfg.source_language.clone().unwrap_or_default();
 
         let translated = match cfg.provider {
             TranslationProviderKind::DeepL => {
@@ -341,35 +341,122 @@ impl Default for TranslationManager {
 /// Official DeepL supported target languages.
 pub fn deepl_supported_languages() -> Vec<SupportedLanguage> {
     vec![
-        SupportedLanguage { code: "BG".into(), name: "Bulgarian".into() },
-        SupportedLanguage { code: "CS".into(), name: "Czech".into() },
-        SupportedLanguage { code: "DA".into(), name: "Danish".into() },
-        SupportedLanguage { code: "DE".into(), name: "German".into() },
-        SupportedLanguage { code: "EL".into(), name: "Greek".into() },
-        SupportedLanguage { code: "EN".into(), name: "English".into() },
-        SupportedLanguage { code: "ES".into(), name: "Spanish".into() },
-        SupportedLanguage { code: "ET".into(), name: "Estonian".into() },
-        SupportedLanguage { code: "FI".into(), name: "Finnish".into() },
-        SupportedLanguage { code: "FR".into(), name: "French".into() },
-        SupportedLanguage { code: "HU".into(), name: "Hungarian".into() },
-        SupportedLanguage { code: "ID".into(), name: "Indonesian".into() },
-        SupportedLanguage { code: "IT".into(), name: "Italian".into() },
-        SupportedLanguage { code: "JA".into(), name: "Japanese".into() },
-        SupportedLanguage { code: "KO".into(), name: "Korean".into() },
-        SupportedLanguage { code: "LT".into(), name: "Lithuanian".into() },
-        SupportedLanguage { code: "LV".into(), name: "Latvian".into() },
-        SupportedLanguage { code: "NB".into(), name: "Norwegian".into() },
-        SupportedLanguage { code: "NL".into(), name: "Dutch".into() },
-        SupportedLanguage { code: "PL".into(), name: "Polish".into() },
-        SupportedLanguage { code: "PT".into(), name: "Portuguese".into() },
-        SupportedLanguage { code: "RO".into(), name: "Romanian".into() },
-        SupportedLanguage { code: "RU".into(), name: "Russian".into() },
-        SupportedLanguage { code: "SK".into(), name: "Slovak".into() },
-        SupportedLanguage { code: "SL".into(), name: "Slovenian".into() },
-        SupportedLanguage { code: "SV".into(), name: "Swedish".into() },
-        SupportedLanguage { code: "TR".into(), name: "Turkish".into() },
-        SupportedLanguage { code: "UK".into(), name: "Ukrainian".into() },
-        SupportedLanguage { code: "ZH".into(), name: "Chinese".into() },
+        SupportedLanguage {
+            code: "BG".into(),
+            name: "Bulgarian".into(),
+        },
+        SupportedLanguage {
+            code: "CS".into(),
+            name: "Czech".into(),
+        },
+        SupportedLanguage {
+            code: "DA".into(),
+            name: "Danish".into(),
+        },
+        SupportedLanguage {
+            code: "DE".into(),
+            name: "German".into(),
+        },
+        SupportedLanguage {
+            code: "EL".into(),
+            name: "Greek".into(),
+        },
+        SupportedLanguage {
+            code: "EN".into(),
+            name: "English".into(),
+        },
+        SupportedLanguage {
+            code: "ES".into(),
+            name: "Spanish".into(),
+        },
+        SupportedLanguage {
+            code: "ET".into(),
+            name: "Estonian".into(),
+        },
+        SupportedLanguage {
+            code: "FI".into(),
+            name: "Finnish".into(),
+        },
+        SupportedLanguage {
+            code: "FR".into(),
+            name: "French".into(),
+        },
+        SupportedLanguage {
+            code: "HU".into(),
+            name: "Hungarian".into(),
+        },
+        SupportedLanguage {
+            code: "ID".into(),
+            name: "Indonesian".into(),
+        },
+        SupportedLanguage {
+            code: "IT".into(),
+            name: "Italian".into(),
+        },
+        SupportedLanguage {
+            code: "JA".into(),
+            name: "Japanese".into(),
+        },
+        SupportedLanguage {
+            code: "KO".into(),
+            name: "Korean".into(),
+        },
+        SupportedLanguage {
+            code: "LT".into(),
+            name: "Lithuanian".into(),
+        },
+        SupportedLanguage {
+            code: "LV".into(),
+            name: "Latvian".into(),
+        },
+        SupportedLanguage {
+            code: "NB".into(),
+            name: "Norwegian".into(),
+        },
+        SupportedLanguage {
+            code: "NL".into(),
+            name: "Dutch".into(),
+        },
+        SupportedLanguage {
+            code: "PL".into(),
+            name: "Polish".into(),
+        },
+        SupportedLanguage {
+            code: "PT".into(),
+            name: "Portuguese".into(),
+        },
+        SupportedLanguage {
+            code: "RO".into(),
+            name: "Romanian".into(),
+        },
+        SupportedLanguage {
+            code: "RU".into(),
+            name: "Russian".into(),
+        },
+        SupportedLanguage {
+            code: "SK".into(),
+            name: "Slovak".into(),
+        },
+        SupportedLanguage {
+            code: "SL".into(),
+            name: "Slovenian".into(),
+        },
+        SupportedLanguage {
+            code: "SV".into(),
+            name: "Swedish".into(),
+        },
+        SupportedLanguage {
+            code: "TR".into(),
+            name: "Turkish".into(),
+        },
+        SupportedLanguage {
+            code: "UK".into(),
+            name: "Ukrainian".into(),
+        },
+        SupportedLanguage {
+            code: "ZH".into(),
+            name: "Chinese".into(),
+        },
     ]
 }
 

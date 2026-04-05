@@ -35,10 +35,7 @@ impl FillerWordRemover {
     /// Create a new remover with the supplied word list.
     /// Phrases are normalised to lower-case and sorted longest-first.
     pub fn new(word_list: Vec<String>) -> Self {
-        let mut list: Vec<String> = word_list
-            .into_iter()
-            .map(|w| w.to_lowercase())
-            .collect();
+        let mut list: Vec<String> = word_list.into_iter().map(|w| w.to_lowercase()).collect();
         // Sort by descending length so multi-word phrases take priority.
         list.sort_by(|a, b| b.len().cmp(&a.len()));
         Self { word_list: list }
@@ -125,8 +122,8 @@ impl FillerWordRemover {
             {
                 let before_ok = i == 0 || !is_word_char(text_bytes[i - 1] as char);
                 let after_idx = i + filler_len;
-                let after_ok = after_idx >= text.len()
-                    || !is_word_char(text_bytes[after_idx] as char);
+                let after_ok =
+                    after_idx >= text.len() || !is_word_char(text_bytes[after_idx] as char);
 
                 if before_ok && after_ok {
                     // Skip the filler; also eat a trailing comma/space combo
@@ -234,8 +231,16 @@ mod tests {
         // "like" should be removed but "likely" must stay intact.
         let input = "I like, like, think it is likely.";
         let output = r.remove(input);
-        assert!(output.contains("likely"), "likely was incorrectly stripped: {}", output);
-        assert!(!output.to_lowercase().starts_with("like"), "standalone like not stripped: {}", output);
+        assert!(
+            output.contains("likely"),
+            "likely was incorrectly stripped: {}",
+            output
+        );
+        assert!(
+            !output.to_lowercase().starts_with("like"),
+            "standalone like not stripped: {}",
+            output
+        );
     }
 
     #[test]
@@ -253,7 +258,11 @@ mod tests {
         let input = "Well, it works.";
         let output = r.remove(input);
         assert!(
-            output.chars().next().map(|c| c.is_uppercase()).unwrap_or(false),
+            output
+                .chars()
+                .next()
+                .map(|c| c.is_uppercase())
+                .unwrap_or(false),
             "First char should be uppercase: {}",
             output
         );
@@ -293,14 +302,21 @@ mod tests {
     fn test_like_not_in_unlikely() {
         let r = default_remover();
         let output = r.remove("That is unlikely.");
-        assert!(output.contains("unlikely"), "unlikely was incorrectly modified: {}", output);
+        assert!(
+            output.contains("unlikely"),
+            "unlikely was incorrectly modified: {}",
+            output
+        );
     }
 
     #[test]
     fn test_filler_config_default_serializes_camel_case() {
         let config = FillerConfig::default();
         let json = serde_json::to_value(&config).unwrap();
-        assert!(json.get("wordList").is_some(), "expected camelCase wordList");
+        assert!(
+            json.get("wordList").is_some(),
+            "expected camelCase wordList"
+        );
         assert!(json.get("enabled").is_some(), "expected enabled field");
         assert_eq!(json["enabled"], true);
     }
@@ -310,7 +326,15 @@ mod tests {
         let r = default_remover();
         let input = "It is, you know, really good.";
         let output = r.remove(input);
-        assert!(!output.to_lowercase().contains("you know"), "multi-word filler not removed: {}", output);
-        assert!(output.to_lowercase().contains("really good"), "content was incorrectly removed: {}", output);
+        assert!(
+            !output.to_lowercase().contains("you know"),
+            "multi-word filler not removed: {}",
+            output
+        );
+        assert!(
+            output.to_lowercase().contains("really good"),
+            "content was incorrectly removed: {}",
+            output
+        );
     }
 }

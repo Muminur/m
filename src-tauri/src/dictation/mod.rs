@@ -48,7 +48,10 @@ impl DictationManager {
     /// Detect double-tap: returns true if two triggers arrive within `threshold_ms`.
     /// Call this each time the hotkey is pressed.
     pub fn detect_double_tap(&self, now_ms: u64, threshold_ms: u64) -> bool {
-        let mut guard = self.last_trigger_ms.lock().expect("last_trigger lock poisoned");
+        let mut guard = self
+            .last_trigger_ms
+            .lock()
+            .expect("last_trigger lock poisoned");
         if let Some(prev) = *guard {
             let delta = now_ms.saturating_sub(prev);
             if delta <= threshold_ms {

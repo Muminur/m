@@ -1,5 +1,5 @@
-use std::path::Path;
 use crate::error::{AppError, AudioErrorCode};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct DecodedAudio {
@@ -35,7 +35,9 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, AppError> {
             code: AudioErrorCode::UnsupportedFormat,
             message: format!(
                 "Unsupported audio format: {:?}. Supported: mp3, wav, m4a, flac, ogg",
-                path.extension().and_then(|e| e.to_str()).unwrap_or("unknown")
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("unknown")
             ),
         });
     }
@@ -53,7 +55,12 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, AppError> {
     }
 
     let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map_err(|e| AppError::AudioError {
             code: AudioErrorCode::DecodeFailure,
             message: format!("Failed to probe audio format: {}", e),
@@ -73,7 +80,11 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, AppError> {
 
     let track_id = track.id;
     let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
-    let channels = track.codec_params.channels.map(|c| c.count() as u16).unwrap_or(1);
+    let channels = track
+        .codec_params
+        .channels
+        .map(|c| c.count() as u16)
+        .unwrap_or(1);
 
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
@@ -132,10 +143,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, AppError> {
     if duration_ms < 100 {
         return Err(AppError::AudioError {
             code: AudioErrorCode::InvalidAudioFormat,
-            message: format!(
-                "Audio too short ({}ms). Minimum is 100ms.",
-                duration_ms
-            ),
+            message: format!("Audio too short ({}ms). Minimum is 100ms.", duration_ms),
         });
     }
 

@@ -1,6 +1,6 @@
+use crate::error::{AppError, StorageErrorCode};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use crate::error::{AppError, StorageErrorCode};
 
 /// A single dictation history entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -238,9 +238,16 @@ mod tests {
         DictationHistory::add_entry(&conn, "final entry", None).unwrap();
 
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM dictation_history", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM dictation_history", [], |row| {
+                row.get(0)
+            })
             .unwrap();
-        assert!(count <= MAX_HISTORY_ENTRIES as i64, "Expected <= {} entries, got {}", MAX_HISTORY_ENTRIES, count);
+        assert!(
+            count <= MAX_HISTORY_ENTRIES as i64,
+            "Expected <= {} entries, got {}",
+            MAX_HISTORY_ENTRIES,
+            count
+        );
     }
 
     #[test]
