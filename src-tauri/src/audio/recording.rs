@@ -71,37 +71,43 @@ enum ActiveRecording {
     Combined(crate::audio::combined::CombinedCapture),
 }
 
-// Safety: RecordingManager protects all access to ActiveRecording through
-// std::sync::Mutex. cpal::Stream is !Send because platform audio backends
-// (WASAPI/COM on Windows, CoreAudio on macOS) may use thread-local state.
-// In practice, Tauri command handlers run on a tokio thread pool and the
-// Mutex ensures exclusive access. cpal internally initializes COM per-thread
-// on Windows. The stream callbacks run on cpal's own audio thread, not
-// through the Mutex. We only call play()/pause() and drop through the Mutex,
-// which are safe across threads in cpal's WASAPI backend.
+struct RecordingManagerInner {
+    status: RecordingStatus,
+    active: Option<ActiveRecording>,
+    recording_id: Option<String>,
+    source: AudioSource,
+    device_id: Option<String>,
+}
+
+// Safety: RecordingManager protects all access to RecordingManagerInner through
+// a single std::sync::Mutex, ensuring atomic state transitions. cpal::Stream
+// is !Send because platform audio backends (WASAPI/COM on Windows, CoreAudio
+// on macOS) may use thread-local state. In practice, Tauri command handlers run
+// on a tokio thread pool and the Mutex ensures exclusive access. cpal internally
+// initializes COM per-thread on Windows. The stream callbacks run on cpal's own
+// audio thread, not through the Mutex. We only call play()/pause() and drop
+// through the Mutex, which are safe across threads in cpal's WASAPI backend.
 unsafe impl Send for RecordingManager {}
 unsafe impl Sync for RecordingManager {}
 
 pub struct RecordingManager {
-    status: Mutex<RecordingStatus>,
-    active: Mutex<Option<ActiveRecording>>,
-    recording_id: Mutex<Option<String>>,
-    source: Mutex<AudioSource>,
-    device_id: Mutex<Option<String>>,
+    inner: Mutex<RecordingManagerInner>,
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+fn lock(m: &Mutex<RecordingManagerInner>) -> std::sync::MutexGuard<'_, RecordingManagerInner> {
     m.lock().expect("RecordingManager mutex poisoned — audio subsystem in inconsistent state")
 }
 
 impl RecordingManager {
     pub fn new() -> Self {
         Self {
-            status: Mutex::new(RecordingStatus::Idle),
-            active: Mutex::new(None),
-            recording_id: Mutex::new(None),
-            source: Mutex::new(AudioSource::Microphone),
-            device_id: Mutex::new(None),
+            inner: Mutex::new(RecordingManagerInner {
+                status: RecordingStatus::Idle,
+                active: None,
+                recording_id: None,
+                source: AudioSource::Microphone,
+                device_id: None,
+            }),
         }
     }
 
@@ -111,17 +117,23 @@ impl RecordingManager {
         source: AudioSource,
         device_id: Option<String>,
     ) -> Result<String, AppError> {
-        {
-            let status = lock(&self.status);
-            if *status != RecordingStatus::Idle {
+        let rec_id = {
+            let mut inner = lock(&self.inner);
+            if inner.status != RecordingStatus::Idle {
                 return Err(AppError::AudioError {
                     code: AudioErrorCode::CaptureFailure,
                     message: "Already recording".into(),
                 });
             }
-        }
+            // Atomically claim the Recording state to prevent double-start
+            let rid = Uuid::new_v4().to_string();
+            inner.status = RecordingStatus::Recording;
+            inner.recording_id = Some(rid.clone());
+            inner.source = source.clone();
+            inner.device_id = device_id.clone();
+            rid
+        };
 
-        let rec_id = Uuid::new_v4().to_string();
         let recordings_dir = app
             .path()
             .app_data_dir()
@@ -151,6 +163,10 @@ impl RecordingManager {
             }
             #[cfg(not(target_os = "windows"))]
             AudioSource::System => {
+                // Reset state before returning error
+                let mut inner = lock(&self.inner);
+                inner.status = RecordingStatus::Idle;
+                inner.recording_id = None;
                 return Err(AppError::AudioError {
                     code: AudioErrorCode::CaptureFailure,
                     message: "System audio capture not supported on this platform".into(),
@@ -169,12 +185,8 @@ impl RecordingManager {
             }
         };
 
-        // Update state atomically — each lock acquired and released independently
-        *lock(&self.active) = Some(active);
-        *lock(&self.recording_id) = Some(rec_id.clone());
-        *lock(&self.source) = source;
-        *lock(&self.device_id) = device_id;
-        *lock(&self.status) = RecordingStatus::Recording;
+        // Store the active recording
+        lock(&self.inner).active = Some(active);
 
         let _ = app.emit(
             "recording:status",
@@ -188,40 +200,40 @@ impl RecordingManager {
     }
 
     pub fn stop(&self, app: &AppHandle) -> Result<String, AppError> {
-        // Phase 1: Check and set status to Stopping (short lock scope)
-        {
-            let mut status = lock(&self.status);
-            if *status != RecordingStatus::Recording && *status != RecordingStatus::Paused {
+        // Phase 1: Atomically check status, set to Stopping, and take ownership of state
+        let (active, source, device_id, rec_id) = {
+            let mut inner = lock(&self.inner);
+            if inner.status != RecordingStatus::Recording && inner.status != RecordingStatus::Paused {
                 return Err(AppError::AudioError {
                     code: AudioErrorCode::CaptureFailure,
                     message: "Not recording".into(),
                 });
             }
-            *status = RecordingStatus::Stopping;
-        }
+            inner.status = RecordingStatus::Stopping;
+            (
+                inner.active.take(),
+                inner.source.clone(),
+                inner.device_id.clone(),
+                inner.recording_id.take().unwrap_or_default(),
+            )
+        };
 
-        let rid = lock(&self.recording_id).clone();
         let _ = app.emit(
             "recording:status",
             RecordingStatusEvent {
                 status: RecordingStatus::Stopping,
-                recording_id: rid,
+                recording_id: Some(rec_id.clone()),
             },
         );
 
-        // Phase 2: Take ownership of active recording (short lock), then do I/O outside lock
-        let active = lock(&self.active).take();
-        let source = lock(&self.source).clone();
-        let device_id = lock(&self.device_id).clone();
-
-        // Phase 3: Stop recording and finalize WAV — NO locks held during I/O
-        let (audio_path, duration_ms, sample_rate, channels) = match active {
+        // Phase 2: Stop recording and finalize WAV — NO locks held during I/O
+        let (audio_path, system_audio_path, duration_ms, sample_rate, channels) = match active {
             Some(ActiveRecording::Mic(recorder)) => {
                 let dur = recorder.duration_ms();
                 let sr = recorder.sample_rate();
                 let ch = recorder.channels();
                 let path = recorder.stop()?;
-                (path.to_string_lossy().to_string(), dur, sr as i64, ch as i64)
+                (path.to_string_lossy().to_string(), None, dur, sr as i64, ch as i64)
             }
             #[cfg(target_os = "windows")]
             Some(ActiveRecording::System(capture)) => {
@@ -229,18 +241,18 @@ impl RecordingManager {
                 let sr = capture.sample_rate();
                 let ch = capture.channels();
                 let path = capture.stop()?;
-                (path.to_string_lossy().to_string(), dur, sr as i64, ch as i64)
+                (path.to_string_lossy().to_string(), None, dur, sr as i64, ch as i64)
             }
             Some(ActiveRecording::Combined(combined)) => {
                 let dur = combined.duration_ms();
                 let sr = combined.mic_sample_rate();
                 let ch = combined.mic_channels();
-                let (mic_path, _sys_path) = combined.stop()?;
-                (mic_path.to_string_lossy().to_string(), dur, sr as i64, ch as i64)
+                let (mic_path, sys_path) = combined.stop()?;
+                let sys_str = sys_path.map(|p| p.to_string_lossy().to_string());
+                (mic_path.to_string_lossy().to_string(), sys_str, dur, sr as i64, ch as i64)
             }
             None => {
-                // Restore idle status since we have no recording
-                *lock(&self.status) = RecordingStatus::Idle;
+                lock(&self.inner).status = RecordingStatus::Idle;
                 return Err(AppError::AudioError {
                     code: AudioErrorCode::CaptureFailure,
                     message: "No active recording".into(),
@@ -248,19 +260,19 @@ impl RecordingManager {
             }
         };
 
-        // Phase 4: Save to database — reset to Idle regardless of success/failure
+        // Phase 3: Save to database — reset to Idle regardless of success/failure
         let db_result = (|| -> Result<(), AppError> {
             let db = app.state::<Arc<Database>>();
             let conn = db.get()?;
 
-            let rec_id = lock(&self.recording_id).take().unwrap_or_default();
-
             database::recordings::insert(
                 &conn,
+                &rec_id,
                 source.as_db_str(),
                 device_id.as_deref(),
                 None,
                 &audio_path,
+                system_audio_path.as_deref(),
                 duration_ms as i64,
                 sample_rate,
                 channels,
@@ -283,12 +295,11 @@ impl RecordingManager {
                 },
             )?;
 
-            drop(rec_id);
             Ok(())
         })();
 
-        // Phase 5: Always reset to Idle — even if DB failed, audio is already saved to disk
-        *lock(&self.status) = RecordingStatus::Idle;
+        // Phase 4: Always reset to Idle — even if DB failed, audio is already saved to disk
+        lock(&self.inner).status = RecordingStatus::Idle;
         let _ = app.emit(
             "recording:status",
             RecordingStatusEvent {
@@ -302,29 +313,27 @@ impl RecordingManager {
     }
 
     pub fn pause(&self, app: &AppHandle) -> Result<(), AppError> {
-        {
-            let mut status = lock(&self.status);
-            if *status != RecordingStatus::Recording {
+        let rid = {
+            let mut inner = lock(&self.inner);
+            if inner.status != RecordingStatus::Recording {
                 return Err(AppError::AudioError {
                     code: AudioErrorCode::CaptureFailure,
                     message: "Not recording".into(),
                 });
             }
-            *status = RecordingStatus::Paused;
-        }
+            inner.status = RecordingStatus::Paused;
 
-        {
-            let active = lock(&self.active);
-            match active.as_ref() {
+            match inner.active.as_ref() {
                 Some(ActiveRecording::Mic(rec)) => rec.pause(),
                 #[cfg(target_os = "windows")]
                 Some(ActiveRecording::System(cap)) => cap.pause(),
                 Some(ActiveRecording::Combined(combined)) => combined.pause(),
                 _ => {}
             }
-        }
 
-        let rid = lock(&self.recording_id).clone();
+            inner.recording_id.clone()
+        };
+
         let _ = app.emit(
             "recording:status",
             RecordingStatusEvent {
@@ -337,29 +346,27 @@ impl RecordingManager {
     }
 
     pub fn resume(&self, app: &AppHandle) -> Result<(), AppError> {
-        {
-            let mut status = lock(&self.status);
-            if *status != RecordingStatus::Paused {
+        let rid = {
+            let mut inner = lock(&self.inner);
+            if inner.status != RecordingStatus::Paused {
                 return Err(AppError::AudioError {
                     code: AudioErrorCode::CaptureFailure,
                     message: "Not paused".into(),
                 });
             }
-            *status = RecordingStatus::Recording;
-        }
+            inner.status = RecordingStatus::Recording;
 
-        {
-            let active = lock(&self.active);
-            match active.as_ref() {
+            match inner.active.as_ref() {
                 Some(ActiveRecording::Mic(rec)) => rec.resume(),
                 #[cfg(target_os = "windows")]
                 Some(ActiveRecording::System(cap)) => cap.resume(),
                 Some(ActiveRecording::Combined(combined)) => combined.resume(),
                 _ => {}
             }
-        }
 
-        let rid = lock(&self.recording_id).clone();
+            inner.recording_id.clone()
+        };
+
         let _ = app.emit(
             "recording:status",
             RecordingStatusEvent {
@@ -372,10 +379,9 @@ impl RecordingManager {
     }
 
     pub fn get_level(&self) -> RecordingLevelEvent {
-        let status = *lock(&self.status);
-        let active = lock(&self.active);
+        let inner = lock(&self.inner);
 
-        let (level_db, duration_ms) = match active.as_ref() {
+        let (level_db, duration_ms) = match inner.active.as_ref() {
             Some(ActiveRecording::Mic(rec)) => (rec.get_level_db(), rec.duration_ms()),
             #[cfg(target_os = "windows")]
             Some(ActiveRecording::System(cap)) => (cap.get_level_db(), cap.duration_ms()),
@@ -388,11 +394,11 @@ impl RecordingManager {
         RecordingLevelEvent {
             level_db,
             duration_ms,
-            status,
+            status: inner.status,
         }
     }
 
     pub fn status(&self) -> RecordingStatus {
-        *lock(&self.status)
+        lock(&self.inner).status
     }
 }

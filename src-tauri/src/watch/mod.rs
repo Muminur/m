@@ -79,13 +79,20 @@ impl WatchFolderManager {
 
                                 // Record in database
                                 if let Some(db) = app.try_state::<Arc<Database>>() {
-                                    if let Ok(conn) = db.get() {
-                                        let _ = crate::database::recordings::insert_watch_event(
-                                            &conn,
-                                            &folder_str,
-                                            &path.to_string_lossy(),
-                                            &path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
-                                        );
+                                    match db.get() {
+                                        Ok(conn) => {
+                                            if let Err(e) = crate::database::recordings::insert_watch_event(
+                                                &conn,
+                                                &folder_str,
+                                                &path.to_string_lossy(),
+                                                &path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+                                            ) {
+                                                tracing::error!("Failed to record watch folder event for {:?}: {}", path, e);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to get DB connection for watch event: {}", e);
+                                        }
                                     }
                                 }
                             }

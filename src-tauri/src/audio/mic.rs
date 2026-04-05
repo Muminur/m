@@ -6,6 +6,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use crate::error::{AppError, AudioErrorCode};
 
+/// Maximum recording duration: 4 hours in seconds.
+const MAX_RECORDING_DURATION_SECS: u64 = 4 * 60 * 60;
+
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioDeviceInfo {
@@ -45,20 +48,37 @@ pub fn get_device_by_id(device_id: Option<&str>) -> Result<Device, AppError> {
     let host = cpal::default_host();
 
     if let Some(id) = device_id {
-        if let Some(idx_str) = id.strip_prefix("input_") {
-            if let Ok(idx) = idx_str.parse::<usize>() {
-                let devices: Vec<Device> = host
-                    .input_devices()
-                    .map_err(|e| AppError::AudioError {
-                        code: AudioErrorCode::DeviceNotFound,
-                        message: format!("Failed to enumerate devices: {}", e),
-                    })?
-                    .collect();
+        if !id.is_empty() {
+            let devices: Vec<Device> = host
+                .input_devices()
+                .map_err(|e| AppError::AudioError {
+                    code: AudioErrorCode::DeviceNotFound,
+                    message: format!("Failed to enumerate devices: {}", e),
+                })?
+                .collect();
 
-                if idx < devices.len() {
-                    return Ok(devices.into_iter().nth(idx).unwrap());
+            // Try index-based lookup first, then fall back to name matching
+            let mut index_match: Option<usize> = None;
+            if let Some(idx_str) = id.strip_prefix("input_") {
+                if let Ok(idx) = idx_str.parse::<usize>() {
+                    if idx < devices.len() {
+                        index_match = Some(idx);
+                    }
                 }
             }
+
+            if let Some(idx) = index_match {
+                return Ok(devices.into_iter().nth(idx).unwrap());
+            }
+
+            // Fallback: match by device name (handles hot-plug index shifts)
+            for device in devices {
+                if device.name().ok().as_deref() == Some(id) {
+                    return Ok(device);
+                }
+            }
+
+            tracing::warn!("Device '{}' not found, falling back to default", id);
         }
     }
 
@@ -110,6 +130,8 @@ impl MicRecorder {
         let sample_count = Arc::new(Mutex::new(0u64));
         let level_db = Arc::new(Mutex::new(-60.0f32));
 
+        let max_samples = MAX_RECORDING_DURATION_SECS * sample_rate as u64 * channels as u64;
+
         let writer_clone = Arc::clone(&writer);
         let is_paused_clone = Arc::clone(&is_paused);
         let is_recording_clone = Arc::clone(&is_recording);
@@ -146,6 +168,12 @@ impl MicRecorder {
                     };
                     if let Ok(mut level) = level_db_clone.lock() {
                         *level = db.max(-60.0);
+                    }
+
+                    // Check duration limit before writing
+                    let current = sample_count_clone.lock().map(|c| *c).unwrap_or(0);
+                    if current >= max_samples {
+                        return;
                     }
 
                     // Write samples
@@ -186,6 +214,12 @@ impl MicRecorder {
                     };
                     if let Ok(mut level) = level_db_clone.lock() {
                         *level = db.max(-60.0);
+                    }
+
+                    // Check duration limit before writing
+                    let current = sample_count_clone.lock().map(|c| *c).unwrap_or(0);
+                    if current >= max_samples {
+                        return;
                     }
 
                     if let Ok(mut guard) = writer_clone.lock() {

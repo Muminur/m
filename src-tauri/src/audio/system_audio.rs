@@ -1,6 +1,9 @@
 use crate::error::{AppError, AudioErrorCode};
 use std::path::PathBuf;
 
+/// Maximum recording duration: 4 hours in seconds.
+const MAX_RECORDING_DURATION_SECS: u64 = 4 * 60 * 60;
+
 /// System audio capture abstraction.
 ///
 /// Platform support:
@@ -66,6 +69,8 @@ pub mod wasapi_loopback {
             let sample_count = Arc::new(Mutex::new(0u64));
             let level_db = Arc::new(Mutex::new(-60.0f32));
 
+            let max_samples = MAX_RECORDING_DURATION_SECS * sample_rate as u64 * channels as u64;
+
             let writer_clone = Arc::clone(&writer);
             let is_recording_clone = Arc::clone(&is_recording);
             let is_paused_clone = Arc::clone(&is_paused);
@@ -100,6 +105,12 @@ pub mod wasapi_loopback {
                         };
                         if let Ok(mut level) = level_db_clone.lock() {
                             *level = db.max(-60.0);
+                        }
+
+                        // Check duration limit before writing
+                        let current = sample_count_clone.lock().map(|c| *c).unwrap_or(0);
+                        if current >= max_samples {
+                            return;
                         }
 
                         if let Ok(mut guard) = writer_clone.lock() {

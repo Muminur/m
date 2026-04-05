@@ -13,34 +13,36 @@ pub struct RecordingRow {
     pub duration_ms: i64,
     pub sample_rate: i64,
     pub channels: i64,
+    pub system_audio_path: Option<String>,
     pub transcript_id: Option<String>,
     pub created_at: i64,
 }
 
 pub fn insert(
     conn: &Connection,
+    id: &str,
     source: &str,
     device_id: Option<&str>,
     device_name: Option<&str>,
     audio_path: &str,
+    system_audio_path: Option<&str>,
     duration_ms: i64,
     sample_rate: i64,
     channels: i64,
 ) -> Result<String, AppError> {
-    let id = Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
 
     conn.execute(
-        "INSERT INTO recordings (id, source, device_id, device_name, audio_path, duration_ms, sample_rate, channels, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![id, source, device_id, device_name, audio_path, duration_ms, sample_rate, channels, now],
+        "INSERT INTO recordings (id, source, device_id, device_name, audio_path, system_audio_path, duration_ms, sample_rate, channels, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![id, source, device_id, device_name, audio_path, system_audio_path, duration_ms, sample_rate, channels, now],
     )
     .map_err(|e| AppError::StorageError {
         code: StorageErrorCode::DatabaseError,
         message: format!("Failed to insert recording: {}", e),
     })?;
 
-    Ok(id)
+    Ok(id.to_string())
 }
 
 pub fn link_transcript(conn: &Connection, recording_id: &str, transcript_id: &str) -> Result<(), AppError> {
@@ -57,7 +59,7 @@ pub fn link_transcript(conn: &Connection, recording_id: &str, transcript_id: &st
 
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<RecordingRow>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT id, source, device_id, device_name, audio_path, duration_ms, sample_rate, channels, transcript_id, created_at
+        "SELECT id, source, device_id, device_name, audio_path, system_audio_path, duration_ms, sample_rate, channels, transcript_id, created_at
          FROM recordings WHERE id = ?1"
     ).map_err(|e| AppError::StorageError {
         code: StorageErrorCode::DatabaseError,
@@ -71,11 +73,12 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<RecordingRow>, Ap
             device_id: row.get(2)?,
             device_name: row.get(3)?,
             audio_path: row.get(4)?,
-            duration_ms: row.get(5)?,
-            sample_rate: row.get(6)?,
-            channels: row.get(7)?,
-            transcript_id: row.get(8)?,
-            created_at: row.get(9)?,
+            system_audio_path: row.get(5)?,
+            duration_ms: row.get(6)?,
+            sample_rate: row.get(7)?,
+            channels: row.get(8)?,
+            transcript_id: row.get(9)?,
+            created_at: row.get(10)?,
         })
     });
 
@@ -91,7 +94,7 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<RecordingRow>, Ap
 
 pub fn list_recent(conn: &Connection, limit: u32) -> Result<Vec<RecordingRow>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT id, source, device_id, device_name, audio_path, duration_ms, sample_rate, channels, transcript_id, created_at
+        "SELECT id, source, device_id, device_name, audio_path, system_audio_path, duration_ms, sample_rate, channels, transcript_id, created_at
          FROM recordings ORDER BY created_at DESC LIMIT ?1"
     ).map_err(|e| AppError::StorageError {
         code: StorageErrorCode::DatabaseError,
@@ -105,11 +108,12 @@ pub fn list_recent(conn: &Connection, limit: u32) -> Result<Vec<RecordingRow>, A
             device_id: row.get(2)?,
             device_name: row.get(3)?,
             audio_path: row.get(4)?,
-            duration_ms: row.get(5)?,
-            sample_rate: row.get(6)?,
-            channels: row.get(7)?,
-            transcript_id: row.get(8)?,
-            created_at: row.get(9)?,
+            system_audio_path: row.get(5)?,
+            duration_ms: row.get(6)?,
+            sample_rate: row.get(7)?,
+            channels: row.get(8)?,
+            transcript_id: row.get(9)?,
+            created_at: row.get(10)?,
         })
     }).map_err(|e| AppError::StorageError {
         code: StorageErrorCode::DatabaseError,
@@ -193,7 +197,8 @@ mod tests {
     #[test]
     fn test_insert_and_get_recording() {
         let conn = test_db();
-        let id = insert(&conn, "mic", Some("dev1"), Some("Built-in Mic"), "/tmp/rec.wav", 5000, 16000, 1).unwrap();
+        let id = insert(&conn, "rec-001", "mic", Some("dev1"), Some("Built-in Mic"), "/tmp/rec.wav", None, 5000, 16000, 1).unwrap();
+        assert_eq!(id, "rec-001");
         assert!(!id.is_empty());
 
         let rec = get_by_id(&conn, &id).unwrap().unwrap();
@@ -207,7 +212,7 @@ mod tests {
     #[test]
     fn test_link_transcript() {
         let conn = test_db();
-        let rec_id = insert(&conn, "mic", None, None, "/tmp/rec.wav", 1000, 16000, 1).unwrap();
+        let rec_id = insert(&conn, "rec-link", "mic", None, None, "/tmp/rec.wav", None, 1000, 16000, 1).unwrap();
 
         // Create a transcript to link
         let tid = crate::database::transcripts::insert(&conn, &crate::database::transcripts::NewTranscript {
@@ -227,7 +232,7 @@ mod tests {
     fn test_list_recent() {
         let conn = test_db();
         for i in 0..5 {
-            insert(&conn, "mic", None, None, &format!("/tmp/rec{}.wav", i), 1000, 16000, 1).unwrap();
+            insert(&conn, &format!("rec-{}", i), "mic", None, None, &format!("/tmp/rec{}.wav", i), None, 1000, 16000, 1).unwrap();
         }
         let recs = list_recent(&conn, 3).unwrap();
         assert_eq!(recs.len(), 3);
@@ -236,7 +241,7 @@ mod tests {
     #[test]
     fn test_update_duration() {
         let conn = test_db();
-        let id = insert(&conn, "mic", None, None, "/tmp/rec.wav", 0, 16000, 1).unwrap();
+        let id = insert(&conn, "rec-dur", "mic", None, None, "/tmp/rec.wav", None, 0, 16000, 1).unwrap();
         update_duration(&conn, &id, 30000).unwrap();
         let rec = get_by_id(&conn, &id).unwrap().unwrap();
         assert_eq!(rec.duration_ms, 30000);
