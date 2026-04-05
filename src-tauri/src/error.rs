@@ -57,6 +57,24 @@ pub enum AppError {
         code: DictationErrorCode,
         message: String,
     },
+
+    #[error("Import error: {message}")]
+    ImportError {
+        code: ImportErrorCode,
+        message: String,
+    },
+
+    #[error("Diarization error: {message}")]
+    DiarizationError {
+        code: DiarizationErrorCode,
+        message: String,
+    },
+
+    #[error("Batch error: {message}")]
+    BatchError {
+        code: BatchErrorCode,
+        message: String,
+    },
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -130,12 +148,36 @@ pub enum DictationErrorCode {
 }
 
 #[derive(Debug, Serialize, Clone)]
+pub enum ImportErrorCode {
+    YtDlpNotFound,
+    DownloadFailed,
+    InvalidUrl,
+    UnsupportedPlatform,
+}
+
+#[derive(Debug, Serialize, Clone)]
 pub enum NetworkErrorCode {
     PolicyBlocked,
     ConnectionFailed,
     Timeout,
     TlsError,
     HttpError { status: u16 },
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum DiarizationErrorCode {
+    ProviderNotFound,
+    ApiError,
+    NoSpeakersDetected,
+    InvalidTranscript,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum BatchErrorCode {
+    JobNotFound,
+    InvalidState,
+    ConcurrencyLimit,
+    ExportFailed,
 }
 
 // Implement From for common error types

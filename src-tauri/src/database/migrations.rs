@@ -15,6 +15,7 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
         ("V010", include_str!("../../migrations/V010__recordings.sql")),
         ("V011", include_str!("../../migrations/V011__recordings_system_audio_path.sql")),
         ("V012", include_str!("../../migrations/V012__dictation_history.sql")),
+        ("V013", include_str!("../../migrations/V013__batch_jobs.sql")),
     ];
 
     conn.execute_batch(

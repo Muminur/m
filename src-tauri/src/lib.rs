@@ -1,9 +1,12 @@
+pub mod batch;
+pub mod diarization;
 pub mod dictation;
 pub mod audio;
 pub mod commands;
 pub mod database;
 pub mod error;
 pub mod export;
+pub mod import;
 pub mod keychain;
 pub mod logging;
 pub mod models;
@@ -86,6 +89,14 @@ pub fn run() {
             // Initialize watch folder manager
             let watch_manager = Arc::new(watch::WatchFolderManager::new());
             app.manage(Arc::clone(&watch_manager));
+
+            // Initialize filler word config state
+            app.manage(commands::import::FillerConfigState::default());
+
+            // Initialize batch queue
+            let db_ref = app.state::<Arc<database::Database>>();
+            let batch_queue = Arc::new(batch::queue::BatchQueue::new(Arc::clone(&db_ref)));
+            app.manage(Arc::clone(&batch_queue));
 
             // Start watching configured folders
             let watch_handle = app_handle.clone();
@@ -185,6 +196,22 @@ pub fn run() {
             commands::watch::add_watch_folder,
             commands::watch::remove_watch_folder,
             commands::watch::list_watch_folders,
+            // Import
+            commands::import::import_youtube,
+            commands::import::check_ytdlp_status,
+            commands::import::remove_filler_words,
+            commands::import::get_filler_config,
+            commands::import::set_filler_config,
+            // Batch
+            commands::batch::create_batch_job,
+            commands::batch::start_batch_job,
+            commands::batch::pause_batch_job,
+            commands::batch::resume_batch_job,
+            commands::batch::cancel_batch_job,
+            commands::batch::get_batch_job,
+            commands::batch::list_batch_jobs,
+            commands::batch::get_batch_job_items,
+            commands::batch::export_batch_job,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

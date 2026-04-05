@@ -1,5 +1,8 @@
+pub mod batch;
+pub mod diarization;
 pub mod dictation;
 pub mod export;
+pub mod import;
 pub mod library;
 pub mod recording;
 pub mod settings;
