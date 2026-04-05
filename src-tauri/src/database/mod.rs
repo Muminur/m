@@ -1,4 +1,5 @@
 pub mod migrations;
+pub mod recordings;
 pub mod search;
 pub mod segments;
 pub mod smart_folders;

@@ -9,6 +9,7 @@ pub mod models;
 pub mod network;
 pub mod settings;
 pub mod transcription;
+pub mod watch;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -64,6 +65,26 @@ pub fn run() {
             let undo_manager = crate::database::undo::UndoManager::new();
             app.manage(undo_manager);
 
+            // Initialize recording manager
+            let recording_manager = Arc::new(audio::recording::RecordingManager::new());
+            app.manage(Arc::clone(&recording_manager));
+
+            // Initialize watch folder manager
+            let watch_manager = Arc::new(watch::WatchFolderManager::new());
+            app.manage(Arc::clone(&watch_manager));
+
+            // Start watching configured folders
+            let watch_handle = app_handle.clone();
+            let settings_ref = app.state::<std::sync::Mutex<settings::AppSettings>>();
+            let watch_configs: Vec<settings::WatchFolderConfig> = settings_ref
+                .lock()
+                .map(|s| s.watch_folders.clone())
+                .unwrap_or_default();
+            let wm = Arc::clone(&watch_manager);
+            tauri::async_runtime::spawn(async move {
+                wm.init(watch_handle, &watch_configs).await;
+            });
+
             tracing::info!("WhisperDesk initialized");
             Ok(())
         })
@@ -118,6 +139,19 @@ pub fn run() {
             commands::export::export_transcript,
             commands::export::export_to_file,
             commands::export::copy_transcript_text,
+            // Recording
+            commands::recording::get_audio_devices,
+            commands::recording::start_recording,
+            commands::recording::stop_recording,
+            commands::recording::pause_recording,
+            commands::recording::resume_recording,
+            commands::recording::get_recording_level,
+            commands::recording::get_recording_status,
+            commands::recording::is_system_audio_available,
+            // Watch folders
+            commands::watch::add_watch_folder,
+            commands::watch::remove_watch_folder,
+            commands::watch::list_watch_folders,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

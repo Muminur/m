@@ -23,7 +23,11 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **WhisperDesk archive** — `.whisper` ZIP+JSON format for lossless transcript export/import with audio
 - **Copy to clipboard** — copy full transcript or selected segments
 - **Video player** — inline video playback with synced subtitle overlay for video source files
-- **Recording** — microphone and system audio capture
+- **Audio recording** — microphone capture via cpal with real-time VU meter and pause/resume
+- **System audio capture** — WASAPI loopback recording on Windows for system audio
+- **Combined recording** — simultaneous mic + system audio capture with mixed output
+- **Device selector** — choose input device from available audio hardware
+- **Watch folders** — auto-transcribe new audio files dropped into configured folders
 - **Real-time streaming** — segments appear as they are transcribed
 - **Export dialog** — format picker, option toggles, destination picker with preview
 
@@ -31,13 +35,13 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 
 - **Frontend:** React 19, Tailwind CSS v4, Zustand, react-i18next, Lucide icons, wavesurfer.js
 - **Backend:** Tauri 2, Rust, SQLite (rusqlite), whisper-rs 0.16.0
-- **Audio:** Symphonia (decode), Rubato (resample to 16 kHz mono)
+- **Audio:** Symphonia (decode), Rubato (resample), cpal (recording), hound (WAV writing)
 - **Inference:** whisper-rs with Metal feature flag (macOS only)
 - **Export:** SRT, VTT, TXT, ZIP-based .whisper archive
 
 ## Requirements
 
-- macOS 12+ (Apple Silicon recommended for Metal acceleration)
+- macOS 12+ (Apple Silicon recommended for Metal acceleration) or Windows 10+
 - Rust 1.77+, Node.js 20+
 
 ## Development
@@ -68,6 +72,7 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | V007 | Acceleration stats (backend, realtime factor, wall time) |
 | V008 | Smart folders (id, name, filter_json) |
 | V009 | FTS index population for existing segments |
+| V010 | Recordings and watch folder events |
 
 ## Acceleration Backends
 
@@ -77,6 +82,14 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | CPU | Force software inference | Supported |
 | Metal | Apple GPU via Metal | Supported (macOS only) |
 | CoreML + ANE | Apple Neural Engine | Coming soon |
+
+## Audio Recording
+
+| Source | Description | Platform |
+|--------|-------------|----------|
+| Microphone | Input device capture via cpal | Cross-platform |
+| System Audio | WASAPI loopback capture | Windows only |
+| Combined | Mic + system audio simultaneously | Windows only |
 
 ## Export Formats
 
@@ -96,7 +109,8 @@ src/                    # React frontend
     editor/             # Waveform, TranscriptView, SegmentEditor, FindReplace, VideoPlayer
     export/             # ExportDialog
     library/            # LibraryList, LibraryFilters, SearchBar, FolderTree
-    settings/           # AccelerationSettings
+    recording/          # RecordingPanel, DeviceSelector
+    settings/           # AccelerationSettings, WatchFolderSettings
     transcription/      # DropZone, ModelManager, PerformanceBar
   hooks/                # usePlayer (wavesurfer.js audio player hook)
   pages/                # SettingsPage
@@ -105,15 +119,16 @@ src/                    # React frontend
 
 src-tauri/              # Rust backend
   src/
-    audio/              # Decode + resample
-    commands/           # Tauri command handlers (settings, transcription, library, export)
-    database/           # SQLite + migrations, search, smart_folders, undo
+    audio/              # Decode, resample, mic recording, system audio, combined capture
+    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch)
+    database/           # SQLite + migrations, search, smart_folders, recordings, undo
     export/             # TXT, SRT, VTT renderers + .whisper archive
     models/             # Model manager (download, verify, manage)
     transcription/      # WhisperEngine + pipeline + job management
+    watch/              # Watch folder manager + audio file handler
     settings.rs         # AppSettings with AccelerationBackend
     error.rs            # Typed error enum
-  migrations/           # SQL migration files (V001-V009)
+  migrations/           # SQL migration files (V001-V010)
   benches/              # Criterion benchmark suite
 ```
 

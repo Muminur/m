@@ -3,6 +3,7 @@ import { Layout } from "./components/common/Layout";
 import { TranscriptDetail } from "./components/library/TranscriptDetail";
 import { ModelManager } from "./components/transcription/ModelManager";
 import { DropZone } from "./components/transcription/DropZone";
+import { RecordingPanel } from "./components/recording/RecordingPanel";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Toaster } from "sonner";
 import { useSettingsStore } from "./stores/settingsStore";
@@ -38,6 +39,7 @@ export default function App() {
           <Route index element={<Navigate to="/library" replace />} />
           <Route path="library" element={<TranscriptDetail />} />
           <Route path="library/:id" element={<TranscriptDetail />} />
+          <Route path="recording" element={<RecordingPanel />} />
           <Route path="models" element={<ModelManager />} />
           <Route path="transcribe" element={<DropZone />} />
           <Route path="settings" element={<SettingsPage />} />

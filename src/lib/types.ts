@@ -171,3 +171,22 @@ export interface ExportOptions {
   includeTimestamps: boolean;
   includeSpeakers: boolean;
 }
+
+export interface Recording {
+  id: string;
+  source: "mic" | "system" | "both";
+  deviceId?: string;
+  deviceName?: string;
+  audioPath: string;
+  durationMs: number;
+  sampleRate: number;
+  channels: number;
+  transcriptId?: string;
+  createdAt: number;
+}
+
+export interface RecordingLevel {
+  level_db: number;
+  duration_ms: number;
+  status: "idle" | "recording" | "paused" | "stopping";
+}

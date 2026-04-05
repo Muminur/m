@@ -64,6 +64,10 @@ ed25519-dalek = "2.1"
 # Audio decode
 symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm", "isomp4"] }
 
+# Audio capture (microphone + system)
+cpal = "0.15"
+hound = "3.5"
+
 # Resampling
 rubato = "0.15"
 
