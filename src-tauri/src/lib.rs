@@ -107,6 +107,7 @@ pub fn run() {
             commands::library::create_smart_folder,
             commands::library::update_smart_folder,
             commands::library::delete_smart_folder,
+            commands::library::query_smart_folder_transcripts,
             commands::library::merge_segments,
             commands::library::split_segment,
             commands::library::delete_segment,

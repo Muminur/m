@@ -1,15 +1,16 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Filter, Star, Trash2, FolderOpen } from "lucide-react";
-import type { TranscriptFilter } from "@/lib/types";
+import { Filter, Star, Trash2, FolderOpen, Tag } from "lucide-react";
+import type { TranscriptFilter, Tag as TagType } from "@/lib/types";
 
 interface LibraryFiltersProps {
   filter: TranscriptFilter;
   onChange: (filter: TranscriptFilter) => void;
   folderNames: { id: string; name: string }[];
+  tags: TagType[];
 }
 
-export function LibraryFilters({ filter, onChange, folderNames }: LibraryFiltersProps) {
+export function LibraryFilters({ filter, onChange, folderNames, tags }: LibraryFiltersProps) {
   const { t } = useTranslation();
 
   const setFilter = useCallback(
@@ -76,6 +77,21 @@ export function LibraryFilters({ filter, onChange, folderNames }: LibraryFilters
           </option>
           {folderNames.map((f) => (
             <option key={f.id} value={f.id}>{f.name}</option>
+          ))}
+        </select>
+      )}
+
+      {tags.length > 0 && (
+        <select
+          value={filter.tagId || ""}
+          onChange={(e) => setFilter({ tagId: e.target.value || undefined })}
+          className="px-2 py-1 text-xs border border-border rounded bg-background"
+        >
+          <option value="">
+            <Tag size={11} /> {t("library.all_tags", "All Tags")}
+          </option>
+          {tags.map((tag) => (
+            <option key={tag.id} value={tag.id}>{tag.name}</option>
           ))}
         </select>
       )}

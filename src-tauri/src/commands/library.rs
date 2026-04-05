@@ -212,6 +212,13 @@ pub async fn delete_smart_folder(id: String, db: State<'_, Arc<Database>>) -> Re
     smart_folders::delete(&conn, &id)
 }
 
+#[command]
+pub async fn query_smart_folder_transcripts(id: String, db: State<'_, Arc<Database>>) -> Result<serde_json::Value, AppError> {
+    let conn = db.get()?;
+    let (rows, total) = smart_folders::query_transcripts(&conn, &id)?;
+    Ok(serde_json::json!({ "items": rows, "total": total }))
+}
+
 // ─── Segment editing ─────────────────────────────────────────────────────────
 
 #[command]

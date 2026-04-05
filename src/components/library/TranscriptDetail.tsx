@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { useTranscriptStore } from "@/stores/transcriptStore";
 import { useTranslation } from "react-i18next";
 import { FileText, Loader2 } from "lucide-react";
 import type { Segment } from "@/lib/types";
 import { PerformanceBar } from "@/components/transcription/PerformanceBar";
+import { FindReplace } from "@/components/editor/FindReplace";
+import { Waveform } from "@/components/editor/Waveform";
+import { TranscriptView } from "@/components/editor/TranscriptView";
 
 interface SegmentEvent {
   jobId: string;
@@ -35,6 +39,11 @@ export function TranscriptDetail() {
   const [streamingSegments, setStreamingSegments] = useState<Segment[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Editor state
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [_editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   // Load transcript from DB when ID changes
   useEffect(() => {
@@ -113,6 +122,54 @@ export function TranscriptDetail() {
     }
   }, [streamingSegments.length]);
 
+  // Global keyboard shortcuts: undo/redo and find
+  useEffect(() => {
+    if (!id) return;
+
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          await invoke("undo");
+          await loadTranscript(id);
+        } else if (e.key === "z" && e.shiftKey) {
+          e.preventDefault();
+          await invoke("redo");
+          await loadTranscript(id);
+        } else if (e.key === "f") {
+          e.preventDefault();
+          setShowFindReplace(true);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [id, loadTranscript]);
+
+  const handleReplace = async (segmentId: string, oldText: string, newText: string) => {
+    const seg = displaySegments.find((s) => s.id === segmentId);
+    if (seg) {
+      const updated = seg.text.replace(
+        new RegExp(oldText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+        newText
+      );
+      await invoke("update_segment", { segmentId, text: updated });
+      if (id) await loadTranscript(id);
+    }
+  };
+
+  const handleReplaceAll = async (oldText: string, newText: string) => {
+    const regex = new RegExp(oldText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    for (const seg of displaySegments) {
+      if (regex.test(seg.text)) {
+        const updated = seg.text.replace(regex, newText);
+        await invoke("update_segment", { segmentId: seg.id, text: updated });
+      }
+    }
+    if (id) await loadTranscript(id);
+  };
+
   if (!id) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
@@ -145,7 +202,7 @@ export function TranscriptDetail() {
       : (current?.segments ?? []);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden" tabIndex={0}>
       {/* Header */}
       <div className="flex-none bg-background border-b border-border px-6 py-4 pt-10">
         <div className="flex items-center gap-2">
@@ -167,21 +224,44 @@ export function TranscriptDetail() {
         <PerformanceBar transcriptId={id} />
       </div>
 
-      {/* Segments */}
-      <div className="flex-1 overflow-auto px-6 py-4 space-y-1">
-        {displaySegments.length === 0 && isTranscribing && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-            <Loader2 size={14} className="animate-spin" />
-            <span>{t("transcription.waiting_for_segments", "Waiting for segments…")}</span>
-          </div>
-        )}
+      {/* Waveform */}
+      {current?.transcript.audioPath && (
+        <Waveform audioUrl={current.transcript.audioPath} onTimeUpdate={(ms) => setCurrentTimeMs(ms)} />
+      )}
 
-        {displaySegments.map((seg) => (
-          <SegmentRow key={seg.id} segment={seg} />
-        ))}
+      {/* FindReplace bar */}
+      {showFindReplace && (
+        <FindReplace
+          segments={displaySegments}
+          onHighlight={() => {}}
+          onReplace={handleReplace}
+          onReplaceAll={handleReplaceAll}
+          onClose={() => setShowFindReplace(false)}
+        />
+      )}
 
-        <div ref={bottomRef} />
-      </div>
+      {/* Segments - use TranscriptView for loaded transcripts, flat list for streaming */}
+      {isTranscribing && streamingSegments.length > 0 ? (
+        <div className="flex-1 overflow-auto px-6 py-4 space-y-1">
+          {displaySegments.length === 0 && isTranscribing && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 size={14} className="animate-spin" />
+              <span>{t("transcription.waiting_for_segments", "Waiting for segments…")}</span>
+            </div>
+          )}
+          {streamingSegments.map((seg) => (
+            <SegmentRow key={seg.id} segment={seg} />
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      ) : (
+        <TranscriptView
+          segments={displaySegments}
+          currentTimeMs={currentTimeMs}
+          onSeek={(ms) => setCurrentTimeMs(ms)}
+          onEditSegment={setEditingSegmentId}
+        />
+      )}
     </div>
   );
 }

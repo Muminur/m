@@ -62,12 +62,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   error: null,
 
   loadTranscripts: async () => {
-    const { page, pageSize } = get();
+    const { page, pageSize, filter, sort } = get();
     set({ isLoading: true, error: null });
     try {
       const result = await invoke<PaginatedResponse<Transcript>>("list_transcripts", {
         page,
         pageSize,
+        filter,
+        sort,
       });
       set({ transcripts: result.items, total: result.total, isLoading: false });
     } catch (err) {

@@ -202,13 +202,17 @@ pub async fn get_transcript(
 pub async fn list_transcripts(
     page: Option<u32>,
     page_size: Option<u32>,
+    filter: Option<transcripts::ListFilter>,
+    sort: Option<transcripts::ListSort>,
     db: State<'_, Arc<Database>>,
 ) -> Result<serde_json::Value, AppError> {
     let page = page.unwrap_or(0);
     let page_size = page_size.unwrap_or(50);
+    let filter = filter.unwrap_or_default();
+    let sort = sort.unwrap_or_default();
 
     let conn = db.get()?;
-    let (rows, total) = transcripts::list(&conn, false, page, page_size)?;
+    let (rows, total) = transcripts::list_filtered(&conn, &filter, &sort, page, page_size)?;
 
     Ok(serde_json::json!({
         "items": rows,

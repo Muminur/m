@@ -71,6 +71,22 @@ pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn query_transcripts(conn: &Connection, id: &str) -> Result<(Vec<crate::database::transcripts::TranscriptRow>, u64), AppError> {
+    let folder = conn.query_row(
+        "SELECT filter_json FROM smart_folders WHERE id = ?1",
+        params![id],
+        |row| row.get::<_, String>(0),
+    ).map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Smart folder not found: {}", e),
+    })?;
+
+    let filter: crate::database::transcripts::ListFilter = serde_json::from_str(&folder)
+        .unwrap_or_default();
+    let sort = crate::database::transcripts::ListSort::default();
+    crate::database::transcripts::list_filtered(conn, &filter, &sort, 0, 100)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,5 +115,30 @@ mod tests {
         delete(&conn, &id).unwrap();
         let folders = list(&conn).unwrap();
         assert!(folders.is_empty());
+    }
+
+    #[test]
+    fn test_query_smart_folder_transcripts() {
+        let conn = test_db();
+        // Insert a transcript and star it
+        let tid = crate::database::transcripts::insert(&conn, &crate::database::transcripts::NewTranscript {
+            title: "Starred Meeting".into(), duration_ms: None, language: None,
+            model_id: None, source_type: None, source_url: None, audio_path: None,
+        }).unwrap();
+        crate::database::transcripts::update(&conn, &tid, &crate::database::transcripts::TranscriptUpdate {
+            title: None, language: None, is_starred: Some(true),
+            folder_id: None, word_count: None, speaker_count: None,
+        }).unwrap();
+        // Insert unstarred
+        crate::database::transcripts::insert(&conn, &crate::database::transcripts::NewTranscript {
+            title: "Other".into(), duration_ms: None, language: None,
+            model_id: None, source_type: None, source_url: None, audio_path: None,
+        }).unwrap();
+
+        // Create smart folder filtering starred
+        let sf_id = insert(&conn, "Starred", r#"{"isStarred": true}"#).unwrap();
+        let (rows, total) = query_transcripts(&conn, &sf_id).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(rows[0].title, "Starred Meeting");
     }
 }

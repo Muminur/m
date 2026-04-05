@@ -3,18 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useLibraryStore } from "@/stores/libraryStore";
 import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
-import { FileText, Mic, Monitor, Star, Clock } from "lucide-react";
-import type { Transcript } from "@/lib/types";
+import { FileText, Mic, Monitor, Star, Clock, ArrowUp, ArrowDown } from "lucide-react";
+import type { Transcript, TranscriptSort } from "@/lib/types";
 
 export function LibraryList() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { transcripts, isLoading, error, loadTranscripts } = useLibraryStore();
+  const { transcripts, isLoading, error, sort, loadTranscripts, setSort } = useLibraryStore();
 
   useEffect(() => {
     loadTranscripts();
-  }, [loadTranscripts]);
+  }, [loadTranscripts, sort]);
 
   if (isLoading) {
     return (
@@ -44,9 +44,10 @@ export function LibraryList() {
 
   return (
     <div className="flex flex-col h-full overflow-auto">
-      {/* Header */}
+      {/* Header with sortable columns */}
       <div className="sticky top-0 bg-background border-b border-border px-4 py-3 pt-10">
-        <h1 className="text-base font-semibold">{t("nav.library")}</h1>
+        <h1 className="text-base font-semibold mb-2">{t("nav.library")}</h1>
+        <SortableHeaders sort={sort} onSort={setSort} />
       </div>
 
       {/* Transcript list */}
@@ -60,6 +61,47 @@ export function LibraryList() {
           />
         ))}
       </ul>
+    </div>
+  );
+}
+
+const SORT_COLUMNS: { field: TranscriptSort["field"]; label: string }[] = [
+  { field: "created_at", label: "Date" },
+  { field: "title", label: "Title" },
+  { field: "duration_ms", label: "Duration" },
+  { field: "language", label: "Language" },
+];
+
+function SortableHeaders({
+  sort,
+  onSort,
+}: {
+  sort: TranscriptSort;
+  onSort: (sort: TranscriptSort) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      {SORT_COLUMNS.map((col) => {
+        const isActive = sort.field === col.field;
+        return (
+          <button
+            key={col.field}
+            onClick={() =>
+              onSort({
+                field: col.field,
+                direction: isActive && sort.direction === "desc" ? "asc" : "desc",
+              })
+            }
+            className={`flex items-center gap-0.5 px-2 py-1 text-xs rounded ${
+              isActive ? "bg-accent font-medium" : "hover:bg-accent/50 text-muted-foreground"
+            }`}
+          >
+            {col.label}
+            {isActive &&
+              (sort.direction === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
+          </button>
+        );
+      })}
     </div>
   );
 }
