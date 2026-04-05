@@ -1,3 +1,4 @@
+pub mod dictation;
 pub mod export;
 pub mod library;
 pub mod recording;

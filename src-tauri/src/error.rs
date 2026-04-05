@@ -51,6 +51,12 @@ pub enum AppError {
         code: NetworkErrorCode,
         message: String,
     },
+
+    #[error("Dictation error: {message}")]
+    DictationError {
+        code: DictationErrorCode,
+        message: String,
+    },
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -113,6 +119,14 @@ pub enum StorageErrorCode {
     MigrationFailed,
     DiskFull,
     IoError,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum DictationErrorCode {
+    InvalidState,
+    AccessibilityDenied,
+    InsertionFailed,
+    CorrectionFailed,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -199,6 +213,7 @@ mod tests {
             AppError::LicenseError { code: LicenseErrorCode::InvalidKey, message: "test".into() },
             AppError::StorageError { code: StorageErrorCode::DiskFull, message: "test".into() },
             AppError::NetworkError { code: NetworkErrorCode::Timeout, message: "test".into() },
+            AppError::DictationError { code: DictationErrorCode::InvalidState, message: "test".into() },
         ];
         for err in errors {
             let result = serde_json::to_value(&err);

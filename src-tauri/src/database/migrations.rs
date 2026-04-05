@@ -13,6 +13,8 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
         ("V008", include_str!("../../migrations/V008__smart_folders.sql")),
         ("V009", include_str!("../../migrations/V009__segments_fts_population.sql")),
         ("V010", include_str!("../../migrations/V010__recordings.sql")),
+        ("V011", include_str!("../../migrations/V011__recordings_system_audio_path.sql")),
+        ("V012", include_str!("../../migrations/V012__dictation_history.sql")),
     ];
 
     conn.execute_batch(

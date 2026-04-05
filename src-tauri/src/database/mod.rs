@@ -108,6 +108,7 @@ mod tests {
         assert!(tables.contains(&"ai_templates".to_string()));
         assert!(tables.contains(&"integrations".to_string()));
         assert!(tables.contains(&"export_presets".to_string()));
+        assert!(tables.contains(&"dictation_history".to_string()));
     }
 
     #[test]

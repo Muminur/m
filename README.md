@@ -30,6 +30,17 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Watch folders** — auto-transcribe new audio files dropped into configured folders
 - **Real-time streaming** — segments appear as they are transcribed
 - **Export dialog** — format picker, option toggles, destination picker with preview
+- **Streaming transcription** — sliding window real-time transcription (3s step, 10s context, 200ms overlap)
+- **Voice activity detection** — Silero VAD integration; silence produces no hallucinated text
+- **Floating captions** — always-on-top translucent overlay with 1-3 rolling lines, configurable font/color/opacity
+- **System audio captions** — real-time captioning of system audio playback
+- **Dictation mode** — double-tap Right Command to dictate; text inserted into active app via Accessibility API
+- **Punctuation commands** — say "period", "comma", "new line" etc. with auto-capitalization
+- **AI-enhanced dictation** — optional grammar/spelling correction via configurable AI provider
+- **Dictation history** — last 50 dictated snippets in menubar; click to re-insert
+- **Spotlight bar** — Cmd+Shift+Space global input bar: speak, see text, copy or insert
+- **Live translation** — real-time caption translation via Whisper translate mode or DeepL API
+- **Global shortcuts** — configurable hotkeys with collision detection and conflict resolution
 
 ## Tech Stack
 
@@ -73,6 +84,8 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | V008 | Smart folders (id, name, filter_json) |
 | V009 | FTS index population for existing segments |
 | V010 | Recordings and watch folder events |
+| V011 | System audio path for recordings |
+| V012 | Dictation history (text, app target, timestamps) |
 
 ## Acceleration Backends
 
@@ -109,6 +122,7 @@ src/                    # React frontend
     editor/             # Waveform, TranscriptView, SegmentEditor, FindReplace, VideoPlayer
     export/             # ExportDialog
     library/            # LibraryList, LibraryFilters, SearchBar, FolderTree
+    captions/           # CaptionOverlay, CaptionControls, SpotlightBar
     recording/          # RecordingPanel, DeviceSelector
     settings/           # AccelerationSettings, WatchFolderSettings
     transcription/      # DropZone, ModelManager, PerformanceBar
@@ -120,15 +134,17 @@ src/                    # React frontend
 src-tauri/              # Rust backend
   src/
     audio/              # Decode, resample, mic recording, system audio, combined capture
-    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch)
+    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts)
     database/           # SQLite + migrations, search, smart_folders, recordings, undo
+    dictation/          # Dictation pipeline: accessibility, postprocessing, AI correction, history
     export/             # TXT, SRT, VTT renderers + .whisper archive
     models/             # Model manager (download, verify, manage)
-    transcription/      # WhisperEngine + pipeline + job management
+    shortcuts/          # Global shortcut manager with collision detection
+    transcription/      # WhisperEngine + pipeline + streaming + VAD + translation
     watch/              # Watch folder manager + audio file handler
     settings.rs         # AppSettings with AccelerationBackend
     error.rs            # Typed error enum
-  migrations/           # SQL migration files (V001-V010)
+  migrations/           # SQL migration files (V001-V012)
   benches/              # Criterion benchmark suite
 ```
 

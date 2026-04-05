@@ -1,3 +1,4 @@
+pub mod dictation;
 pub mod audio;
 pub mod commands;
 pub mod database;
@@ -68,6 +69,10 @@ pub fn run() {
             // Initialize recording manager
             let recording_manager = Arc::new(audio::recording::RecordingManager::new());
             app.manage(Arc::clone(&recording_manager));
+
+            // Initialize dictation manager
+            let dictation_manager = Arc::new(dictation::DictationManager::new());
+            app.manage(Arc::clone(&dictation_manager));
 
             // Initialize watch folder manager
             let watch_manager = Arc::new(watch::WatchFolderManager::new());
@@ -148,6 +153,14 @@ pub fn run() {
             commands::recording::get_recording_level,
             commands::recording::get_recording_status,
             commands::recording::is_system_audio_available,
+            // Dictation
+            commands::dictation::start_dictation,
+            commands::dictation::stop_dictation,
+            commands::dictation::get_dictation_status,
+            commands::dictation::toggle_dictation,
+            commands::dictation::list_dictation_history,
+            commands::dictation::delete_dictation_history_entry,
+            commands::dictation::clear_dictation_history,
             // Watch folders
             commands::watch::add_watch_folder,
             commands::watch::remove_watch_folder,
