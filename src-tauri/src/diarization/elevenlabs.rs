@@ -9,8 +9,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::error::{AppError, DiarizationErrorCode, NetworkErrorCode};
 use crate::network::guard::NetworkGuard;
