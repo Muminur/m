@@ -37,11 +37,9 @@ pub async fn pause_batch_job(
 #[command]
 pub async fn resume_batch_job(
     job_id: String,
-    app_handle: AppHandle,
     batch_queue: State<'_, Arc<BatchQueue>>,
 ) -> Result<(), AppError> {
-    let queue = Arc::clone(&batch_queue);
-    queue.resume_job(&job_id, app_handle)
+    batch_queue.resume_job(&job_id)
 }
 
 #[command]

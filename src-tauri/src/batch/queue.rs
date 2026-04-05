@@ -179,20 +179,22 @@ impl BatchQueue {
         let job_id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().timestamp();
 
-        let conn = self.db.get()?;
+        let mut conn = self.db.get()?;
 
-        conn.execute(
+        let tx = conn.transaction()?;
+        tx.execute(
             "INSERT INTO batch_jobs (id, status, concurrency, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![job_id, BatchJobStatus::Pending.to_string(), concurrency as i64, now, now],
         )?;
 
         for (i, file_path) in files.iter().enumerate() {
             let item_id = Uuid::new_v4().to_string();
-            conn.execute(
+            tx.execute(
                 "INSERT INTO batch_job_items (id, job_id, file_path, status, progress, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 rusqlite::params![item_id, job_id, file_path, BatchItemStatus::Queued.to_string(), 0.0_f64, i as i64],
             )?;
         }
+        tx.commit()?;
 
         // Register control slot
         if let Ok(mut ctrl) = self.controls.lock() {
@@ -490,11 +492,12 @@ impl BatchQueue {
 
     // ─── Resume ───────────────────────────────────────────────────────────────
 
-    pub fn resume_job(
-        self: &Arc<Self>,
-        job_id: &str,
-        app_handle: AppHandle,
-    ) -> Result<(), AppError> {
+    /// Resume a paused job by clearing the pause flag.
+    ///
+    /// The existing `run_job` orchestrator is spin-waiting on the pause flag
+    /// and will resume processing automatically — we must NOT call `start_job`
+    /// here, as that would spawn a second orchestrator causing duplicate work.
+    pub fn resume_job(&self, job_id: &str) -> Result<(), AppError> {
         let job = self.get_job(job_id)?;
         if job.status != BatchJobStatus::Paused {
             return Err(AppError::BatchError {
@@ -510,14 +513,22 @@ impl BatchQueue {
                 c.paused = false;
             }
         }
-        self.start_job(job_id, app_handle)
+        self.set_job_status(job_id, BatchJobStatus::Running)
     }
 
     // ─── Cancel ───────────────────────────────────────────────────────────────
 
     pub fn cancel_job(&self, job_id: &str) -> Result<(), AppError> {
-        // Verify job exists
-        self.get_job(job_id)?;
+        let job = self.get_job(job_id)?;
+        match job.status {
+            BatchJobStatus::Completed | BatchJobStatus::Failed | BatchJobStatus::Cancelled => {
+                return Err(AppError::BatchError {
+                    code: BatchErrorCode::InvalidState,
+                    message: format!("Cannot cancel a job in {:?} state", job.status),
+                });
+            }
+            _ => {}
+        }
 
         if let Ok(mut ctrl) = self.controls.lock() {
             let entry = ctrl.entry(job_id.to_string()).or_insert(JobControl {

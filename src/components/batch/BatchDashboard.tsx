@@ -256,16 +256,19 @@ function JobCard({ job }: { job: BatchJob }) {
  * batch:progress / batch:item-complete / batch:job-complete events.
  */
 export function BatchDashboard() {
-  const { jobs, refreshJobs } = useBatchStore();
+  const { jobs } = useBatchStore();
 
-  // Subscribe to Tauri batch events and refresh store on each one
+  // Subscribe to Tauri batch events and refresh store on each one.
+  // Uses a cancelled flag to handle the race where the component unmounts
+  // before all listen() promises resolve.
   useEffect(() => {
+    let cancelled = false;
     const unlisteners: Array<() => void> = [];
 
     (async () => {
       const unProgress = await listen<BatchProgressPayload>(
         "batch:progress",
-        async (event) => {
+        (event) => {
           const { jobId, itemId, progress } = event.payload;
           useBatchStore.setState((state) => ({
             jobs: state.jobs.map((job) =>
@@ -281,11 +284,12 @@ export function BatchDashboard() {
           }));
         }
       );
+      if (cancelled) { unProgress(); return; }
       unlisteners.push(unProgress);
 
       const unItemComplete = await listen<BatchItemCompletePayload>(
         "batch:item-complete",
-        async (event) => {
+        (event) => {
           const { jobId, itemId, status, error } = event.payload;
           useBatchStore.setState((state) => ({
             jobs: state.jobs.map((job) =>
@@ -303,31 +307,34 @@ export function BatchDashboard() {
           }));
         }
       );
+      if (cancelled) { unItemComplete(); return; }
       unlisteners.push(unItemComplete);
 
       const unJobComplete = await listen<BatchJobCompletePayload>(
         "batch:job-complete",
         async () => {
-          await refreshJobs();
+          await useBatchStore.getState().refreshJobs();
         }
       );
+      if (cancelled) { unJobComplete(); return; }
       unlisteners.push(unJobComplete);
     })();
 
-    // Initial load
-    refreshJobs();
+    // Initial load — use stable reference to avoid re-subscription
+    useBatchStore.getState().refreshJobs();
 
     return () => {
+      cancelled = true;
       unlisteners.forEach((fn) => fn());
     };
-  }, [refreshJobs]);
+  }, []);
 
   return (
     <div data-testid="batch-dashboard" className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold">Batch Jobs</h2>
         <button
-          onClick={refreshJobs}
+          onClick={() => useBatchStore.getState().refreshJobs()}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           Refresh

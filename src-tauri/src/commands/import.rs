@@ -26,8 +26,15 @@ impl Default for FillerConfigState {
 #[command]
 pub async fn import_youtube(url: String, app: AppHandle) -> Result<YouTubeImportResult, AppError> {
     // Resolve a per-session temp directory for the download.
+    // Wrap in spawn_blocking because YouTubeImporter::import uses std::process::Command
+    // which blocks the thread — must not block the tokio async runtime.
     let output_dir = std::env::temp_dir().join("whisperdesk_yt_imports");
-    YouTubeImporter::import(&url, &output_dir, Some(&app))
+    tokio::task::spawn_blocking(move || YouTubeImporter::import(&url, &output_dir, Some(&app)))
+        .await
+        .map_err(|e| AppError::ImportError {
+            code: crate::error::ImportErrorCode::DownloadFailed,
+            message: format!("Task join error: {}", e),
+        })?
 }
 
 /// Return the current yt-dlp availability status.
