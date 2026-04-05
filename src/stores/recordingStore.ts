@@ -12,7 +12,7 @@ interface RecordingState {
   selectedDeviceId: string | null;
   devices: AudioDevice[];
   durationMs: number;
-  audioLevel: number; // dB, 0-100
+  audioLevel: number; // dB, range -60..0
   isLoadingDevices: boolean;
   error: string | null;
 

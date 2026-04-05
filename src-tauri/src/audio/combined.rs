@@ -61,10 +61,18 @@ impl CombinedCapture {
 
     pub fn pause(&self) {
         self.mic.pause();
+        #[cfg(target_os = "windows")]
+        if let Some(ref sys) = self.system {
+            sys.pause();
+        }
     }
 
     pub fn resume(&self) {
         self.mic.resume();
+        #[cfg(target_os = "windows")]
+        if let Some(ref sys) = self.system {
+            sys.resume();
+        }
     }
 
     pub fn get_mic_level_db(&self) -> f32 {

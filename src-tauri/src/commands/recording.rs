@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 use crate::audio::mic;
-use crate::audio::recording::{AudioSource, RecordingManager, RecordingLevelEvent};
+use crate::audio::recording::{AudioSource, RecordingManager, RecordingLevelEvent, RecordingStatus};
 use crate::error::AppError;
 
 #[tauri::command]
@@ -54,9 +54,8 @@ pub async fn get_recording_level(
 #[tauri::command]
 pub async fn get_recording_status(
     manager: State<'_, Arc<RecordingManager>>,
-) -> Result<String, AppError> {
-    let status = manager.status();
-    Ok(serde_json::to_string(&status).unwrap_or_else(|_| "\"idle\"".into()))
+) -> Result<RecordingStatus, AppError> {
+    Ok(manager.status())
 }
 
 #[tauri::command]

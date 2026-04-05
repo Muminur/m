@@ -248,41 +248,46 @@ impl RecordingManager {
             }
         };
 
-        // Phase 4: Save to database
-        let db = app.state::<Arc<Database>>();
-        let conn = db.get()?;
+        // Phase 4: Save to database — reset to Idle regardless of success/failure
+        let db_result = (|| -> Result<(), AppError> {
+            let db = app.state::<Arc<Database>>();
+            let conn = db.get()?;
 
-        let _rec_id = lock(&self.recording_id).take().unwrap_or_default();
+            let rec_id = lock(&self.recording_id).take().unwrap_or_default();
 
-        database::recordings::insert(
-            &conn,
-            source.as_db_str(),
-            device_id.as_deref(),
-            None,
-            &audio_path,
-            duration_ms as i64,
-            sample_rate,
-            channels,
-        )?;
+            database::recordings::insert(
+                &conn,
+                source.as_db_str(),
+                device_id.as_deref(),
+                None,
+                &audio_path,
+                duration_ms as i64,
+                sample_rate,
+                channels,
+            )?;
 
-        let title = format!(
-            "Recording {}",
-            chrono::Local::now().format("%Y-%m-%d %H:%M")
-        );
-        let _transcript_id = database::transcripts::insert(
-            &conn,
-            &database::transcripts::NewTranscript {
-                title,
-                duration_ms: Some(duration_ms as i64),
-                language: None,
-                model_id: None,
-                source_type: Some(source.as_db_str().to_string()),
-                source_url: None,
-                audio_path: Some(audio_path.clone()),
-            },
-        )?;
+            let title = format!(
+                "Recording {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M")
+            );
+            database::transcripts::insert(
+                &conn,
+                &database::transcripts::NewTranscript {
+                    title,
+                    duration_ms: Some(duration_ms as i64),
+                    language: None,
+                    model_id: None,
+                    source_type: Some(source.as_db_str().to_string()),
+                    source_url: None,
+                    audio_path: Some(audio_path.clone()),
+                },
+            )?;
 
-        // Phase 5: Set idle (short lock)
+            drop(rec_id);
+            Ok(())
+        })();
+
+        // Phase 5: Always reset to Idle — even if DB failed, audio is already saved to disk
         *lock(&self.status) = RecordingStatus::Idle;
         let _ = app.emit(
             "recording:status",
@@ -292,6 +297,7 @@ impl RecordingManager {
             },
         );
 
+        db_result?;
         Ok(audio_path)
     }
 

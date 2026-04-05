@@ -65,10 +65,14 @@ export function RecordingPanel() {
     const unlisten = listen<{ status: string; recording_id: string | null }>(
       "recording:status",
       (event) => {
-        useRecordingStore.setState({
-          status: event.payload.status as typeof status,
-          recordingId: event.payload.recording_id,
-        });
+        const validStatuses = ["idle", "recording", "paused", "stopping"];
+        const s = event.payload.status;
+        if (validStatuses.includes(s)) {
+          useRecordingStore.setState({
+            status: s as typeof status,
+            recordingId: event.payload.recording_id,
+          });
+        }
       }
     );
     return () => {
