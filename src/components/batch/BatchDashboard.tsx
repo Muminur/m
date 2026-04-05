@@ -98,7 +98,14 @@ function JobCard({ job }: { job: BatchJob }) {
         );
 
   const handleExport = useCallback(async () => {
-    await invoke("batch_export_job", { jobId: job.id });
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const destFolder = await save({ title: "Export batch results to folder" });
+    if (!destFolder) return;
+    await invoke("export_batch_job", {
+      jobId: job.id,
+      format: "txt",
+      destFolder,
+    });
   }, [job.id]);
 
   return (
@@ -279,7 +286,7 @@ export function BatchDashboard() {
       const unItemComplete = await listen<BatchItemCompletePayload>(
         "batch:item-complete",
         async (event) => {
-          const { jobId, itemId, status, processingMs } = event.payload;
+          const { jobId, itemId, status, error } = event.payload;
           useBatchStore.setState((state) => ({
             jobs: state.jobs.map((job) =>
               job.id !== jobId
@@ -289,7 +296,7 @@ export function BatchDashboard() {
                     items: job.items.map((item) =>
                       item.id !== itemId
                         ? item
-                        : { ...item, status, processingMs, progress: 100 }
+                        : { ...item, status, error, progress: 100 }
                     ),
                   }
             ),

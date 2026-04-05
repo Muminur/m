@@ -170,6 +170,7 @@ pub enum DiarizationErrorCode {
     ApiError,
     NoSpeakersDetected,
     InvalidTranscript,
+    ValidationError,
 }
 
 #[derive(Debug, Serialize, Clone)]

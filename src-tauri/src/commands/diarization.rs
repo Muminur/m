@@ -109,20 +109,31 @@ pub async fn diarize_transcript(
     };
 
     // 4. Persist speaker_id assignments back onto the segments table.
+    //    Diarization providers may split segments (e.g. tinydiarize on
+    //    [SPEAKER_TURN]), so we match diarized segments to original segments
+    //    by time overlap rather than assuming a 1:1 mapping.
     {
         let conn = db.get()?;
-        for (orig, diarized_seg) in raw_segments.iter().zip(diarized.iter()) {
-            conn.execute(
-                "UPDATE segments SET speaker_id = ?1 WHERE id = ?2",
-                rusqlite::params![diarized_seg.speaker_id, orig.id],
-            )
-            .map_err(|e| AppError::StorageError {
-                code: crate::error::StorageErrorCode::DatabaseError,
-                message: format!(
-                    "Failed to persist speaker_id for segment {}: {}",
-                    orig.id, e
-                ),
-            })?;
+        for orig in &raw_segments {
+            // Find the diarized segment whose time window best overlaps this original.
+            let best_match = diarized.iter().find(|d| {
+                d.start_ms == orig.start_ms
+                    || (d.start_ms >= orig.start_ms && d.start_ms < orig.end_ms)
+                    || (d.end_ms > orig.start_ms && d.end_ms <= orig.end_ms)
+            });
+            if let Some(matched) = best_match {
+                conn.execute(
+                    "UPDATE segments SET speaker_id = ?1 WHERE id = ?2",
+                    rusqlite::params![matched.speaker_id, orig.id],
+                )
+                .map_err(|e| AppError::StorageError {
+                    code: crate::error::StorageErrorCode::DatabaseError,
+                    message: format!(
+                        "Failed to persist speaker_id for segment {}: {}",
+                        orig.id, e
+                    ),
+                })?;
+            }
         }
     }
 
@@ -164,13 +175,13 @@ pub async fn update_speaker_label(
     // Validate inputs — speaker_id must be non-empty and transcript must exist.
     if speaker_id.is_empty() {
         return Err(AppError::DiarizationError {
-            code: DiarizationErrorCode::ProviderNotFound,
+            code: DiarizationErrorCode::ValidationError,
             message: "speaker_id must not be empty".into(),
         });
     }
     if new_label.trim().is_empty() {
         return Err(AppError::DiarizationError {
-            code: DiarizationErrorCode::ProviderNotFound,
+            code: DiarizationErrorCode::ValidationError,
             message: "new_label must not be blank".into(),
         });
     }

@@ -44,8 +44,9 @@ export interface BatchProgressPayload {
 export interface BatchItemCompletePayload {
   jobId: string;
   itemId: string;
+  transcriptId: string | null;
   status: BatchStatus;
-  processingMs: number;
+  error: string | null;
 }
 
 /** Payload for batch:job-complete Tauri events */

@@ -48,9 +48,13 @@ const makeJobWithItems = (jobId: string, status: BatchJob["status"]): BatchJob =
 
 /** Render BatchDashboard with pre-seeded jobs, making invoke return those jobs on refreshJobs */
 async function renderWithJobs(jobs: BatchJob[]) {
-  // invoke("batch_list_jobs") must return the jobs so refreshJobs doesn't clear them
-  mockInvoke.mockImplementation((cmd: string) => {
-    if (cmd === "batch_list_jobs") return Promise.resolve(jobs);
+  // invoke calls must return correct data so refreshJobs hydrates properly
+  mockInvoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+    if (cmd === "list_batch_jobs") return Promise.resolve(jobs);
+    if (cmd === "get_batch_job_items" && args) {
+      const job = jobs.find((j) => j.id === args.jobId);
+      return Promise.resolve(job?.items ?? []);
+    }
     return Promise.resolve();
   });
   // Pre-seed the store so the component renders jobs immediately on first paint
@@ -68,7 +72,8 @@ describe("BatchDashboard", () => {
   beforeEach(async () => {
     mockInvoke.mockReset();
     mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "batch_list_jobs") return Promise.resolve([]);
+      if (cmd === "list_batch_jobs") return Promise.resolve([]);
+      if (cmd === "get_batch_job_items") return Promise.resolve([]);
       return Promise.resolve();
     });
     await act(async () => {
@@ -165,8 +170,12 @@ describe("BatchDashboard", () => {
   it("calls startJob when Start button is clicked", async () => {
     const startJobMock = vi.fn().mockResolvedValue(undefined);
     const jobs = [makeJobWithItems("job-1", "Pending")];
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "batch_list_jobs") return Promise.resolve(jobs);
+    mockInvoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "list_batch_jobs") return Promise.resolve(jobs);
+      if (cmd === "get_batch_job_items" && args) {
+        const job = jobs.find((j) => j.id === args.jobId);
+        return Promise.resolve(job?.items ?? []);
+      }
       return Promise.resolve();
     });
     // Set jobs AND mock action together before render
@@ -187,8 +196,12 @@ describe("BatchDashboard", () => {
   it("calls pauseJob when Pause button is clicked", async () => {
     const pauseJobMock = vi.fn().mockResolvedValue(undefined);
     const jobs = [makeJobWithItems("job-1", "Running")];
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "batch_list_jobs") return Promise.resolve(jobs);
+    mockInvoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "list_batch_jobs") return Promise.resolve(jobs);
+      if (cmd === "get_batch_job_items" && args) {
+        const job = jobs.find((j) => j.id === args.jobId);
+        return Promise.resolve(job?.items ?? []);
+      }
       return Promise.resolve();
     });
     useBatchStore.setState({
@@ -208,8 +221,12 @@ describe("BatchDashboard", () => {
   it("calls cancelJob when Cancel button is clicked", async () => {
     const cancelJobMock = vi.fn().mockResolvedValue(undefined);
     const jobs = [makeJobWithItems("job-1", "Pending")];
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "batch_list_jobs") return Promise.resolve(jobs);
+    mockInvoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "list_batch_jobs") return Promise.resolve(jobs);
+      if (cmd === "get_batch_job_items" && args) {
+        const job = jobs.find((j) => j.id === args.jobId);
+        return Promise.resolve(job?.items ?? []);
+      }
       return Promise.resolve();
     });
     useBatchStore.setState({

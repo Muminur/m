@@ -124,7 +124,7 @@ impl YtDlpManager {
     }
 
     /// Run `yt-dlp --version` and return the trimmed version string.
-    fn query_version(path: &PathBuf) -> Result<String, AppError> {
+    fn query_version(path: &std::path::Path) -> Result<String, AppError> {
         let output =
             Command::new(path)
                 .arg("--version")
