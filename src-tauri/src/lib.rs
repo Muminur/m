@@ -211,6 +211,10 @@ pub fn run() {
             commands::batch::list_batch_jobs,
             commands::batch::get_batch_job_items,
             commands::batch::export_batch_job,
+            // Diarization
+            commands::diarization::diarize_transcript,
+            commands::diarization::get_diarization_providers,
+            commands::diarization::update_speaker_label,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

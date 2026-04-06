@@ -48,6 +48,9 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **YouTube import** — paste YouTube URL; audio extracted via yt-dlp and queued for transcription
 - **yt-dlp detection** — auto-detect yt-dlp in PATH, Homebrew, or local app data
 - **Filler word removal** — configurable word list (um, uh, er, like, you know); word-boundary aware
+- **Privacy-first architecture** — NetworkGuard enforces offline/local-only/allow-all network policies; all HTTP routed through a single guard module
+- **Localization** — i18n support via react-i18next with English, Dutch, and German translations
+- **Typed error handling** — all backend commands return typed `AppError` variants with error codes; no raw string errors
 
 ## Tech Stack
 
@@ -129,16 +132,19 @@ src/                    # React frontend
     common/             # Layout, Sidebar
     editor/             # Waveform, TranscriptView, SegmentEditor, FindReplace, VideoPlayer, SpeakerLabels
     export/             # ExportDialog
-    library/            # LibraryList, LibraryFilters, SearchBar, FolderTree
+    library/            # LibraryList, LibraryFilters, SearchBar, FolderTree, TranscriptDetail
     batch/              # BatchDashboard
     captions/           # CaptionOverlay, CaptionControls, SpotlightBar
     recording/          # RecordingPanel, DeviceSelector, SpeakerCountHint
     settings/           # AccelerationSettings, WatchFolderSettings
-    transcription/      # DropZone, ModelManager, PerformanceBar
+    transcription/      # DropZone, ModelManager, PerformanceBar, TranscriptionSettings
   hooks/                # usePlayer (wavesurfer.js audio player hook)
+  i18n/                 # Localization (en.json, nl.json, de.json)
   pages/                # SettingsPage
   stores/               # Zustand stores (settings, transcript, model, recording, library, caption, batch)
-  lib/                  # types.ts
+  lib/                  # types.ts, batchTypes.ts, captionTypes.ts, diarizationTypes.ts
+  styles/               # Global CSS (Tailwind)
+  test/                 # Component and store tests
 
 src-tauri/              # Rust backend
   src/
@@ -154,8 +160,11 @@ src-tauri/              # Rust backend
     shortcuts/          # Global shortcut manager with collision detection
     transcription/      # WhisperEngine + pipeline + streaming + VAD + translation + filler word removal
     watch/              # Watch folder manager + audio file handler
-    settings.rs         # AppSettings with AccelerationBackend
-    error.rs            # Typed error enum
+    network/            # NetworkGuard module (HTTP policy enforcement)
+    settings.rs         # AppSettings with AccelerationBackend and NetworkPolicy
+    error.rs            # Typed error enum (12 error categories with codes)
+    keychain.rs         # macOS Keychain integration for API key storage
+    logging.rs          # Tracing/logging infrastructure with file rotation
   migrations/           # SQL migration files (V001-V013)
   benches/              # Criterion benchmark suite
 ```
