@@ -1,5 +1,7 @@
+pub mod ai;
 pub mod audio;
 pub mod batch;
+pub mod cloud_transcription;
 pub mod commands;
 pub mod database;
 pub mod diarization;
@@ -18,6 +20,7 @@ pub mod watch;
 
 use std::sync::Arc;
 use tauri::Manager;
+use tokio::sync::Mutex as TokioMutex;
 
 pub fn run() {
     // Initialize logging first
@@ -97,8 +100,14 @@ pub fn run() {
 
             // Initialize batch queue
             let db_ref = app.state::<Arc<database::Database>>();
-            let batch_queue = Arc::new(batch::queue::BatchQueue::new(Arc::clone(&db_ref)));
+            let batch_queue = Arc::new(batch::queue::BatchQueue::new(Arc::clone(&db_ref), Arc::clone(&model_manager)));
             app.manage(Arc::clone(&batch_queue));
+
+            // Initialize AI provider registry
+            let provider_registry = Arc::new(TokioMutex::new(
+                ai::provider::ProviderRegistry::new(),
+            ));
+            app.manage(Arc::clone(&provider_registry));
 
             // Start watching configured folders
             let watch_handle = app_handle.clone();
@@ -221,6 +230,24 @@ pub fn run() {
             // Captions
             commands::captions::start_captions,
             commands::captions::stop_captions,
+            // AI
+            commands::ai::list_ai_providers,
+            commands::ai::run_ai_action,
+            commands::ai::estimate_ai_cost,
+            commands::ai::list_ai_templates,
+            commands::ai::create_ai_template,
+            commands::ai::update_ai_template,
+            commands::ai::delete_ai_template,
+            commands::ai::list_ollama_models,
+            // Keychain
+            commands::keychain::set_api_key,
+            commands::keychain::get_api_key,
+            commands::keychain::delete_api_key,
+            // Cloud Transcription
+            commands::cloud_transcription::list_cloud_providers,
+            commands::cloud_transcription::transcribe_with_cloud,
+            commands::cloud_transcription::estimate_cloud_cost,
+            commands::cloud_transcription::refine_with_cloud,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

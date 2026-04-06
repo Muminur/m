@@ -11,9 +11,11 @@ use tauri::{command, AppHandle, State};
 pub async fn create_batch_job(
     files: Vec<String>,
     concurrency: u8,
+    model_id: Option<String>,
+    language: Option<String>,
     batch_queue: State<'_, Arc<BatchQueue>>,
 ) -> Result<BatchJob, AppError> {
-    batch_queue.create_job(files, concurrency)
+    batch_queue.create_job(files, concurrency, model_id, language)
 }
 
 #[command]

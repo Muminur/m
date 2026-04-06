@@ -233,6 +233,8 @@ impl BatchQueue {
             concurrency,
             model_id,
             language,
+            started_at: None,
+            completed_at: None,
         })
     }
 

@@ -1,4 +1,5 @@
 pub mod engine;
+pub mod hybrid;
 pub mod pipeline;
 pub mod postprocess;
 pub mod streaming;

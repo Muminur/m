@@ -49,8 +49,16 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **yt-dlp detection** — auto-detect yt-dlp in PATH, Homebrew, or local app data
 - **Filler word removal** — configurable word list (um, uh, er, like, you know); word-boundary aware
 - **Privacy-first architecture** — NetworkGuard enforces offline/local-only/allow-all network policies; all HTTP routed through a single guard module
+- **AI Action Panel** — summarize, extract key points, Q&A, translate, rewrite, or generate chapters from any transcript using 9 LLM providers
+- **LLM providers** — OpenAI (GPT-4o, GPT-4o-mini), Anthropic (Claude Opus/Sonnet/Haiku), Groq (llama3, mixtral), Ollama (local), DeepSeek, xAI, OpenRouter, Azure, and custom OpenAI-compatible endpoints
+- **Streaming AI responses** — real-time token streaming from AI providers with animated cursor display
+- **Token and cost estimation** — estimated token count and USD cost shown before sending to any paid API
+- **Prompt templates** — create, edit, and reuse custom AI prompts with `{{transcript}}`, `{{speaker_list}}`, and `{{duration}}` variable substitution
+- **Cloud transcription** — upload audio to OpenAI Whisper, Deepgram Nova-2 (with diarization), Groq Whisper, or ElevenLabs with explicit opt-in and cost estimate shown first
+- **Hybrid transcription** — transcribe locally then refine with cloud in one click
+- **API key management** — all provider keys stored in macOS Keychain (never written to disk); manage from Settings
 - **Localization** — i18n support via react-i18next with English, Dutch, and German translations
-- **Typed error handling** — all backend commands return typed `AppError` variants with error codes; no raw string errors
+- **Typed error handling** — all backend commands return typed `AppError` variants with error codes; no raw string errors (14 error categories)
 
 ## Tech Stack
 
@@ -99,6 +107,7 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | V013 | Batch jobs and batch job items |
 | V014 | Batch job timestamps (started_at, completed_at, processing_ms) |
 | V015 | Batch job model and language settings |
+| V016 | API keys service registry (actual keys stored in system Keychain) |
 
 ## Acceleration Backends
 
@@ -131,20 +140,21 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 ```
 src/                    # React frontend
   components/
+    ai/                 # AiPanel, ProviderSelector (streaming AI response panel)
     common/             # Layout, Sidebar
     editor/             # Waveform, TranscriptView, SegmentEditor, FindReplace, VideoPlayer, SpeakerLabels
     export/             # ExportDialog
     library/            # LibraryList, LibraryFilters, SearchBar, FolderTree, TranscriptDetail
     batch/              # BatchDashboard
     captions/           # CaptionOverlay, CaptionControls, SpotlightBar
-    recording/          # RecordingPanel, DeviceSelector, SpeakerCountHint
-    settings/           # AccelerationSettings, WatchFolderSettings
+    recording/          # RecordingPanel, DeviceSelector, SpeakerCountHint, CloudTranscription
+    settings/           # AccelerationSettings, WatchFolderSettings, ApiKeySettings
     transcription/      # DropZone, ModelManager, PerformanceBar, TranscriptionSettings
   hooks/                # usePlayer (wavesurfer.js audio player hook)
   i18n/                 # Localization (en.json, nl.json, de.json)
   pages/                # SettingsPage
-  stores/               # Zustand stores (settings, transcript, model, recording, library, caption, batch)
-  lib/                  # types.ts, batchTypes.ts, captionTypes.ts, diarizationTypes.ts
+  stores/               # Zustand stores (settings, transcript, model, recording, library, caption, batch, ai)
+  lib/                  # types.ts, batchTypes.ts, captionTypes.ts, diarizationTypes.ts, aiTypes.ts
   styles/               # Global CSS (Tailwind)
   test/                 # Component and store tests
 
@@ -152,7 +162,9 @@ src-tauri/              # Rust backend
   src/
     audio/              # Decode, resample, mic recording, system audio, combined capture
     batch/              # Batch processing queue and export
-    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts, batch, diarization, import)
+    ai/                 # LLM abstraction: AiProvider trait, ProviderRegistry, 5 providers + OpenAI-compat adapter, actions, templates, cost estimation
+    cloud_transcription/ # Cloud transcription: OpenAI Whisper, Deepgram, Groq Whisper, ElevenLabs, VibeVoice
+    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts, batch, diarization, import, ai, keychain, cloud_transcription)
     database/           # SQLite + migrations, search, smart_folders, recordings, undo
     dictation/          # Dictation pipeline: accessibility, postprocessing, AI correction, history
     diarization/        # Speaker diarization: tinydiarize, ElevenLabs, Deepgram providers
@@ -160,14 +172,14 @@ src-tauri/              # Rust backend
     import/             # YouTube import via yt-dlp, yt-dlp detection
     models/             # Model manager (download, verify, manage)
     shortcuts/          # Global shortcut manager with collision detection
-    transcription/      # WhisperEngine + pipeline + streaming + VAD + translation + filler word removal
+    transcription/      # WhisperEngine + pipeline + streaming + VAD + translation + filler word removal + hybrid cloud refinement
     watch/              # Watch folder manager + audio file handler
     network/            # NetworkGuard module (HTTP policy enforcement)
     settings.rs         # AppSettings with AccelerationBackend and NetworkPolicy
-    error.rs            # Typed error enum (12 error categories with codes)
+    error.rs            # Typed error enum (14 error categories with codes)
     keychain.rs         # macOS Keychain integration for API key storage
     logging.rs          # Tracing/logging infrastructure with file rotation
-  migrations/           # SQL migration files (V001-V013)
+  migrations/           # SQL migration files (V001-V016)
   benches/              # Criterion benchmark suite
 ```
 

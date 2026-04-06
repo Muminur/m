@@ -1,5 +1,6 @@
 import { AccelerationSettings } from "@/components/settings/AccelerationSettings";
 import { WatchFolderSettings } from "@/components/settings/WatchFolderSettings";
+import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
 
 export function SettingsPage() {
   return (
@@ -11,6 +12,12 @@ export function SettingsPage() {
       <div className="flex-1 px-6 py-6 space-y-8 max-w-lg">
         <section>
           <AccelerationSettings />
+        </section>
+
+        <div className="h-px bg-border" />
+
+        <section>
+          <ApiKeySettings />
         </section>
 
         <div className="h-px bg-border" />

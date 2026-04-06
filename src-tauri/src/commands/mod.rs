@@ -1,9 +1,12 @@
+pub mod ai;
 pub mod batch;
 pub mod captions;
+pub mod cloud_transcription;
 pub mod diarization;
 pub mod dictation;
 pub mod export;
 pub mod import;
+pub mod keychain;
 pub mod library;
 pub mod recording;
 pub mod settings;

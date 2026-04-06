@@ -63,6 +63,10 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
             "V015",
             include_str!("../../migrations/V015__batch_jobs_model.sql"),
         ),
+        (
+            "V016",
+            include_str!("../../migrations/V016__api_keys_stub.sql"),
+        ),
     ];
 
     conn.execute_batch(
