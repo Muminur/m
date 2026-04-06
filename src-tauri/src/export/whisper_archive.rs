@@ -41,7 +41,14 @@ pub fn export_archive(
             code: ExportErrorCode::IoError,
             message: format!("{}", e),
         })?;
-    zip.write_all(serde_json::to_string_pretty(&manifest).unwrap().as_bytes())
+    zip.write_all(
+        serde_json::to_string_pretty(&manifest)
+            .map_err(|e| AppError::ExportError {
+                code: ExportErrorCode::FormatError,
+                message: format!("Failed to serialize manifest: {}", e),
+            })?
+            .as_bytes(),
+    )
         .map_err(|e| AppError::ExportError {
             code: ExportErrorCode::IoError,
             message: format!("{}", e),
@@ -59,7 +66,10 @@ pub fn export_archive(
         })?;
     zip.write_all(
         serde_json::to_string_pretty(&archive_data)
-            .unwrap()
+            .map_err(|e| AppError::ExportError {
+                code: ExportErrorCode::FormatError,
+                message: format!("Failed to serialize transcript: {}", e),
+            })?
             .as_bytes(),
     )
     .map_err(|e| AppError::ExportError {

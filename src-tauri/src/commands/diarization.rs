@@ -74,31 +74,44 @@ pub async fn diarize_transcript(
         });
     }
 
-    // 3. Select provider — resolved once, no dynamic dispatch allocation heap
-    //    overhead for the local case.
+    // 3. Select provider — cloud providers use block_on internally so we run
+    //    them inside spawn_blocking to avoid deadlocking the tokio runtime.
+    let segments_clone = raw_segments.clone();
+    let policy = guard.policy().clone();
     let diarized: Vec<DiarizedSegment> = match provider.as_str() {
         "tinydiarize" => {
             let p = TinydiarizeProvider::new();
             p.diarize(&raw_segments)?
         }
         "elevenlabs" => {
-            // NetworkGuard is shared application state; clone the inner policy
-            // to construct a provider-scoped guard instance.
             use crate::diarization::elevenlabs::ElevenLabsProvider;
             use crate::network::guard::NetworkGuard as NG;
 
-            let policy = guard.policy().clone();
             let new_guard = NG::new(policy)?;
-            let p = ElevenLabsProvider::new(new_guard);
-            p.diarize(&raw_segments)?
+            tokio::task::spawn_blocking(move || {
+                let p = ElevenLabsProvider::new(new_guard);
+                p.diarize(&segments_clone)
+            })
+            .await
+            .map_err(|e| AppError::DiarizationError {
+                code: DiarizationErrorCode::ApiError,
+                message: format!("Diarization task failed: {}", e),
+            })??
         }
         "deepgram" => {
             use crate::diarization::deepgram::DeepgramProvider;
             use crate::network::guard::NetworkGuard as NG;
-            let policy = guard.policy().clone();
+
             let new_guard = NG::new(policy)?;
-            let p = DeepgramProvider::new(new_guard);
-            p.diarize(&raw_segments)?
+            tokio::task::spawn_blocking(move || {
+                let p = DeepgramProvider::new(new_guard);
+                p.diarize(&segments_clone)
+            })
+            .await
+            .map_err(|e| AppError::DiarizationError {
+                code: DiarizationErrorCode::ApiError,
+                message: format!("Diarization task failed: {}", e),
+            })??
         }
         unknown => {
             return Err(AppError::DiarizationError {
@@ -194,12 +207,12 @@ pub async fn update_speaker_label(
         message: format!("Transcript '{}' not found", transcript_id),
     })?;
 
-    // speaker_label is stored on each segment individually so a single UPDATE
-    // propagates the rename across all segments at once.
+    // Update the label in the speakers table (the authoritative source for
+    // speaker metadata). The segments table references speakers via speaker_id.
     let affected = conn
         .execute(
-            "UPDATE segments SET speaker_label = ?1 WHERE transcript_id = ?2 AND speaker_id = ?3",
-            rusqlite::params![new_label, transcript_id, speaker_id],
+            "UPDATE speakers SET label = ?1 WHERE id = ?2 AND transcript_id = ?3",
+            rusqlite::params![new_label, speaker_id, transcript_id],
         )
         .map_err(|e| AppError::StorageError {
             code: crate::error::StorageErrorCode::DatabaseError,

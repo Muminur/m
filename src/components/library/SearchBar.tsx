@@ -4,6 +4,22 @@ import { useTranslation } from "react-i18next";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/lib/types";
 
+/** Safely renders FTS5 snippet excerpts by splitting on <mark> delimiters
+ * instead of using dangerouslySetInnerHTML. */
+function HighlightedExcerpt({ excerpt, className }: { excerpt: string; className?: string }) {
+  const parts = excerpt.split(/(<mark>|<\/mark>)/);
+  let inMark = false;
+  return (
+    <div className={className}>
+      {parts.map((part, i) => {
+        if (part === "<mark>") { inMark = true; return null; }
+        if (part === "</mark>") { inMark = false; return null; }
+        return inMark ? <mark key={i}>{part}</mark> : <span key={i}>{part}</span>;
+      })}
+    </div>
+  );
+}
+
 interface SearchBarProps {
   onResultClick: (transcriptId: string) => void;
 }
@@ -82,9 +98,9 @@ export function SearchBar({ onResultClick }: SearchBarProps) {
               className="w-full text-left px-3 py-2 hover:bg-accent transition-colors border-b border-border last:border-b-0"
             >
               <div className="text-sm font-medium truncate">{result.title}</div>
-              <div
+              <HighlightedExcerpt
                 className="text-xs text-muted-foreground mt-0.5 line-clamp-2"
-                dangerouslySetInnerHTML={{ __html: result.excerpt }}
+                excerpt={result.excerpt}
               />
               <span className="text-xs text-muted-foreground">{result.matchCount} matches</span>
             </button>
