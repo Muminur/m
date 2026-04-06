@@ -97,6 +97,8 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | V011 | System audio path for recordings |
 | V012 | Dictation history (text, app target, timestamps) |
 | V013 | Batch jobs and batch job items |
+| V014 | Batch job timestamps (started_at, completed_at, processing_ms) |
+| V015 | Batch job model and language settings |
 
 ## Acceleration Backends
 

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter};
+use url::Url;
 
 use crate::error::{AppError, ImportErrorCode};
 use crate::import::ytdlp::YtDlpManager;
@@ -158,22 +159,22 @@ impl YouTubeImporter {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// Accept only youtube.com (and www/music subdomains) and youtu.be URLs.
-    pub fn validate_url(url: &str) -> Result<(), AppError> {
-        let lower = url.to_lowercase();
-        let is_valid = lower.starts_with("https://www.youtube.com/")
-            || lower.starts_with("http://www.youtube.com/")
-            || lower.starts_with("https://youtube.com/")
-            || lower.starts_with("http://youtube.com/")
-            || lower.starts_with("https://music.youtube.com/")
-            || lower.starts_with("https://youtu.be/")
-            || lower.starts_with("http://youtu.be/");
-
-        if !is_valid {
+    pub fn validate_url(raw: &str) -> Result<(), AppError> {
+        let parsed = Url::parse(raw).map_err(|_| AppError::ImportError {
+            code: ImportErrorCode::InvalidUrl,
+            message: format!("Invalid URL: '{}'", raw),
+        })?;
+        let scheme_ok = parsed.scheme() == "https";
+        let host_ok = matches!(
+            parsed.host_str(),
+            Some("www.youtube.com") | Some("youtube.com") | Some("music.youtube.com") | Some("youtu.be")
+        );
+        if !scheme_ok || !host_ok {
             return Err(AppError::ImportError {
                 code: ImportErrorCode::InvalidUrl,
                 message: format!(
-                    "Invalid YouTube URL '{}'. Must be from youtube.com or youtu.be.",
-                    url
+                    "Invalid YouTube URL '{}'. Must be https://youtube.com or https://youtu.be.",
+                    raw
                 ),
             });
         }

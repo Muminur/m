@@ -1,6 +1,11 @@
-use crate::database::Database;
+use crate::audio::decode;
+use crate::database::{segments, transcripts, Database};
 use crate::error::{AppError, BatchErrorCode};
+use crate::models::manager::ModelManager;
+use crate::settings::AccelerationBackend;
+use crate::transcription::engine::{TranscriptionParams, WhisperEngine};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
@@ -101,6 +106,10 @@ pub struct BatchJob {
     pub created_at: i64,
     pub updated_at: i64,
     pub concurrency: u8,
+    pub model_id: Option<String>,
+    pub language: Option<String>,
+    pub started_at: Option<i64>,
+    pub completed_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,6 +122,7 @@ pub struct BatchJobItem {
     pub status: BatchItemStatus,
     pub error: Option<String>,
     pub progress: f32,
+    pub processing_ms: Option<i64>,
 }
 
 // ─── Event payloads ───────────────────────────────────────────────────────────
@@ -157,14 +167,16 @@ struct JobControl {
 
 pub struct BatchQueue {
     db: Arc<Database>,
+    model_manager: Arc<ModelManager>,
     /// Per-job control signals (job_id -> control)
     controls: Mutex<std::collections::HashMap<String, JobControl>>,
 }
 
 impl BatchQueue {
-    pub fn new(db: Arc<Database>) -> Self {
+    pub fn new(db: Arc<Database>, model_manager: Arc<ModelManager>) -> Self {
         Self {
             db,
+            model_manager,
             controls: Mutex::new(std::collections::HashMap::new()),
         }
     }
@@ -172,7 +184,13 @@ impl BatchQueue {
     // ─── Create ───────────────────────────────────────────────────────────────
 
     /// Create a new batch job and queue all provided file paths as items.
-    pub fn create_job(&self, files: Vec<String>, concurrency: u8) -> Result<BatchJob, AppError> {
+    pub fn create_job(
+        &self,
+        files: Vec<String>,
+        concurrency: u8,
+        model_id: Option<String>,
+        language: Option<String>,
+    ) -> Result<BatchJob, AppError> {
         // Clamp concurrency to 1-4
         let concurrency = concurrency.clamp(1, 4);
 
@@ -183,8 +201,8 @@ impl BatchQueue {
 
         let tx = conn.transaction()?;
         tx.execute(
-            "INSERT INTO batch_jobs (id, status, concurrency, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![job_id, BatchJobStatus::Pending.to_string(), concurrency as i64, now, now],
+            "INSERT INTO batch_jobs (id, status, concurrency, model_id, language, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![job_id, BatchJobStatus::Pending.to_string(), concurrency as i64, model_id, language, now, now],
         )?;
 
         for (i, file_path) in files.iter().enumerate() {
@@ -213,6 +231,8 @@ impl BatchQueue {
             created_at: now,
             updated_at: now,
             concurrency,
+            model_id,
+            language,
         })
     }
 
@@ -257,11 +277,13 @@ impl BatchQueue {
 
         let queue = Arc::clone(self);
         let job_id_owned = job_id.to_string();
+        let model_id = job.model_id.clone();
+        let language = job.language.clone();
 
         // Spawn the orchestrator on the Tauri async runtime
         tauri::async_runtime::spawn(async move {
             if let Err(e) = queue
-                .run_job(&job_id_owned, job.concurrency, app_handle)
+                .run_job(&job_id_owned, job.concurrency, model_id, language, app_handle)
                 .await
             {
                 tracing::error!("Batch job {} failed: {}", job_id_owned, e);
@@ -276,6 +298,8 @@ impl BatchQueue {
         self: &Arc<Self>,
         job_id: &str,
         concurrency: u8,
+        model_id: Option<String>,
+        language: Option<String>,
         app_handle: AppHandle,
     ) -> Result<(), AppError> {
         let semaphore = Arc::new(Semaphore::new(concurrency as usize));
@@ -327,6 +351,8 @@ impl BatchQueue {
             let job_id_clone = job_id.to_string();
             let app_clone = app_handle.clone();
             let completed_clone = Arc::clone(&completed_count);
+            let model_id_clone = model_id.clone();
+            let language_clone = language.clone();
 
             let handle = tauri::async_runtime::spawn(async move {
                 let _permit = permit; // Released when this task completes
@@ -348,11 +374,15 @@ impl BatchQueue {
                     },
                 );
 
-                // Simulate processing — real integration would call TranscriptionManager here.
-                // We mark Processing→Completed immediately; callers wire the real pipeline.
-                // This stub ensures the state machine and events are correct.
+                // Run real transcription pipeline for this item
                 let (final_status, transcript_id, err_msg) = queue
-                    .process_item(&item_clone, &job_id_clone, &app_clone)
+                    .process_item(
+                        &item_clone,
+                        &job_id_clone,
+                        model_id_clone.as_deref(),
+                        language_clone.as_deref(),
+                        &app_clone,
+                    )
                     .await;
 
                 let _ = queue.set_item_status(
@@ -448,25 +478,146 @@ impl BatchQueue {
         Ok(())
     }
 
-    /// Process a single item. Returns (final_status, transcript_id, error_msg).
-    /// This is the extension point for real transcription integration.
+    /// Process a single batch item by running the full transcription pipeline.
+    /// Returns (final_status, transcript_id, error_msg).
     async fn process_item(
         &self,
         item: &BatchJobItem,
         _job_id: &str,
+        model_id: Option<&str>,
+        language: Option<&str>,
         _app_handle: &AppHandle,
     ) -> (BatchItemStatus, Option<String>, Option<String>) {
-        // Validate the file exists before claiming success
-        if !std::path::Path::new(&item.file_path).exists() {
+        // Validate the file exists
+        let audio_path = std::path::PathBuf::from(&item.file_path);
+        if !audio_path.exists() {
             return (
                 BatchItemStatus::Failed,
                 None,
                 Some(format!("File not found: {}", item.file_path)),
             );
         }
-        // Real implementation would invoke TranscriptionManager here.
-        // Return Completed with no transcript_id — callers supply the wired version.
-        (BatchItemStatus::Completed, None, None)
+
+        // Resolve model_id — required for transcription
+        let model_id = match model_id {
+            Some(id) => id.to_string(),
+            None => {
+                return (
+                    BatchItemStatus::Failed,
+                    None,
+                    Some("No model_id specified for batch job".into()),
+                );
+            }
+        };
+
+        // Verify the model is downloaded
+        if !self.model_manager.is_downloaded(&model_id) {
+            return (
+                BatchItemStatus::Failed,
+                None,
+                Some(format!("Model '{}' is not downloaded", model_id)),
+            );
+        }
+
+        let model_path = self.model_manager.model_path(&model_id);
+        let db = Arc::clone(&self.db);
+        let language_owned = language.map(|s| s.to_string());
+        let item_id = item.id.clone();
+        let file_path = item.file_path.clone();
+
+        // Run transcription on a blocking thread — whisper-rs is CPU-bound
+        let result = tokio::task::spawn_blocking(move || -> Result<String, AppError> {
+            // Step 1: Decode audio
+            let decoded = decode::decode_file(&audio_path)?;
+            let duration_ms = decoded.duration_ms;
+
+            // Step 2: Resample to whisper format (mono 16kHz)
+            let pcm = decode::resample_to_whisper(&decoded)?;
+
+            // Step 3: Build transcription params
+            let params = TranscriptionParams {
+                language: language_owned,
+                ..TranscriptionParams::default()
+            };
+
+            // Step 4: Load engine and run inference
+            let engine = WhisperEngine::new(&model_path, AccelerationBackend::Auto)?;
+            let abort_flag = Arc::new(AtomicBool::new(false));
+            let output = engine.transcribe(
+                &params,
+                &pcm,
+                |_progress| {
+                    // Batch items don't emit per-item whisper progress (job-level progress is handled by the orchestrator)
+                },
+                abort_flag,
+            )?;
+
+            let segments_result = output.segments;
+
+            // Step 5: Create transcript record
+            let title = std::path::Path::new(&file_path)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Untitled")
+                .to_string();
+
+            let transcript_id = {
+                let conn = db.get()?;
+                transcripts::insert(
+                    &conn,
+                    &transcripts::NewTranscript {
+                        title,
+                        duration_ms: Some(duration_ms as i64),
+                        language: params.language.clone(),
+                        model_id: Some(model_id),
+                        source_type: Some("batch".to_string()),
+                        source_url: None,
+                        audio_path: Some(file_path),
+                    },
+                )?
+            };
+
+            // Step 6: Insert segments
+            {
+                let conn = db.get()?;
+                segments::insert_batch(&conn, &transcript_id, &segments_result)?;
+
+                let word_count: i64 = segments_result
+                    .iter()
+                    .map(|s| s.text.split_whitespace().count() as i64)
+                    .sum();
+
+                conn.execute(
+                    "UPDATE transcripts SET word_count = ?1, updated_at = strftime('%s','now') WHERE id = ?2",
+                    rusqlite::params![word_count, transcript_id],
+                )?;
+            }
+
+            Ok(transcript_id)
+        })
+        .await;
+
+        match result {
+            Ok(Ok(transcript_id)) => {
+                // Update the batch item's transcript_id in the database
+                let _ = self.set_item_transcript_id(&item_id, &transcript_id);
+                (
+                    BatchItemStatus::Completed,
+                    Some(transcript_id),
+                    None,
+                )
+            }
+            Ok(Err(e)) => (
+                BatchItemStatus::Failed,
+                None,
+                Some(format!("Transcription failed: {}", e)),
+            ),
+            Err(e) => (
+                BatchItemStatus::Failed,
+                None,
+                Some(format!("Task panicked: {}", e)),
+            ),
+        }
     }
 
     // ─── Pause ────────────────────────────────────────────────────────────────
@@ -558,7 +709,7 @@ impl BatchQueue {
     pub fn get_job(&self, job_id: &str) -> Result<BatchJob, AppError> {
         let conn = self.db.get()?;
         conn.query_row(
-            "SELECT id, status, concurrency, created_at, updated_at FROM batch_jobs WHERE id = ?1",
+            "SELECT id, status, concurrency, created_at, updated_at, model_id, language, started_at, completed_at FROM batch_jobs WHERE id = ?1",
             rusqlite::params![job_id],
             |row| {
                 Ok((
@@ -567,6 +718,10 @@ impl BatchQueue {
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, i64>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<i64>>(7)?,
+                    row.get::<_, Option<i64>>(8)?,
                 ))
             },
         )
@@ -577,7 +732,7 @@ impl BatchQueue {
             },
             other => AppError::from(other),
         })
-        .and_then(|(id, status_str, concurrency, created_at, updated_at)| {
+        .and_then(|(id, status_str, concurrency, created_at, updated_at, model_id, language, started_at, completed_at)| {
             let status: BatchJobStatus = status_str.parse()?;
             Ok(BatchJob {
                 id,
@@ -585,6 +740,10 @@ impl BatchQueue {
                 created_at,
                 updated_at,
                 concurrency: concurrency as u8,
+                model_id,
+                language,
+                started_at,
+                completed_at,
             })
         })
     }
@@ -592,7 +751,7 @@ impl BatchQueue {
     pub fn list_jobs(&self) -> Result<Vec<BatchJob>, AppError> {
         let conn = self.db.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, status, concurrency, created_at, updated_at FROM batch_jobs ORDER BY created_at DESC",
+            "SELECT id, status, concurrency, created_at, updated_at, model_id, language, started_at, completed_at FROM batch_jobs ORDER BY created_at DESC",
         )?;
         let rows = stmt.query_map([], |row| {
             Ok((
@@ -601,12 +760,16 @@ impl BatchQueue {
                 row.get::<_, i64>(2)?,
                 row.get::<_, i64>(3)?,
                 row.get::<_, i64>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, Option<i64>>(7)?,
+                row.get::<_, Option<i64>>(8)?,
             ))
         })?;
 
         let mut jobs = Vec::new();
         for row in rows {
-            let (id, status_str, concurrency, created_at, updated_at) = row?;
+            let (id, status_str, concurrency, created_at, updated_at, model_id, language, started_at, completed_at) = row?;
             let status: BatchJobStatus = status_str.parse()?;
             jobs.push(BatchJob {
                 id,
@@ -614,6 +777,10 @@ impl BatchQueue {
                 created_at,
                 updated_at,
                 concurrency: concurrency as u8,
+                model_id,
+                language,
+                started_at,
+                completed_at,
             });
         }
         Ok(jobs)
@@ -622,7 +789,7 @@ impl BatchQueue {
     pub fn get_job_items(&self, job_id: &str) -> Result<Vec<BatchJobItem>, AppError> {
         let conn = self.db.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, job_id, file_path, transcript_id, status, error, progress FROM batch_job_items WHERE job_id = ?1 ORDER BY sort_order",
+            "SELECT id, job_id, file_path, transcript_id, status, error, progress, processing_ms FROM batch_job_items WHERE job_id = ?1 ORDER BY sort_order",
         )?;
         let rows = stmt.query_map(rusqlite::params![job_id], |row| {
             Ok((
@@ -633,12 +800,13 @@ impl BatchQueue {
                 row.get::<_, String>(4)?,
                 row.get::<_, Option<String>>(5)?,
                 row.get::<_, f64>(6)?,
+                row.get::<_, Option<i64>>(7)?,
             ))
         })?;
 
         let mut items = Vec::new();
         for row in rows {
-            let (id, job_id_col, file_path, transcript_id, status_str, error, progress) = row?;
+            let (id, job_id_col, file_path, transcript_id, status_str, error, progress, processing_ms) = row?;
             let status: BatchItemStatus = status_str.parse()?;
             items.push(BatchJobItem {
                 id,
@@ -648,6 +816,7 @@ impl BatchQueue {
                 status,
                 error,
                 progress: progress as f32,
+                processing_ms,
             });
         }
         Ok(items)
@@ -658,9 +827,38 @@ impl BatchQueue {
     fn set_job_status(&self, job_id: &str, status: BatchJobStatus) -> Result<(), AppError> {
         let conn = self.db.get()?;
         let now = chrono::Utc::now().timestamp();
+        match status {
+            BatchJobStatus::Running => {
+                conn.execute(
+                    "UPDATE batch_jobs SET status = ?1, updated_at = ?2, started_at = ?2 WHERE id = ?3",
+                    rusqlite::params![status.to_string(), now, job_id],
+                )?;
+            }
+            BatchJobStatus::Completed | BatchJobStatus::Failed | BatchJobStatus::Cancelled => {
+                conn.execute(
+                    "UPDATE batch_jobs SET status = ?1, updated_at = ?2, completed_at = ?2 WHERE id = ?3",
+                    rusqlite::params![status.to_string(), now, job_id],
+                )?;
+            }
+            _ => {
+                conn.execute(
+                    "UPDATE batch_jobs SET status = ?1, updated_at = ?2 WHERE id = ?3",
+                    rusqlite::params![status.to_string(), now, job_id],
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn set_item_transcript_id(
+        &self,
+        item_id: &str,
+        transcript_id: &str,
+    ) -> Result<(), AppError> {
+        let conn = self.db.get()?;
         conn.execute(
-            "UPDATE batch_jobs SET status = ?1, updated_at = ?2 WHERE id = ?3",
-            rusqlite::params![status.to_string(), now, job_id],
+            "UPDATE batch_job_items SET transcript_id = ?1 WHERE id = ?2",
+            rusqlite::params![transcript_id, item_id],
         )?;
         Ok(())
     }

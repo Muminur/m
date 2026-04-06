@@ -37,8 +37,7 @@ impl NetworkGuard {
 
                 let is_local = host == "localhost"
                     || host == "127.0.0.1"
-                    || host == "::1"
-                    || host.ends_with(".local"); // mDNS/Bonjour LAN hosts
+                    || host == "::1";
 
                 if !is_local {
                     return Err(AppError::NetworkError {

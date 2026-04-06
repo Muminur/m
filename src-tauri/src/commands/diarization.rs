@@ -126,7 +126,11 @@ pub async fn diarize_transcript(
     //    [SPEAKER_TURN]), so we match diarized segments to original segments
     //    by time overlap rather than assuming a 1:1 mapping.
     {
-        let conn = db.get()?;
+        let mut conn = db.get()?;
+        let tx = conn.transaction().map_err(|e| AppError::StorageError {
+            code: crate::error::StorageErrorCode::DatabaseError,
+            message: format!("Failed to open transaction: {}", e),
+        })?;
         for orig in &raw_segments {
             // Find the diarized segment whose time window best overlaps this original.
             let best_match = diarized.iter().find(|d| {
@@ -135,7 +139,7 @@ pub async fn diarize_transcript(
                     || (d.end_ms > orig.start_ms && d.end_ms <= orig.end_ms)
             });
             if let Some(matched) = best_match {
-                conn.execute(
+                tx.execute(
                     "UPDATE segments SET speaker_id = ?1 WHERE id = ?2",
                     rusqlite::params![matched.speaker_id, orig.id],
                 )
@@ -148,6 +152,10 @@ pub async fn diarize_transcript(
                 })?;
             }
         }
+        tx.commit().map_err(|e| AppError::StorageError {
+            code: crate::error::StorageErrorCode::DatabaseError,
+            message: format!("Failed to commit diarization: {}", e),
+        })?;
     }
 
     let speaker_count = {

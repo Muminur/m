@@ -98,7 +98,7 @@ impl TranscriptionManager {
     pub fn abort(&self) {
         if let Ok(job) = self.active_job.lock() {
             if let Some(aj) = job.as_ref() {
-                aj.abort_flag.store(true, Ordering::Relaxed);
+                aj.abort_flag.store(true, Ordering::SeqCst);
             }
         }
     }
@@ -276,7 +276,7 @@ fn run_transcription_thread(
     // Step 2: Convert to mono 16kHz PCM for whisper
     let pcm = decode::resample_to_whisper(&decoded)?;
 
-    if abort_flag.load(Ordering::Relaxed) {
+    if abort_flag.load(Ordering::SeqCst) {
         emit_cancelled(app_handle, job_id, transcript_id, 0);
         return Err(AppError::TranscriptionError {
             code: TranscriptionErrorCode::Cancelled,

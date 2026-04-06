@@ -1,4 +1,5 @@
 pub mod batch;
+pub mod captions;
 pub mod diarization;
 pub mod dictation;
 pub mod export;

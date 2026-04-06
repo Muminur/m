@@ -92,8 +92,12 @@ pub async fn rename_folder(
 
 #[command]
 pub async fn delete_folder(id: String, db: State<'_, Arc<Database>>) -> Result<(), AppError> {
-    let conn = db.get()?;
-    conn.execute(
+    let mut conn = db.get()?;
+    let tx = conn.transaction().map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("{}", e),
+    })?;
+    tx.execute(
         "UPDATE transcripts SET folder_id = NULL WHERE folder_id = ?1",
         params![id],
     )
@@ -101,11 +105,15 @@ pub async fn delete_folder(id: String, db: State<'_, Arc<Database>>) -> Result<(
         code: StorageErrorCode::DatabaseError,
         message: format!("{}", e),
     })?;
-    conn.execute("DELETE FROM folders WHERE id = ?1", params![id])
+    tx.execute("DELETE FROM folders WHERE id = ?1", params![id])
         .map_err(|e| AppError::StorageError {
             code: StorageErrorCode::DatabaseError,
             message: format!("Failed to delete folder: {}", e),
         })?;
+    tx.commit().map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to commit delete_folder: {}", e),
+    })?;
     Ok(())
 }
 
@@ -133,6 +141,7 @@ pub async fn move_to_folder(
 // ─── Tag commands ────────────────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TagInfo {
     pub id: String,
     pub name: String,
@@ -416,12 +425,16 @@ pub async fn merge_segments(
     db: State<'_, Arc<Database>>,
     undo_mgr: State<'_, UndoManager>,
 ) -> Result<(), AppError> {
-    let conn = db.get()?;
+    let mut conn = db.get()?;
     let kept = segments::get_by_id(&conn, &kept_id)?;
     let removed = segments::get_by_id(&conn, &removed_id)?;
     let merged_text = format!("{} {}", kept.text.trim(), removed.text.trim());
     let new_end_ms = removed.end_ms;
-    conn.execute(
+    let tx = conn.transaction().map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("{}", e),
+    })?;
+    tx.execute(
         "UPDATE segments SET text = ?2, end_ms = ?3 WHERE id = ?1",
         params![kept_id, merged_text, new_end_ms],
     )
@@ -429,7 +442,11 @@ pub async fn merge_segments(
         code: StorageErrorCode::DatabaseError,
         message: format!("{}", e),
     })?;
-    segments::soft_delete(&conn, &removed_id)?;
+    segments::soft_delete(&tx, &removed_id)?;
+    tx.commit().map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to commit merge_segments: {}", e),
+    })?;
     undo_mgr.push(UndoOperation::MergeSegments {
         kept_id,
         removed_id,
@@ -450,12 +467,16 @@ pub async fn split_segment(
     db: State<'_, Arc<Database>>,
     undo_mgr: State<'_, UndoManager>,
 ) -> Result<String, AppError> {
-    let conn = db.get()?;
+    let mut conn = db.get()?;
     let seg = segments::get_by_id(&conn, &segment_id)?;
     let first_text = seg.text.chars().take(split_pos).collect::<String>();
     let second_text = seg.text.chars().skip(split_pos).collect::<String>();
     let new_id = Uuid::new_v4().to_string();
-    conn.execute(
+    let tx = conn.transaction().map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("{}", e),
+    })?;
+    tx.execute(
         "UPDATE segments SET text = ?2, end_ms = ?3 WHERE id = ?1",
         params![segment_id, first_text.trim(), split_ms],
     )
@@ -463,9 +484,13 @@ pub async fn split_segment(
         code: StorageErrorCode::DatabaseError,
         message: format!("{}", e),
     })?;
-    conn.execute("INSERT INTO segments (id, transcript_id, index_num, start_ms, end_ms, text, speaker_id, confidence, is_deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
+    tx.execute("INSERT INTO segments (id, transcript_id, index_num, start_ms, end_ms, text, speaker_id, confidence, is_deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
         params![new_id, seg.transcript_id, seg.index_num + 1, split_ms, seg.end_ms, second_text.trim(), seg.speaker_id, seg.confidence])
         .map_err(|e| AppError::StorageError { code: StorageErrorCode::DatabaseError, message: format!("{}", e) })?;
+    tx.commit().map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to commit split_segment: {}", e),
+    })?;
     undo_mgr.push(UndoOperation::SplitSegment {
         original_id: segment_id,
         new_id: new_id.clone(),

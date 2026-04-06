@@ -27,6 +27,7 @@ const STATUS_STYLES: Record<BatchStatus, string> = {
   Completed: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
   Failed: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   Cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+  Skipped: "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500",
 };
 
 function StatusBadge({ status }: { status: BatchStatus }) {

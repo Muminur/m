@@ -92,6 +92,9 @@ pub fn run() {
             // Initialize filler word config state
             app.manage(commands::import::FillerConfigState::default());
 
+            // Initialize captions state
+            app.manage(commands::captions::CaptionsState::default());
+
             // Initialize batch queue
             let db_ref = app.state::<Arc<database::Database>>();
             let batch_queue = Arc::new(batch::queue::BatchQueue::new(Arc::clone(&db_ref)));
@@ -215,6 +218,9 @@ pub fn run() {
             commands::diarization::diarize_transcript,
             commands::diarization::get_diarization_providers,
             commands::diarization::update_speaker_label,
+            // Captions
+            commands::captions::start_captions,
+            commands::captions::stop_captions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

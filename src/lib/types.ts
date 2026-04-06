@@ -151,7 +151,11 @@ export interface AppError {
     | "IntegrationError"
     | "LicenseError"
     | "StorageError"
-    | "NetworkError";
+    | "NetworkError"
+    | "DictationError"
+    | "ImportError"
+    | "DiarizationError"
+    | "BatchError";
   detail: {
     code: string;
     message: string;

@@ -29,12 +29,13 @@ tauri-plugin-clipboard-manager = "2.2"
 tauri-plugin-process = "2.2"
 
 # Database
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled-full"] }
 refinery = { version = "0.8", features = ["rusqlite"] }
 
 # Async / networking
 tokio = { version = "1.42", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+url = "2.5"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

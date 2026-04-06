@@ -4,6 +4,7 @@ use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TranscriptRow {
     pub id: String,
     pub title: String,

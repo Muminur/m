@@ -5,7 +5,8 @@ export type BatchStatus =
   | "Paused"
   | "Completed"
   | "Failed"
-  | "Cancelled";
+  | "Cancelled"
+  | "Skipped";
 
 /** A single file item within a batch job */
 export interface BatchJobItem {

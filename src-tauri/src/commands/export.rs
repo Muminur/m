@@ -22,6 +22,22 @@ pub async fn export_to_file(
     options: Option<serde_json::Value>,
     db: State<'_, Arc<Database>>,
 ) -> Result<(), AppError> {
+    if format == "whisper" {
+        let conn = db.get()?;
+        let transcript =
+            transcripts::get_by_id(&conn, &transcript_id)?.ok_or_else(|| AppError::ExportError {
+                code: ExportErrorCode::FormatError,
+                message: format!("Transcript '{}' not found", transcript_id),
+            })?;
+        let segs = segments::get_by_transcript(&conn, &transcript_id)?;
+        let audio_path = transcript.audio_path.as_deref().map(std::path::Path::new);
+        return export::whisper_archive::export_archive(
+            std::path::Path::new(&file_path),
+            &transcript,
+            &segs,
+            audio_path,
+        );
+    }
     let content = export_transcript_inner(&transcript_id, &format, options.as_ref(), &db)?;
     std::fs::write(&file_path, &content).map_err(|e| AppError::ExportError {
         code: ExportErrorCode::IoError,

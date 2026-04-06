@@ -1,6 +1,7 @@
 use crate::error::{AppError, NetworkErrorCode};
 use crate::network::guard::NetworkGuard;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 /// Configuration for AI-enhanced dictation correction.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -63,6 +64,24 @@ impl ConfiguredCorrector {
     ) -> Result<String, AppError> {
         if !self.config.enabled || self.config.endpoint.is_empty() {
             return Ok(text.to_string());
+        }
+
+        // Validate the endpoint URL before use: only http and https schemes are
+        // permitted. This blocks dangerous schemes (file://, javascript:, etc.)
+        // that could be supplied via user-configurable settings.
+        let parsed_url = Url::parse(&self.config.endpoint).map_err(|e| AppError::NetworkError {
+            code: NetworkErrorCode::ConnectionFailed,
+            message: format!("Invalid AI correction endpoint URL: {}", e),
+        })?;
+        let scheme = parsed_url.scheme();
+        if scheme != "http" && scheme != "https" {
+            return Err(AppError::NetworkError {
+                code: NetworkErrorCode::PolicyBlocked,
+                message: format!(
+                    "AI correction endpoint uses disallowed URL scheme '{}': only http and https are permitted",
+                    scheme
+                ),
+            });
         }
 
         let body = self.build_request_body(text);
@@ -200,6 +219,38 @@ mod tests {
         let corrector = create_corrector(&config);
         let result = corrector.correct("test").unwrap();
         assert_eq!(result, "test");
+    }
+
+    #[test]
+    fn test_scheme_validation_rejects_file_scheme() {
+        let parsed = Url::parse("file:///etc/passwd").unwrap();
+        assert_ne!(parsed.scheme(), "http");
+        assert_ne!(parsed.scheme(), "https");
+    }
+
+    #[test]
+    fn test_scheme_validation_rejects_ftp_scheme() {
+        let parsed = Url::parse("ftp://localhost/resource").unwrap();
+        assert_ne!(parsed.scheme(), "http");
+        assert_ne!(parsed.scheme(), "https");
+    }
+
+    #[test]
+    fn test_scheme_validation_accepts_http() {
+        let parsed = Url::parse("http://localhost:11434/api/chat").unwrap();
+        assert_eq!(parsed.scheme(), "http");
+    }
+
+    #[test]
+    fn test_scheme_validation_accepts_https() {
+        let parsed = Url::parse("https://localhost:11434/api/chat").unwrap();
+        assert_eq!(parsed.scheme(), "https");
+    }
+
+    #[test]
+    fn test_scheme_validation_rejects_invalid_url() {
+        let result = Url::parse("not-a-url");
+        assert!(result.is_err());
     }
 
     #[test]

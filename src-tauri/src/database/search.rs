@@ -2,6 +2,7 @@ use crate::error::{AppError, StorageErrorCode};
 use rusqlite::{params, Connection};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub transcript_id: String,
     pub title: String,
