@@ -2,6 +2,10 @@
 
 A local-first desktop transcription app built with Tauri 2, React 19, and whisper-rs. Transcribes audio files using OpenAI Whisper models — entirely on-device, no cloud required.
 
+## Project Status
+
+**Milestones 1–9 complete.** Fully functional transcription, editing, processing, integrations, and export suite. Currently preparing for production release (M10: licensing, notarization, auto-update, website).
+
 ## Features
 
 - **Local transcription** — all processing happens on your machine; nothing is sent to the cloud

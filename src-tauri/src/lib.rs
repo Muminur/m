@@ -257,6 +257,7 @@ pub fn run() {
             commands::integrations::translate_with_deepl,
             commands::integrations::translate_transcript_deepl,
             commands::integrations::translate_segments_deepl,
+            commands::integrations::translate_srt_deepl,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -112,7 +112,6 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
         onClose();
       }
     } catch (err) {
-      console.error("Export failed:", err);
       const message = err instanceof Error ? err.message : String(err);
       try {
         const { toast } = await import("sonner");
@@ -130,11 +129,20 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
     await navigator.clipboard.writeText(text);
   }, [transcriptId]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background rounded-xl shadow-xl w-full max-w-2xl mx-4">
+      <div role="dialog" aria-modal="true" className="bg-background rounded-xl shadow-xl w-full max-w-2xl mx-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold">{t("export.title", "Export Transcript")}</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-accent">

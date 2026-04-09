@@ -25,13 +25,14 @@ struct TemplateContext {
     duration_ms: i64,
     language: String,
     segment_count: usize,
+    speakers: Vec<String>,
     segments: Vec<TemplateSegment>,
 }
 
 /// Render an export using a user-supplied Handlebars template string.
 ///
 /// Available variables:
-/// - `{{title}}`, `{{durationMs}}`, `{{language}}`, `{{segmentCount}}`
+/// - `{{title}}`, `{{durationMs}}`, `{{language}}`, `{{segmentCount}}`, `{{speakers}}`
 /// - `{{#each segments}}` with: `{{startMs}}`, `{{endMs}}`, `{{startTime}}`,
 ///   `{{endTime}}`, `{{speaker}}`, `{{text}}`, `{{confidence}}`
 pub fn render_export_template(
@@ -64,11 +65,22 @@ pub fn render_export_template(
         })
         .collect();
 
+    // Extract unique non-empty speaker names in insertion order
+    let mut speakers: Vec<String> = Vec::new();
+    for seg in segments {
+        if let Some(ref spk) = seg.speaker_id {
+            if !spk.is_empty() && !speakers.contains(spk) {
+                speakers.push(spk.clone());
+            }
+        }
+    }
+
     let context = TemplateContext {
         title: title.to_string(),
         duration_ms,
         language: language.to_string(),
         segment_count: template_segments.len(),
+        speakers,
         segments: template_segments,
     };
 

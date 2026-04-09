@@ -130,15 +130,21 @@ fn validate_webhook_url(url: &str) -> Result<(), AppError> {
         "::1",
         "0.0.0.0",
     ];
+    // Check RFC 1918 172.16.0.0/12 range with proper octet parsing
+    let is_rfc1918_172 = if host.starts_with("172.") {
+        host.split('.')
+            .nth(1)
+            .and_then(|octet| octet.parse::<u8>().ok())
+            .map(|second| (16..=31).contains(&second))
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
     if blocked.contains(&host)
         || host.starts_with("10.")
         || host.starts_with("192.168.")
-        || host.starts_with("172.16.")
-        || host.starts_with("172.17.")
-        || host.starts_with("172.18.")
-        || host.starts_with("172.19.")
-        || host.starts_with("172.2")
-        || host.starts_with("172.3")
+        || is_rfc1918_172
     {
         return Err(AppError::IntegrationError {
             code: IntegrationErrorCode::ConfigurationMissing,
@@ -256,6 +262,35 @@ pub async fn translate_segments_deepl(
     };
 
     integrations::deepl::translate_segments(&config, &texts, &guard).await
+}
+
+/// Translate SRT content using the DeepL API, preserving SRT structure.
+///
+/// Retrieves the API key from the system keychain (service: "deepl").
+/// Returns the translated SRT string.
+#[tauri::command]
+pub async fn translate_srt_deepl(
+    srt_content: String,
+    target_lang: String,
+    guard: State<'_, NetworkGuard>,
+) -> Result<String, AppError> {
+    let api_key = tokio::task::spawn_blocking(|| crate::keychain::get("deepl", "api_key"))
+        .await
+        .map_err(|e| AppError::IntegrationError {
+            code: IntegrationErrorCode::ConfigurationMissing,
+            message: format!("Keychain task failed: {}", e),
+        })??
+        .ok_or_else(|| AppError::IntegrationError {
+            code: IntegrationErrorCode::ConfigurationMissing,
+            message: "DeepL API key not found in keychain".into(),
+        })?;
+
+    let config = integrations::deepl::DeepLConfig {
+        api_key,
+        target_lang,
+    };
+
+    integrations::deepl::translate_srt(&config, &srt_content, &guard).await
 }
 
 /// Translate all segments of a transcript using the DeepL API.
