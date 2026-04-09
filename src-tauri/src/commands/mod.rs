@@ -6,6 +6,7 @@ pub mod diarization;
 pub mod dictation;
 pub mod export;
 pub mod import;
+pub mod integrations;
 pub mod keychain;
 pub mod library;
 pub mod recording;

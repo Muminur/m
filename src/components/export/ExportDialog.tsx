@@ -2,7 +2,16 @@ import { useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
-import { X, Download, Copy, FileText, Archive } from "lucide-react";
+import {
+  X,
+  Download,
+  Copy,
+  FileText,
+  Archive,
+  FileOutput,
+  Table,
+  Braces,
+} from "lucide-react";
 
 interface ExportDialogProps {
   transcriptId: string;
@@ -11,14 +20,45 @@ interface ExportDialogProps {
   onClose: () => void;
 }
 
-type ExportFormat = "txt" | "srt" | "vtt" | "whisper";
+type ExportFormat =
+  | "txt"
+  | "srt"
+  | "vtt"
+  | "whisper"
+  | "pdf"
+  | "docx"
+  | "html"
+  | "csv"
+  | "json"
+  | "markdown";
 
-const FORMAT_OPTIONS: { value: ExportFormat; label: string; icon: typeof FileText; ext: string }[] = [
-  { value: "txt", label: "Plain Text", icon: FileText, ext: "txt" },
-  { value: "srt", label: "SubRip (SRT)", icon: FileText, ext: "srt" },
-  { value: "vtt", label: "WebVTT", icon: FileText, ext: "vtt" },
-  { value: "whisper", label: "WhisperDesk Archive", icon: Archive, ext: "whisper" },
+interface FormatOption {
+  value: ExportFormat;
+  label: string;
+  icon: typeof FileText;
+  ext: string;
+  binary: boolean;
+  hasPreview: boolean;
+  showOptions: boolean;
+  description?: string;
+}
+
+const FORMAT_OPTIONS: FormatOption[] = [
+  { value: "txt", label: "Plain Text", icon: FileText, ext: "txt", binary: false, hasPreview: true, showOptions: true },
+  { value: "srt", label: "SubRip (SRT)", icon: FileText, ext: "srt", binary: false, hasPreview: true, showOptions: false },
+  { value: "vtt", label: "WebVTT", icon: FileText, ext: "vtt", binary: false, hasPreview: true, showOptions: false },
+  { value: "html", label: "HTML", icon: FileText, ext: "html", binary: false, hasPreview: true, showOptions: true },
+  { value: "markdown", label: "Markdown", icon: FileText, ext: "md", binary: false, hasPreview: true, showOptions: true },
+  { value: "csv", label: "CSV", icon: Table, ext: "csv", binary: false, hasPreview: true, showOptions: false },
+  { value: "json", label: "JSON", icon: Braces, ext: "json", binary: false, hasPreview: true, showOptions: false },
+  { value: "pdf", label: "PDF Document", icon: FileOutput, ext: "pdf", binary: true, hasPreview: false, showOptions: false, description: "PDF will be generated and saved directly" },
+  { value: "docx", label: "Word (DOCX)", icon: FileOutput, ext: "docx", binary: true, hasPreview: false, showOptions: false, description: "DOCX will be generated and saved directly" },
+  { value: "whisper", label: "WhisperDesk Archive", icon: Archive, ext: "whisper", binary: false, hasPreview: false, showOptions: false },
 ];
+
+function getFormatOption(fmt: ExportFormat): FormatOption {
+  return FORMAT_OPTIONS.find((f) => f.value === fmt) ?? FORMAT_OPTIONS[0];
+}
 
 export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }: ExportDialogProps) {
   const { t } = useTranslation();
@@ -28,24 +68,36 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
   const [preview, setPreview] = useState("");
   const [isExporting, setIsExporting] = useState(false);
 
+  const currentFormat = getFormatOption(format);
+
   useEffect(() => {
-    if (!isOpen || format === "whisper") {
+    if (!isOpen || !currentFormat.hasPreview) {
       setPreview("");
       return;
     }
+    let cancelled = false;
     invoke<string>("export_transcript", {
       transcriptId,
       format,
       options: { includeTimestamps, includeSpeakers },
-    }).then((content) => {
-      setPreview(content.split("\n").slice(0, 10).join("\n"));
-    }).catch(() => setPreview(""));
-  }, [isOpen, transcriptId, format, includeTimestamps, includeSpeakers]);
+    })
+      .then((content) => {
+        if (!cancelled) {
+          setPreview(content.split("\n").slice(0, 10).join("\n"));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPreview("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, transcriptId, format, includeTimestamps, includeSpeakers, currentFormat.hasPreview]);
 
   const handleExport = useCallback(async () => {
     setIsExporting(true);
     try {
-      const ext = FORMAT_OPTIONS.find((f) => f.value === format)?.ext || "txt";
+      const ext = currentFormat.ext;
       const filePath = await save({
         defaultPath: `${transcriptTitle}.${ext}`,
         filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
@@ -59,10 +111,19 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
         });
         onClose();
       }
+    } catch (err) {
+      console.error("Export failed:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      try {
+        const { toast } = await import("sonner");
+        toast.error(`Export failed: ${message}`);
+      } catch {
+        // sonner not available, silent error (user can retry)
+      }
     } finally {
       setIsExporting(false);
     }
-  }, [transcriptId, transcriptTitle, format, includeTimestamps, includeSpeakers, onClose]);
+  }, [transcriptId, transcriptTitle, format, includeTimestamps, includeSpeakers, onClose, currentFormat]);
 
   const handleCopy = useCallback(async () => {
     const text = await invoke<string>("copy_transcript_text", { transcriptId, segmentIds: null });
@@ -73,7 +134,7 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background rounded-xl shadow-xl w-full max-w-lg mx-4">
+      <div className="bg-background rounded-xl shadow-xl w-full max-w-2xl mx-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold">{t("export.title", "Export Transcript")}</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-accent">
@@ -82,8 +143,8 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
         </div>
 
         <div className="px-6 py-4 space-y-4">
-          {/* Format picker */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* Format picker - 3 column grid */}
+          <div className="grid grid-cols-3 gap-2">
             {FORMAT_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               return (
@@ -91,7 +152,9 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
                   key={opt.value}
                   onClick={() => setFormat(opt.value)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
-                    format === opt.value ? "border-primary bg-primary/5 font-medium" : "border-border hover:bg-accent"
+                    format === opt.value
+                      ? "border-primary bg-primary/5 font-medium"
+                      : "border-border hover:bg-accent"
                   }`}
                 >
                   <Icon size={16} /> {opt.label}
@@ -100,8 +163,8 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
             })}
           </div>
 
-          {/* Options */}
-          {format !== "whisper" && (
+          {/* Options - only for formats where timestamps/speakers are relevant */}
+          {currentFormat.showOptions && (
             <div className="flex gap-4">
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -124,7 +187,15 @@ export function ExportDialog({ transcriptId, transcriptTitle, isOpen, onClose }:
             </div>
           )}
 
-          {/* Preview */}
+          {/* Binary format notice */}
+          {currentFormat.binary && currentFormat.description && (
+            <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground flex items-center gap-3">
+              <FileOutput size={20} className="shrink-0" />
+              <span>{currentFormat.description}</span>
+            </div>
+          )}
+
+          {/* Preview - only for text formats that support it */}
           {preview && (
             <div className="bg-muted/50 rounded-lg p-3 max-h-[200px] overflow-auto">
               <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">{preview}</pre>

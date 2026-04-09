@@ -9,6 +9,7 @@ pub mod dictation;
 pub mod error;
 pub mod export;
 pub mod import;
+pub mod integrations;
 pub mod keychain;
 pub mod logging;
 pub mod models;
@@ -175,6 +176,7 @@ pub fn run() {
             commands::export::export_transcript,
             commands::export::export_to_file,
             commands::export::copy_transcript_text,
+            commands::export::render_custom_template,
             // Recording
             commands::recording::get_audio_devices,
             commands::recording::start_recording,
@@ -248,6 +250,13 @@ pub fn run() {
             commands::cloud_transcription::transcribe_with_cloud,
             commands::cloud_transcription::estimate_cloud_cost,
             commands::cloud_transcription::refine_with_cloud,
+            // Integrations
+            commands::integrations::push_to_notion,
+            commands::integrations::write_to_obsidian,
+            commands::integrations::fire_webhook,
+            commands::integrations::translate_with_deepl,
+            commands::integrations::translate_transcript_deepl,
+            commands::integrations::translate_segments_deepl,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

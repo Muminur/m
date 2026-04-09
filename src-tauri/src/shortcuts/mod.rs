@@ -3,6 +3,8 @@
 //! Uses `tauri-plugin-global-shortcut` for OS-level registration and persists
 //! custom bindings to [`AppSettings`].
 
+pub mod intents;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;

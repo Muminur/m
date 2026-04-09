@@ -19,7 +19,14 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Library** — browse, search, sort, and filter transcripts; starred items and trash with 30-day recovery
 - **Folders and tags** — organize transcripts into folders and assign tags; filter by folder/tag
 - **Smart folders** — auto-populating folders based on filter criteria
-- **Export** — TXT, SRT, VTT subtitle formats with speaker labels and timestamps
+- **Export** — TXT, SRT, VTT, PDF, DOCX, HTML, CSV, JSON, and Markdown formats with speaker labels and timestamps
+- **PDF export** — formatted A4/Letter PDF with header, metadata, speaker-labeled segments, and automatic page breaks
+- **DOCX export** — Word document generated via OOXML templates (zip+handlebars); opens correctly in Word/Pages with styles and speaker headings
+- **HTML export** — styled HTML with interactive timestamp anchors and speaker color coding
+- **CSV export** — RFC 4180 compliant with columns: start_ms, end_ms, timestamps, speaker, text
+- **JSON export** — structured JSON with metadata and per-segment data including confidence scores
+- **Markdown export** — speaker-grouped sections with timestamps for Obsidian, Notion, and note-taking apps
+- **Custom export templates** — write Handlebars templates with `{{segments}}`, `{{title}}`, `{{duration}}` variables for fully custom output formats
 - **WhisperDesk archive** — `.whisper` ZIP+JSON format for lossless transcript export/import with audio
 - **Copy to clipboard** — copy full transcript or selected segments
 - **Video player** — inline video playback with synced subtitle overlay for video source files
@@ -57,6 +64,14 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Cloud transcription** — upload audio to OpenAI Whisper, Deepgram Nova-2 (with diarization), Groq Whisper, or ElevenLabs with explicit opt-in and cost estimate shown first
 - **Hybrid transcription** — transcribe locally then refine with cloud in one click
 - **API key management** — all provider keys stored in macOS Keychain (never written to disk); manage from Settings
+- **Notion integration** — push transcripts to any Notion database via the Notion API; configurable database ID; returns page URL
+- **Obsidian integration** — write transcripts as `.md` files to any Obsidian vault folder with YAML frontmatter (date, duration, language, speakers)
+- **Webhook system** — POST transcript JSON to any Zapier, Make, n8n, or custom endpoint on transcription complete; HMAC-SHA256 request signing; SSRF-protected URL validation
+- **DeepL translation** — translate full transcripts or individual subtitle segments to 30+ languages; auto-detects free vs Pro API endpoint; preserves SRT/VTT structure
+- **Dual subtitles** — display original and DeepL-translated subtitles side-by-side with active segment highlighting synchronized to video playback
+- **Integration wizard** — step-by-step setup UI for all integrations: API key entry, vault/database configuration, connection testing
+- **Apple Shortcuts** — "Transcribe File", "Get Transcript", "Start/Stop Recording" intent stubs for automation workflows (full implementation in M10)
+- **macOS Share Sheet** — share transcripts via AirDrop, Mail, Messages via NSSharingService (full Swift plugin in M10)
 - **Localization** — i18n support via react-i18next with English, Dutch, and German translations
 - **Typed error handling** — all backend commands return typed `AppError` variants with error codes; no raw string errors (14 error categories)
 
@@ -66,7 +81,8 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Backend:** Tauri 2, Rust, SQLite (rusqlite), whisper-rs 0.16.0
 - **Audio:** Symphonia (decode), Rubato (resample), cpal (recording), hound (WAV writing)
 - **Inference:** whisper-rs with Metal feature flag (macOS only)
-- **Export:** SRT, VTT, TXT, ZIP-based .whisper archive
+- **Export:** SRT, VTT, TXT, PDF (printpdf), DOCX (zip+handlebars OOXML), HTML, CSV, JSON, Markdown, ZIP-based .whisper archive
+- **Integrations:** Notion API, Obsidian vault, webhooks (HMAC-SHA256 signed), DeepL translation API
 
 ## Requirements
 
