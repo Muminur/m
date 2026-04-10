@@ -44,9 +44,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-${{ matrix.rust_target }}-cargo-clangrt-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.rust_target }}-cargo-clangrt2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.rust_target }}-cargo-clangrt-
+            ${{ runner.os }}-${{ matrix.rust_target }}-cargo-clangrt2-
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -61,10 +61,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           # ggml-metal uses @available(macOS 15.0,*) for Metal residency sets.
-          # When MACOSX_DEPLOYMENT_TARGET < 15.0 clang emits ___isPlatformVersionAtLeast
-          # which lives in libclang_rt.osx.a — not auto-linked by Rust's linker.
-          # Passing -lclang_rt.osx lets the clang driver find it in its own lib path.
-          echo "RUSTFLAGS=-C link-arg=-lclang_rt.osx" >> $GITHUB_ENV
+          # At any MACOSX_DEPLOYMENT_TARGET < 15.0, clang emits ___isPlatformVersionAtLeast
+          # which lives in libclang_rt.osx.a. Rust's linker uses -nodefaultlibs so the
+          # clang driver's runtime lib search path isn't added automatically.
+          # We resolve the path with `clang -print-runtime-dir` and pass it explicitly.
+          CLANG_RT_DIR=$(xcrun clang -print-runtime-dir)
+          echo "RUSTFLAGS=-C link-arg=-L${CLANG_RT_DIR} -C link-arg=-lclang_rt.osx" >> $GITHUB_ENV
 
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
