@@ -98,10 +98,12 @@ jobs:
 
       # tauri-action v0 skips uploading .sig files for Tauri v2 updater.
       # Upload them explicitly so the Cloudflare updater worker can serve signatures.
+      # Use `find` so the step succeeds even when no .sig files are present.
       - name: Upload updater signatures (macOS)
         if: runner.os == 'macOS'
         run: |
-          for sig in src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.sig; do
+          find src-tauri/target -name "*.sig" | while IFS= read -r sig; do
+            echo "Uploading signature: $sig"
             gh release upload "${{ github.ref_name }}" "$sig" --clobber
           done
         env:
@@ -111,14 +113,16 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          for sig in src-tauri/target/release/bundle/nsis/*.sig src-tauri/target/release/bundle/msi/*.sig; do
-            [ -f "$sig" ] && gh release upload "${{ github.ref_name }}" "$sig" --clobber
+          find src-tauri/target -name "*.sig" | while IFS= read -r sig; do
+            echo "Uploading signature: $sig"
+            gh release upload "${{ github.ref_name }}" "$sig" --clobber
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
     needs: release
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
