@@ -50,3 +50,14 @@ logs/
 # Test results
 playwright-report/
 test-results/
+
+# wrangler files
+.wrangler
+wrangler.jsonc
+.dev.vars*
+!.dev.vars.example
+!.env.example
+
+# Windows crash dumps and helper scripts
+*.stackdump
+stop-nextjs*.bat
