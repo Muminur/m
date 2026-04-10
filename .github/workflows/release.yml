@@ -44,9 +44,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-${{ matrix.rust_target }}-cargo-osx14-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.rust_target }}-cargo-clangrt-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.rust_target }}-cargo-osx14-
+            ${{ runner.os }}-${{ matrix.rust_target }}-cargo-clangrt-
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,12 +57,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Link Clang runtime (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          # ggml-metal uses @available(macOS 15.0,*) for Metal residency sets.
+          # When MACOSX_DEPLOYMENT_TARGET < 15.0 clang emits ___isPlatformVersionAtLeast
+          # which lives in libclang_rt.osx.a — not auto-linked by Rust's linker.
+          # Passing -lclang_rt.osx lets the clang driver find it in its own lib path.
+          echo "RUSTFLAGS=-C link-arg=-lclang_rt.osx" >> $GITHUB_ENV
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS deployment target — 14.0 makes ggml-metal @available(14.0) checks compile-time
-          # true, eliminating the ___isPlatformVersionAtLeast runtime symbol referenced by Xcode 16.x
+          # macOS deployment target — sets minimum SDK floor; matches tauri.conf.json minimumSystemVersion
           MACOSX_DEPLOYMENT_TARGET: '14.0'
           # macOS code signing — Developer ID Application certificate
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
