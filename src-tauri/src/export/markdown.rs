@@ -44,8 +44,7 @@ pub fn export_markdown(
         // Collect consecutive segments from the same speaker
         let mut texts = vec![seg.text.trim().to_string()];
         let mut j = i + 1;
-        while j < segments.len() && segments[j].speaker_id.as_deref() == seg.speaker_id.as_deref()
-        {
+        while j < segments.len() && segments[j].speaker_id.as_deref() == seg.speaker_id.as_deref() {
             texts.push(segments[j].text.trim().to_string());
             j += 1;
         }

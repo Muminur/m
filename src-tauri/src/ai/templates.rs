@@ -89,11 +89,10 @@ pub fn create_template(
 
     // Read back to get timestamps
     drop(conn);
-    get_template(db, &id)?
-        .ok_or_else(|| AppError::StorageError {
-            code: crate::error::StorageErrorCode::DatabaseError,
-            message: "Template created but not found".into(),
-        })
+    get_template(db, &id)?.ok_or_else(|| AppError::StorageError {
+        code: crate::error::StorageErrorCode::DatabaseError,
+        message: "Template created but not found".into(),
+    })
 }
 
 /// Update an existing template.

@@ -167,7 +167,10 @@ impl YouTubeImporter {
         let scheme_ok = parsed.scheme() == "https";
         let host_ok = matches!(
             parsed.host_str(),
-            Some("www.youtube.com") | Some("youtube.com") | Some("music.youtube.com") | Some("youtu.be")
+            Some("www.youtube.com")
+                | Some("youtube.com")
+                | Some("music.youtube.com")
+                | Some("youtu.be")
         );
         if !scheme_ok || !host_ok {
             return Err(AppError::ImportError {

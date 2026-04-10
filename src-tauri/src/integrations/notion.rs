@@ -134,10 +134,7 @@ pub async fn push_to_notion(
         message: format!("Failed to parse Notion response: {}", e),
     })?;
 
-    let page_url = result["url"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let page_url = result["url"].as_str().unwrap_or("").to_string();
 
     if page_url.is_empty() {
         // Construct URL from page ID as fallback
@@ -148,7 +145,10 @@ pub async fn push_to_notion(
                 message: "Notion response missing page URL and ID".into(),
             });
         }
-        Ok(format!("https://www.notion.so/{}", page_id.replace('-', "")))
+        Ok(format!(
+            "https://www.notion.so/{}",
+            page_id.replace('-', "")
+        ))
     } else {
         Ok(page_url)
     }

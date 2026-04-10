@@ -57,10 +57,13 @@ pub fn handle_intent(
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
             tracing::info!(path, "Intent: transcribe_file");
-            let _ = app.emit("deep-link-intent", serde_json::json!({
-                "intent": "transcribe_file",
-                "path": path,
-            }));
+            let _ = app.emit(
+                "deep-link-intent",
+                serde_json::json!({
+                    "intent": "transcribe_file",
+                    "path": path,
+                }),
+            );
             Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
         }
         "get_transcript" => {
@@ -69,24 +72,33 @@ pub fn handle_intent(
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
             tracing::info!(transcript_id = id, "Intent: get_transcript");
-            let _ = app.emit("deep-link-intent", serde_json::json!({
-                "intent": "get_transcript",
-                "id": id,
-            }));
+            let _ = app.emit(
+                "deep-link-intent",
+                serde_json::json!({
+                    "intent": "get_transcript",
+                    "id": id,
+                }),
+            );
             Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
         }
         "start_recording" => {
             tracing::info!("Intent: start_recording");
-            let _ = app.emit("deep-link-intent", serde_json::json!({
-                "intent": "start_recording",
-            }));
+            let _ = app.emit(
+                "deep-link-intent",
+                serde_json::json!({
+                    "intent": "start_recording",
+                }),
+            );
             Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
         }
         "stop_recording" => {
             tracing::info!("Intent: stop_recording");
-            let _ = app.emit("deep-link-intent", serde_json::json!({
-                "intent": "stop_recording",
-            }));
+            let _ = app.emit(
+                "deep-link-intent",
+                serde_json::json!({
+                    "intent": "stop_recording",
+                }),
+            );
             Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
         }
         _ => Err(AppError::ExportError {

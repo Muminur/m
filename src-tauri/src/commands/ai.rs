@@ -47,9 +47,8 @@ pub async fn run_ai_action(
         let full_text = texts.join(" ");
 
         // Get speaker labels
-        let mut speaker_stmt = conn.prepare(
-            "SELECT label FROM speakers WHERE transcript_id = ?1 ORDER BY label",
-        )?;
+        let mut speaker_stmt =
+            conn.prepare("SELECT label FROM speakers WHERE transcript_id = ?1 ORDER BY label")?;
         let speaker_list: Vec<String> = speaker_stmt
             .query_map(rusqlite::params![transcript_id], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -135,17 +134,23 @@ pub async fn run_ai_action(
                     Ok(chunk) => {
                         if chunk.is_empty() {
                             // Stream done
-                            let _ = app.emit("ai:stream-chunk", serde_json::json!({
-                                "chunk": "",
-                                "done": true
-                            }));
+                            let _ = app.emit(
+                                "ai:stream-chunk",
+                                serde_json::json!({
+                                    "chunk": "",
+                                    "done": true
+                                }),
+                            );
                             break;
                         }
                         full_response.push_str(&chunk);
-                        let _ = app.emit("ai:stream-chunk", serde_json::json!({
-                            "chunk": chunk,
-                            "done": false
-                        }));
+                        let _ = app.emit(
+                            "ai:stream-chunk",
+                            serde_json::json!({
+                                "chunk": chunk,
+                                "done": false
+                            }),
+                        );
                     }
                     Err(e) => {
                         tracing::error!("Stream error: {}", e);
@@ -174,14 +179,17 @@ pub async fn estimate_ai_cost(
     let input_tokens = cost::estimate_tokens(&text);
     // Estimate output as roughly 25% of input for most operations
     let estimated_output = std::cmp::max(input_tokens / 4, 256);
-    Ok(cost::estimate_cost(&provider, &model, input_tokens, estimated_output))
+    Ok(cost::estimate_cost(
+        &provider,
+        &model,
+        input_tokens,
+        estimated_output,
+    ))
 }
 
 /// List all AI prompt templates.
 #[tauri::command]
-pub async fn list_ai_templates(
-    db: State<'_, Arc<Database>>,
-) -> Result<Vec<AiTemplate>, AppError> {
+pub async fn list_ai_templates(db: State<'_, Arc<Database>>) -> Result<Vec<AiTemplate>, AppError> {
     templates::list_templates(&db)
 }
 
@@ -211,18 +219,13 @@ pub async fn update_ai_template(
 
 /// Delete an AI prompt template.
 #[tauri::command]
-pub async fn delete_ai_template(
-    id: String,
-    db: State<'_, Arc<Database>>,
-) -> Result<(), AppError> {
+pub async fn delete_ai_template(id: String, db: State<'_, Arc<Database>>) -> Result<(), AppError> {
     templates::delete_template(&db, &id)
 }
 
 /// List models available on local Ollama instance.
 #[tauri::command]
-pub async fn list_ollama_models(
-    _guard: State<'_, NetworkGuard>,
-) -> Result<Vec<String>, AppError> {
+pub async fn list_ollama_models(_guard: State<'_, NetworkGuard>) -> Result<Vec<String>, AppError> {
     let ollama = OllamaProvider::new(Arc::new(NetworkGuard::new(
         crate::settings::NetworkPolicy::LocalOnly,
     )?));

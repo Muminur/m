@@ -143,7 +143,10 @@ mod tests {
         let result = guard.request(req).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::NetworkError { code: NetworkErrorCode::ConnectionFailed, .. } => {}
+            AppError::NetworkError {
+                code: NetworkErrorCode::ConnectionFailed,
+                ..
+            } => {}
             other => panic!("Expected ConnectionFailed for local host, got {:?}", other),
         }
     }
@@ -155,7 +158,10 @@ mod tests {
         let result = guard.request(req).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::NetworkError { code: NetworkErrorCode::ConnectionFailed, .. } => {}
+            AppError::NetworkError {
+                code: NetworkErrorCode::ConnectionFailed,
+                ..
+            } => {}
             other => panic!("Expected ConnectionFailed for 127.x, got {:?}", other),
         }
     }
@@ -168,7 +174,10 @@ mod tests {
         let result = guard.request(req).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::NetworkError { code: NetworkErrorCode::ConnectionFailed, .. } => {}
+            AppError::NetworkError {
+                code: NetworkErrorCode::ConnectionFailed,
+                ..
+            } => {}
             other => panic!("Expected ConnectionFailed for 0.0.0.0, got {:?}", other),
         }
     }

@@ -151,7 +151,9 @@ fn format_duration(ms: i64) -> String {
 
 /// Assign a stable color class based on the speaker name hash.
 fn speaker_color_class(speaker: &str) -> String {
-    let hash: u32 = speaker.bytes().fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
+    let hash: u32 = speaker
+        .bytes()
+        .fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
     format!("speaker-color-{}", hash % 8)
 }
 
@@ -223,7 +225,10 @@ mod tests {
 
     #[test]
     fn test_html_escape_all_chars() {
-        assert_eq!(html_escape("a&b<c>d\"e'f"), "a&amp;b&lt;c&gt;d&quot;e&#39;f");
+        assert_eq!(
+            html_escape("a&b<c>d\"e'f"),
+            "a&amp;b&lt;c&gt;d&quot;e&#39;f"
+        );
     }
 
     #[test]

@@ -14,12 +14,11 @@ pub struct WebhookConfig {
 
 /// Compute HMAC-SHA256 hex digest of the given body using the provided secret.
 fn compute_signature(secret: &str, body: &[u8]) -> Result<String, AppError> {
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).map_err(|e| {
-        AppError::IntegrationError {
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).map_err(|e| AppError::IntegrationError {
             code: IntegrationErrorCode::ConfigurationMissing,
             message: format!("Invalid HMAC key: {}", e),
-        }
-    })?;
+        })?;
     mac.update(body);
     let result = mac.finalize();
     let bytes = result.into_bytes();
@@ -37,7 +36,10 @@ fn validate_webhook_url(raw: &str) -> Result<(), AppError> {
     if parsed.scheme() != "https" {
         return Err(AppError::IntegrationError {
             code: IntegrationErrorCode::ConfigurationMissing,
-            message: format!("Webhook URL must use https scheme, got '{}'", parsed.scheme()),
+            message: format!(
+                "Webhook URL must use https scheme, got '{}'",
+                parsed.scheme()
+            ),
         });
     }
 

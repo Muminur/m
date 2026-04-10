@@ -81,10 +81,12 @@ pub fn export_docx(
             message: format!("DOCX template error: {}", e),
         })?;
 
-    let document_xml = hbs.render("document", &context).map_err(|e| AppError::ExportError {
-        code: ExportErrorCode::TemplateError,
-        message: format!("DOCX render error: {}", e),
-    })?;
+    let document_xml = hbs
+        .render("document", &context)
+        .map_err(|e| AppError::ExportError {
+            code: ExportErrorCode::TemplateError,
+            message: format!("DOCX render error: {}", e),
+        })?;
 
     // Build the zip archive
     let buf = Vec::new();
@@ -248,6 +250,9 @@ mod tests {
 
     #[test]
     fn test_xml_escape() {
-        assert_eq!(xml_escape("a&b<c>d\"e'f"), "a&amp;b&lt;c&gt;d&quot;e&apos;f");
+        assert_eq!(
+            xml_escape("a&b<c>d\"e'f"),
+            "a&amp;b&lt;c&gt;d&quot;e&apos;f"
+        );
     }
 }

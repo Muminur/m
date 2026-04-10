@@ -32,14 +32,18 @@ pub fn export_pdf(
 ) -> Result<Vec<u8>, AppError> {
     let doc = PdfDocument::empty(title);
 
-    let font = doc.add_builtin_font(BuiltinFont::Helvetica).map_err(|e| AppError::ExportError {
-        code: ExportErrorCode::FormatError,
-        message: format!("Failed to add font: {}", e),
-    })?;
-    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).map_err(|e| AppError::ExportError {
-        code: ExportErrorCode::FormatError,
-        message: format!("Failed to add bold font: {}", e),
-    })?;
+    let font = doc
+        .add_builtin_font(BuiltinFont::Helvetica)
+        .map_err(|e| AppError::ExportError {
+            code: ExportErrorCode::FormatError,
+            message: format!("Failed to add font: {}", e),
+        })?;
+    let font_bold = doc
+        .add_builtin_font(BuiltinFont::HelveticaBold)
+        .map_err(|e| AppError::ExportError {
+            code: ExportErrorCode::FormatError,
+            message: format!("Failed to add bold font: {}", e),
+        })?;
 
     let usable_width = A4_WIDTH_MM - MARGIN_LEFT - MARGIN_RIGHT;
     // Approximate chars per line for Helvetica at body size (rough: 0.5 * font_size pt = width per char in mm at ~2.83 mm/pt)

@@ -71,15 +71,15 @@ impl CloudTranscriptionProvider for DeepgramProvider {
         let lang = language.map(|s| s.to_string());
 
         Box::pin(async move {
-            let file_bytes = tokio::fs::read(&path).await.map_err(|e| {
-                AppError::CloudTranscriptionError {
-                    code: CloudTranscriptionErrorCode::UploadFailed,
-                    message: format!("Failed to read audio file: {}", e),
-                }
-            })?;
+            let file_bytes =
+                tokio::fs::read(&path)
+                    .await
+                    .map_err(|e| AppError::CloudTranscriptionError {
+                        code: CloudTranscriptionErrorCode::UploadFailed,
+                        message: format!("Failed to read audio file: {}", e),
+                    })?;
 
-            let mut url =
-                format!("{}?model=nova-2&smart_format=true&diarize=true", API_URL);
+            let mut url = format!("{}?model=nova-2&smart_format=true&diarize=true", API_URL);
 
             if let Some(ref lang_code) = lang {
                 url.push_str(&format!("&language={}", lang_code));
@@ -112,10 +112,13 @@ impl CloudTranscriptionProvider for DeepgramProvider {
             }
 
             let resp: DeepgramResponse =
-                response.json().await.map_err(|e| AppError::CloudTranscriptionError {
-                    code: CloudTranscriptionErrorCode::TranscriptionFailed,
-                    message: format!("Failed to parse Deepgram response: {}", e),
-                })?;
+                response
+                    .json()
+                    .await
+                    .map_err(|e| AppError::CloudTranscriptionError {
+                        code: CloudTranscriptionErrorCode::TranscriptionFailed,
+                        message: format!("Failed to parse Deepgram response: {}", e),
+                    })?;
 
             let channel = resp
                 .results
@@ -125,7 +128,10 @@ impl CloudTranscriptionProvider for DeepgramProvider {
                     message: "No transcription results".into(),
                 })?;
 
-            let detected_lang = channel.detected_language.clone().unwrap_or_else(|| "en".into());
+            let detected_lang = channel
+                .detected_language
+                .clone()
+                .unwrap_or_else(|| "en".into());
             let alt = channel
                 .alternatives
                 .into_iter()
@@ -212,8 +218,18 @@ mod tests {
     #[test]
     fn test_group_words_single_speaker() {
         let words = vec![
-            DeepgramWord { word: "Hello".into(), start: 0.0, end: 0.5, speaker: Some(0) },
-            DeepgramWord { word: "world".into(), start: 0.5, end: 1.0, speaker: Some(0) },
+            DeepgramWord {
+                word: "Hello".into(),
+                start: 0.0,
+                end: 0.5,
+                speaker: Some(0),
+            },
+            DeepgramWord {
+                word: "world".into(),
+                start: 0.5,
+                end: 1.0,
+                speaker: Some(0),
+            },
         ];
         let segments = group_words_into_segments(words);
         assert_eq!(segments.len(), 1);
@@ -223,8 +239,18 @@ mod tests {
     #[test]
     fn test_group_words_speaker_change() {
         let words = vec![
-            DeepgramWord { word: "Hello".into(), start: 0.0, end: 0.5, speaker: Some(0) },
-            DeepgramWord { word: "Hi".into(), start: 1.0, end: 1.5, speaker: Some(1) },
+            DeepgramWord {
+                word: "Hello".into(),
+                start: 0.0,
+                end: 0.5,
+                speaker: Some(0),
+            },
+            DeepgramWord {
+                word: "Hi".into(),
+                start: 1.0,
+                end: 1.5,
+                speaker: Some(1),
+            },
         ];
         let segments = group_words_into_segments(words);
         assert_eq!(segments.len(), 2);

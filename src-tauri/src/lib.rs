@@ -103,13 +103,15 @@ pub fn run() {
 
             // Initialize batch queue
             let db_ref = app.state::<Arc<database::Database>>();
-            let batch_queue = Arc::new(batch::queue::BatchQueue::new(Arc::clone(&db_ref), Arc::clone(&model_manager)));
+            let batch_queue = Arc::new(batch::queue::BatchQueue::new(
+                Arc::clone(&db_ref),
+                Arc::clone(&model_manager),
+            ));
             app.manage(Arc::clone(&batch_queue));
 
             // Initialize AI provider registry
-            let provider_registry = Arc::new(TokioMutex::new(
-                ai::provider::ProviderRegistry::new(),
-            ));
+            let provider_registry =
+                Arc::new(TokioMutex::new(ai::provider::ProviderRegistry::new()));
             app.manage(Arc::clone(&provider_registry));
 
             // Start watching configured folders

@@ -77,10 +77,7 @@ pub enum AppError {
     },
 
     #[error("AI error: {message}")]
-    AiError {
-        code: AiErrorCode,
-        message: String,
-    },
+    AiError { code: AiErrorCode, message: String },
 
     #[error("Cloud transcription error: {message}")]
     CloudTranscriptionError {

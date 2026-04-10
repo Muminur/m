@@ -56,12 +56,13 @@ impl CloudTranscriptionProvider for ElevenLabsProvider {
         let lang = language.map(|s| s.to_string());
 
         Box::pin(async move {
-            let file_bytes = tokio::fs::read(&path).await.map_err(|e| {
-                AppError::CloudTranscriptionError {
-                    code: CloudTranscriptionErrorCode::UploadFailed,
-                    message: format!("Failed to read audio file: {}", e),
-                }
-            })?;
+            let file_bytes =
+                tokio::fs::read(&path)
+                    .await
+                    .map_err(|e| AppError::CloudTranscriptionError {
+                        code: CloudTranscriptionErrorCode::UploadFailed,
+                        message: format!("Failed to read audio file: {}", e),
+                    })?;
 
             let file_name = path
                 .file_name()
@@ -110,10 +111,13 @@ impl CloudTranscriptionProvider for ElevenLabsProvider {
             }
 
             let resp: ElevenLabsResponse =
-                response.json().await.map_err(|e| AppError::CloudTranscriptionError {
-                    code: CloudTranscriptionErrorCode::TranscriptionFailed,
-                    message: format!("Failed to parse response: {}", e),
-                })?;
+                response
+                    .json()
+                    .await
+                    .map_err(|e| AppError::CloudTranscriptionError {
+                        code: CloudTranscriptionErrorCode::TranscriptionFailed,
+                        message: format!("Failed to parse response: {}", e),
+                    })?;
 
             let text = resp.text.unwrap_or_default();
             let segments = group_words(resp.words.unwrap_or_default());

@@ -1,6 +1,4 @@
-use crate::ai::provider::{
-    AiProvider, CompletionRequest, CompletionResponse, ModelInfo,
-};
+use crate::ai::provider::{AiProvider, CompletionRequest, CompletionResponse, ModelInfo};
 use crate::error::{AiErrorCode, AppError};
 use crate::network::guard::NetworkGuard;
 use serde::{Deserialize, Serialize};
@@ -169,11 +167,10 @@ impl AiProvider for AnthropicProvider {
                 });
             }
 
-            let resp: MessagesResponse =
-                response.json().await.map_err(|e| AppError::AiError {
-                    code: AiErrorCode::ApiError,
-                    message: format!("Failed to parse Anthropic response: {}", e),
-                })?;
+            let resp: MessagesResponse = response.json().await.map_err(|e| AppError::AiError {
+                code: AiErrorCode::ApiError,
+                message: format!("Failed to parse Anthropic response: {}", e),
+            })?;
 
             let content = resp
                 .content
@@ -250,9 +247,7 @@ impl AiProvider for AnthropicProvider {
 
                                 if line.starts_with("data: ") {
                                     let data = &line[6..];
-                                    if let Ok(event) =
-                                        serde_json::from_str::<StreamEvent>(data)
-                                    {
+                                    if let Ok(event) = serde_json::from_str::<StreamEvent>(data) {
                                         if event.event_type == "content_block_delta" {
                                             if let Some(delta) = event.delta {
                                                 if let Some(text) = delta.text {

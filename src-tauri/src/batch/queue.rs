@@ -285,7 +285,13 @@ impl BatchQueue {
         // Spawn the orchestrator on the Tauri async runtime
         tauri::async_runtime::spawn(async move {
             if let Err(e) = queue
-                .run_job(&job_id_owned, job.concurrency, model_id, language, app_handle)
+                .run_job(
+                    &job_id_owned,
+                    job.concurrency,
+                    model_id,
+                    language,
+                    app_handle,
+                )
                 .await
             {
                 tracing::error!("Batch job {} failed: {}", job_id_owned, e);
@@ -603,11 +609,7 @@ impl BatchQueue {
             Ok(Ok(transcript_id)) => {
                 // Update the batch item's transcript_id in the database
                 let _ = self.set_item_transcript_id(&item_id, &transcript_id);
-                (
-                    BatchItemStatus::Completed,
-                    Some(transcript_id),
-                    None,
-                )
+                (BatchItemStatus::Completed, Some(transcript_id), None)
             }
             Ok(Err(e)) => (
                 BatchItemStatus::Failed,
@@ -771,7 +773,17 @@ impl BatchQueue {
 
         let mut jobs = Vec::new();
         for row in rows {
-            let (id, status_str, concurrency, created_at, updated_at, model_id, language, started_at, completed_at) = row?;
+            let (
+                id,
+                status_str,
+                concurrency,
+                created_at,
+                updated_at,
+                model_id,
+                language,
+                started_at,
+                completed_at,
+            ) = row?;
             let status: BatchJobStatus = status_str.parse()?;
             jobs.push(BatchJob {
                 id,
@@ -808,7 +820,16 @@ impl BatchQueue {
 
         let mut items = Vec::new();
         for row in rows {
-            let (id, job_id_col, file_path, transcript_id, status_str, error, progress, processing_ms) = row?;
+            let (
+                id,
+                job_id_col,
+                file_path,
+                transcript_id,
+                status_str,
+                error,
+                progress,
+                processing_ms,
+            ) = row?;
             let status: BatchItemStatus = status_str.parse()?;
             items.push(BatchJobItem {
                 id,
@@ -852,11 +873,7 @@ impl BatchQueue {
         Ok(())
     }
 
-    fn set_item_transcript_id(
-        &self,
-        item_id: &str,
-        transcript_id: &str,
-    ) -> Result<(), AppError> {
+    fn set_item_transcript_id(&self, item_id: &str, transcript_id: &str) -> Result<(), AppError> {
         let conn = self.db.get()?;
         conn.execute(
             "UPDATE batch_job_items SET transcript_id = ?1 WHERE id = ?2",

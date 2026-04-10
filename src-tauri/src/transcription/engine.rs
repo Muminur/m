@@ -194,12 +194,10 @@ impl WhisperEngine {
                     None => continue,
                 };
 
-                let text = segment
-                    .to_str()
-                    .map_err(|e| AppError::TranscriptionError {
-                        code: TranscriptionErrorCode::InferenceFailure,
-                        message: format!("Failed to get segment text: {}", e),
-                    })?;
+                let text = segment.to_str().map_err(|e| AppError::TranscriptionError {
+                    code: TranscriptionErrorCode::InferenceFailure,
+                    message: format!("Failed to get segment text: {}", e),
+                })?;
 
                 // start/end_timestamp() returns centiseconds; multiply by 10 → milliseconds
                 let start_ms = segment.start_timestamp() * 10;

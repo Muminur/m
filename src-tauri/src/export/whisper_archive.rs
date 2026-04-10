@@ -49,10 +49,10 @@ pub fn export_archive(
             })?
             .as_bytes(),
     )
-        .map_err(|e| AppError::ExportError {
-            code: ExportErrorCode::IoError,
-            message: format!("{}", e),
-        })?;
+    .map_err(|e| AppError::ExportError {
+        code: ExportErrorCode::IoError,
+        message: format!("{}", e),
+    })?;
 
     // Write transcript data
     let archive_data = ArchiveTranscript {

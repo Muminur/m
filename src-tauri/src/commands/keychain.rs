@@ -17,14 +17,12 @@ pub async fn set_api_key(service: String, key: String) -> Result<(), AppError> {
         });
     }
 
-    tokio::task::spawn_blocking(move || {
-        crate::keychain::set(&service, "api_key", &key)
-    })
-    .await
-    .map_err(|e| AppError::StorageError {
-        code: crate::error::StorageErrorCode::IoError,
-        message: format!("Keychain task failed: {}", e),
-    })?
+    tokio::task::spawn_blocking(move || crate::keychain::set(&service, "api_key", &key))
+        .await
+        .map_err(|e| AppError::StorageError {
+            code: crate::error::StorageErrorCode::IoError,
+            message: format!("Keychain task failed: {}", e),
+        })?
 }
 
 /// Check whether an API key exists in the system keychain.
@@ -41,14 +39,12 @@ pub async fn check_api_key_set(service: String) -> Result<bool, AppError> {
         });
     }
 
-    let result = tokio::task::spawn_blocking(move || {
-        crate::keychain::get(&service, "api_key")
-    })
-    .await
-    .map_err(|e| AppError::StorageError {
-        code: crate::error::StorageErrorCode::IoError,
-        message: format!("Keychain task failed: {}", e),
-    })??;
+    let result = tokio::task::spawn_blocking(move || crate::keychain::get(&service, "api_key"))
+        .await
+        .map_err(|e| AppError::StorageError {
+            code: crate::error::StorageErrorCode::IoError,
+            message: format!("Keychain task failed: {}", e),
+        })??;
 
     Ok(result.is_some())
 }
@@ -63,12 +59,10 @@ pub async fn delete_api_key(service: String) -> Result<(), AppError> {
         });
     }
 
-    tokio::task::spawn_blocking(move || {
-        crate::keychain::delete(&service, "api_key")
-    })
-    .await
-    .map_err(|e| AppError::StorageError {
-        code: crate::error::StorageErrorCode::IoError,
-        message: format!("Keychain task failed: {}", e),
-    })?
+    tokio::task::spawn_blocking(move || crate::keychain::delete(&service, "api_key"))
+        .await
+        .map_err(|e| AppError::StorageError {
+            code: crate::error::StorageErrorCode::IoError,
+            message: format!("Keychain task failed: {}", e),
+        })?
 }

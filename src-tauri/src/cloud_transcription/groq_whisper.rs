@@ -57,12 +57,13 @@ impl CloudTranscriptionProvider for GroqWhisperProvider {
         let lang = language.map(|s| s.to_string());
 
         Box::pin(async move {
-            let file_bytes = tokio::fs::read(&path).await.map_err(|e| {
-                AppError::CloudTranscriptionError {
-                    code: CloudTranscriptionErrorCode::UploadFailed,
-                    message: format!("Failed to read audio file: {}", e),
-                }
-            })?;
+            let file_bytes =
+                tokio::fs::read(&path)
+                    .await
+                    .map_err(|e| AppError::CloudTranscriptionError {
+                        code: CloudTranscriptionErrorCode::UploadFailed,
+                        message: format!("Failed to read audio file: {}", e),
+                    })?;
 
             let file_name = path
                 .file_name()
@@ -112,10 +113,13 @@ impl CloudTranscriptionProvider for GroqWhisperProvider {
             }
 
             let resp: WhisperResponse =
-                response.json().await.map_err(|e| AppError::CloudTranscriptionError {
-                    code: CloudTranscriptionErrorCode::TranscriptionFailed,
-                    message: format!("Failed to parse response: {}", e),
-                })?;
+                response
+                    .json()
+                    .await
+                    .map_err(|e| AppError::CloudTranscriptionError {
+                        code: CloudTranscriptionErrorCode::TranscriptionFailed,
+                        message: format!("Failed to parse response: {}", e),
+                    })?;
 
             let segments = resp
                 .segments

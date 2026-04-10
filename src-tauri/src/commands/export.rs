@@ -24,11 +24,12 @@ pub async fn export_to_file(
 ) -> Result<(), AppError> {
     if format == "whisper" {
         let conn = db.get()?;
-        let transcript =
-            transcripts::get_by_id(&conn, &transcript_id)?.ok_or_else(|| AppError::ExportError {
+        let transcript = transcripts::get_by_id(&conn, &transcript_id)?.ok_or_else(|| {
+            AppError::ExportError {
                 code: ExportErrorCode::FormatError,
                 message: format!("Transcript '{}' not found", transcript_id),
-            })?;
+            }
+        })?;
         let segs = segments::get_by_transcript(&conn, &transcript_id)?;
         let audio_path = transcript.audio_path.as_deref().map(std::path::Path::new);
         return export::whisper_archive::export_archive(
@@ -42,11 +43,12 @@ pub async fn export_to_file(
     // Binary formats: write raw bytes
     if format == "pdf" || format == "docx" {
         let conn = db.get()?;
-        let transcript =
-            transcripts::get_by_id(&conn, &transcript_id)?.ok_or_else(|| AppError::ExportError {
+        let transcript = transcripts::get_by_id(&conn, &transcript_id)?.ok_or_else(|| {
+            AppError::ExportError {
                 code: ExportErrorCode::FormatError,
                 message: format!("Transcript '{}' not found", transcript_id),
-            })?;
+            }
+        })?;
         let segs = segments::get_by_transcript(&conn, &transcript_id)?;
         let title = &transcript.title;
         let duration_ms = transcript.duration_ms.unwrap_or(0);
@@ -167,7 +169,11 @@ pub async fn share_transcript(
         _ => "txt",
     };
     let temp_dir = std::env::temp_dir();
-    let file_name = format!("whisperdesk_share_{}.{}", &transcript_id[..8.min(transcript_id.len())], extension);
+    let file_name = format!(
+        "whisperdesk_share_{}.{}",
+        &transcript_id[..8.min(transcript_id.len())],
+        extension
+    );
     let file_path = temp_dir.join(&file_name);
     std::fs::write(&file_path, &content).map_err(|e| AppError::ExportError {
         code: ExportErrorCode::IoError,

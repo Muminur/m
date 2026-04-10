@@ -67,8 +67,9 @@ pub trait AiProvider: Send + Sync {
         request: CompletionRequest,
     ) -> Pin<
         Box<
-            dyn std::future::Future<Output = Result<mpsc::Receiver<Result<String, AppError>>, AppError>>
-                + Send
+            dyn std::future::Future<
+                    Output = Result<mpsc::Receiver<Result<String, AppError>>, AppError>,
+                > + Send
                 + '_,
         >,
     >;

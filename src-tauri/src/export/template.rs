@@ -151,8 +151,7 @@ mod tests {
     #[test]
     fn test_render_template_speaker() {
         let template = "{{#each segments}}{{speaker}}: {{text}}\n{{/each}}";
-        let result =
-            render_export_template(template, "T", &sample_segments(), 0, "en").unwrap();
+        let result = render_export_template(template, "T", &sample_segments(), 0, "en").unwrap();
         assert!(result.contains("Alice: Hello world"));
         // No speaker produces empty string
         assert!(result.contains(": Goodbye"));

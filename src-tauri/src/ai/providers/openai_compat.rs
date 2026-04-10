@@ -1,6 +1,4 @@
-use crate::ai::provider::{
-    AiProvider, CompletionRequest, CompletionResponse, ModelInfo,
-};
+use crate::ai::provider::{AiProvider, CompletionRequest, CompletionResponse, ModelInfo};
 use crate::error::{AiErrorCode, AppError};
 use crate::network::guard::NetworkGuard;
 use serde::{Deserialize, Serialize};
@@ -100,7 +98,10 @@ impl OpenAiCompatProvider {
         }
     }
 
-    fn build_request(&self, request: &CompletionRequest) -> Result<reqwest::RequestBuilder, AppError> {
+    fn build_request(
+        &self,
+        request: &CompletionRequest,
+    ) -> Result<reqwest::RequestBuilder, AppError> {
         let url = format!("{}/chat/completions", self.base_url);
 
         let mut messages: Vec<ApiMessage> = Vec::new();
@@ -279,9 +280,7 @@ impl AiProvider for OpenAiCompatProvider {
                                         let _ = tx.send(Ok(String::new())).await;
                                         return;
                                     }
-                                    if let Ok(chunk) =
-                                        serde_json::from_str::<StreamChunk>(data)
-                                    {
+                                    if let Ok(chunk) = serde_json::from_str::<StreamChunk>(data) {
                                         if let Some(choice) = chunk.choices.first() {
                                             if let Some(ref content) = choice.delta.content {
                                                 if tx.send(Ok(content.clone())).await.is_err() {

@@ -85,7 +85,10 @@ pub async fn write_to_obsidian(
     // Run filesystem write on blocking thread
     let title = transcript.title.clone();
     let duration_ms = transcript.duration_ms.unwrap_or(0);
-    let language = transcript.language.clone().unwrap_or_else(|| "unknown".into());
+    let language = transcript
+        .language
+        .clone()
+        .unwrap_or_else(|| "unknown".into());
     let created_at = transcript.created_at;
 
     tokio::task::spawn_blocking(move || {

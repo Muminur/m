@@ -83,10 +83,13 @@ pub async fn start_captions(
 ) -> Result<(), AppError> {
     // Guard: only one session at a time.
     {
-        let guard = state.inner.lock().map_err(|_| AppError::TranscriptionError {
-            code: TranscriptionErrorCode::InferenceFailure,
-            message: "Caption state lock poisoned".into(),
-        })?;
+        let guard = state
+            .inner
+            .lock()
+            .map_err(|_| AppError::TranscriptionError {
+                code: TranscriptionErrorCode::InferenceFailure,
+                message: "Caption state lock poisoned".into(),
+            })?;
         if guard.is_some() {
             return Err(AppError::TranscriptionError {
                 code: TranscriptionErrorCode::InferenceFailure,
@@ -106,22 +109,20 @@ pub async fn start_captions(
             Some(id) => {
                 // Re-use the same index/name resolution logic as get_device_by_id
                 // but capture just the name so we can re-open on the worker thread.
-                let devices: Vec<cpal::Device> =
-                    host.input_devices()
-                        .map_err(|e| AppError::AudioError {
-                            code: AudioErrorCode::DeviceNotFound,
-                            message: format!("Failed to enumerate devices: {}", e),
-                        })?
-                        .collect();
+                let devices: Vec<cpal::Device> = host
+                    .input_devices()
+                    .map_err(|e| AppError::AudioError {
+                        code: AudioErrorCode::DeviceNotFound,
+                        message: format!("Failed to enumerate devices: {}", e),
+                    })?
+                    .collect();
 
                 let mut found: Option<String> = None;
 
                 // Index-based lookup (e.g. "input_0")
                 if let Some(idx_str) = id.strip_prefix("input_") {
                     if let Ok(idx) = idx_str.parse::<usize>() {
-                        found = devices
-                            .get(idx)
-                            .and_then(|d| d.name().ok());
+                        found = devices.get(idx).and_then(|d| d.name().ok());
                     }
                 }
 
@@ -150,10 +151,13 @@ pub async fn start_captions(
     });
 
     // Store the session.
-    let mut guard = state.inner.lock().map_err(|_| AppError::TranscriptionError {
-        code: TranscriptionErrorCode::InferenceFailure,
-        message: "Caption state lock poisoned".into(),
-    })?;
+    let mut guard = state
+        .inner
+        .lock()
+        .map_err(|_| AppError::TranscriptionError {
+            code: TranscriptionErrorCode::InferenceFailure,
+            message: "Caption state lock poisoned".into(),
+        })?;
     *guard = Some(CaptionsSession {
         stop_flag,
         thread: Some(thread),
@@ -169,10 +173,13 @@ pub async fn start_captions(
 #[tauri::command]
 pub async fn stop_captions(state: State<'_, CaptionsState>) -> Result<(), AppError> {
     let session = {
-        let mut guard = state.inner.lock().map_err(|_| AppError::TranscriptionError {
-            code: TranscriptionErrorCode::InferenceFailure,
-            message: "Caption state lock poisoned".into(),
-        })?;
+        let mut guard = state
+            .inner
+            .lock()
+            .map_err(|_| AppError::TranscriptionError {
+                code: TranscriptionErrorCode::InferenceFailure,
+                message: "Caption state lock poisoned".into(),
+            })?;
         guard.take()
     };
 
@@ -191,11 +198,7 @@ pub async fn stop_captions(state: State<'_, CaptionsState>) -> Result<(), AppErr
 
 /// Runs entirely on one OS thread: opens the cpal stream, drains audio chunks
 /// through `StreamingTranscriber`, and emits events.
-fn run_caption_thread(
-    app: AppHandle,
-    stop_flag: Arc<AtomicBool>,
-    device_name: Option<String>,
-) {
+fn run_caption_thread(app: AppHandle, stop_flag: Arc<AtomicBool>, device_name: Option<String>) {
     use cpal::traits::HostTrait;
 
     let host = cpal::default_host();

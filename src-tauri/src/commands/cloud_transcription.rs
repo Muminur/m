@@ -32,12 +32,13 @@ pub async fn transcribe_with_cloud(
     }
 
     // Check file size (limit 25MB for most providers)
-    let metadata = tokio::fs::metadata(path).await.map_err(|e| {
-        AppError::CloudTranscriptionError {
-            code: CloudTranscriptionErrorCode::UploadFailed,
-            message: format!("Cannot read file metadata: {}", e),
-        }
-    })?;
+    let metadata =
+        tokio::fs::metadata(path)
+            .await
+            .map_err(|e| AppError::CloudTranscriptionError {
+                code: CloudTranscriptionErrorCode::UploadFailed,
+                message: format!("Cannot read file metadata: {}", e),
+            })?;
 
     if metadata.len() > 25 * 1024 * 1024 {
         return Err(AppError::CloudTranscriptionError {
@@ -52,34 +53,33 @@ pub async fn transcribe_with_cloud(
     let guard_arc = Arc::new(NetworkGuard::new(guard.policy().clone())?);
 
     // Create the appropriate provider
-    let cloud_provider: Box<dyn cloud_transcription::CloudTranscriptionProvider> = match provider.as_str() {
-        "openai_whisper" => Box::new(
-            cloud_transcription::openai_whisper::OpenAiWhisperProvider::new(api_key, guard_arc),
-        ),
-        "deepgram" => Box::new(
-            cloud_transcription::deepgram::DeepgramProvider::new(api_key, guard_arc),
-        ),
-        "groq_whisper" => Box::new(
-            cloud_transcription::groq_whisper::GroqWhisperProvider::new(api_key, guard_arc),
-        ),
-        "elevenlabs" => Box::new(
-            cloud_transcription::elevenlabs::ElevenLabsProvider::new(api_key, guard_arc),
-        ),
-        "vibevoice" => Box::new(
-            cloud_transcription::vibevoice::VibeVoiceProvider::new(api_key, guard_arc),
-        ),
-        other => {
-            return Err(AppError::CloudTranscriptionError {
-                code: CloudTranscriptionErrorCode::ProviderNotFound,
-                message: format!("Unknown cloud provider: {}", other),
-            });
-        }
-    };
+    let cloud_provider: Box<dyn cloud_transcription::CloudTranscriptionProvider> =
+        match provider.as_str() {
+            "openai_whisper" => Box::new(
+                cloud_transcription::openai_whisper::OpenAiWhisperProvider::new(api_key, guard_arc),
+            ),
+            "deepgram" => Box::new(cloud_transcription::deepgram::DeepgramProvider::new(
+                api_key, guard_arc,
+            )),
+            "groq_whisper" => Box::new(
+                cloud_transcription::groq_whisper::GroqWhisperProvider::new(api_key, guard_arc),
+            ),
+            "elevenlabs" => Box::new(cloud_transcription::elevenlabs::ElevenLabsProvider::new(
+                api_key, guard_arc,
+            )),
+            "vibevoice" => Box::new(cloud_transcription::vibevoice::VibeVoiceProvider::new(
+                api_key, guard_arc,
+            )),
+            other => {
+                return Err(AppError::CloudTranscriptionError {
+                    code: CloudTranscriptionErrorCode::ProviderNotFound,
+                    message: format!("Unknown cloud provider: {}", other),
+                });
+            }
+        };
 
     // Run transcription
-    let result = cloud_provider
-        .transcribe(path, language.as_deref())
-        .await?;
+    let result = cloud_provider.transcribe(path, language.as_deref()).await?;
 
     // Create transcript in database
     let transcript_id = uuid::Uuid::new_v4().to_string();
@@ -89,20 +89,18 @@ pub async fn transcribe_with_cloud(
         .unwrap_or_else(|| "Cloud Transcription".into());
 
     let mut conn = db.get()?;
-    let tx = conn.transaction().map_err(|e| AppError::CloudTranscriptionError {
-        code: CloudTranscriptionErrorCode::TranscriptionFailed,
-        message: format!("Failed to begin transaction: {}", e),
-    })?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| AppError::CloudTranscriptionError {
+            code: CloudTranscriptionErrorCode::TranscriptionFailed,
+            message: format!("Failed to begin transaction: {}", e),
+        })?;
 
     // Compute word count from full text
     let word_count = result.text.split_whitespace().count() as i64;
 
     // Compute duration from last segment
-    let duration_ms = result
-        .segments
-        .last()
-        .map(|s| s.end_ms as i64)
-        .unwrap_or(0);
+    let duration_ms = result.segments.last().map(|s| s.end_ms as i64).unwrap_or(0);
 
     tx.execute(
         "INSERT INTO transcripts (id, title, created_at, updated_at, duration_ms, language, source_type, audio_path, is_starred, is_deleted, speaker_count, word_count, metadata)
@@ -206,9 +204,11 @@ fn get_provider_api_key(provider: &str) -> Result<String, AppError> {
         other => other,
     };
 
-    crate::keychain::get(service, "api_key")?
-        .ok_or_else(|| AppError::CloudTranscriptionError {
-            code: CloudTranscriptionErrorCode::InvalidApiKey,
-            message: format!("No API key configured for '{}'. Add it in Settings.", service),
-        })
+    crate::keychain::get(service, "api_key")?.ok_or_else(|| AppError::CloudTranscriptionError {
+        code: CloudTranscriptionErrorCode::InvalidApiKey,
+        message: format!(
+            "No API key configured for '{}'. Add it in Settings.",
+            service
+        ),
+    })
 }

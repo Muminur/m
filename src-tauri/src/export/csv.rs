@@ -98,7 +98,10 @@ mod tests {
     #[test]
     fn test_export_csv_empty() {
         let result = export_csv(&[]).unwrap();
-        assert_eq!(result, "start_ms,end_ms,start_time,end_time,speaker,text\r\n");
+        assert_eq!(
+            result,
+            "start_ms,end_ms,start_time,end_time,speaker,text\r\n"
+        );
     }
 
     #[test]

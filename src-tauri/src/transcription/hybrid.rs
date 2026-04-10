@@ -62,12 +62,12 @@ impl HybridTranscriber {
                         self.guard.clone(),
                     ),
                 ),
-                "deepgram" => Box::new(
-                    crate::cloud_transcription::deepgram::DeepgramProvider::new(
+                "deepgram" => {
+                    Box::new(crate::cloud_transcription::deepgram::DeepgramProvider::new(
                         api_key.to_string(),
                         self.guard.clone(),
-                    ),
-                ),
+                    ))
+                }
                 "groq_whisper" => Box::new(
                     crate::cloud_transcription::groq_whisper::GroqWhisperProvider::new(
                         api_key.to_string(),
@@ -93,10 +93,12 @@ impl HybridTranscriber {
 
         // Update segments in database within a transaction
         let mut conn = db.get()?;
-        let tx = conn.transaction().map_err(|e| AppError::CloudTranscriptionError {
-            code: CloudTranscriptionErrorCode::TranscriptionFailed,
-            message: format!("Failed to begin transaction: {}", e),
-        })?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| AppError::CloudTranscriptionError {
+                code: CloudTranscriptionErrorCode::TranscriptionFailed,
+                message: format!("Failed to begin transaction: {}", e),
+            })?;
 
         // Delete existing segments
         tx.execute(

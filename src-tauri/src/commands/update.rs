@@ -29,10 +29,13 @@ pub async fn get_app_version(app: AppHandle) -> Result<String, AppError> {
 /// Returns `Some(UpdateInfo)` when a newer version exists, `None` when up to date.
 #[command]
 pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, AppError> {
-    let updater = app.updater_builder().build().map_err(|e| AppError::NetworkError {
-        code: NetworkErrorCode::ConnectionFailed,
-        message: format!("Failed to build updater: {}", e),
-    })?;
+    let updater = app
+        .updater_builder()
+        .build()
+        .map_err(|e| AppError::NetworkError {
+            code: NetworkErrorCode::ConnectionFailed,
+            message: format!("Failed to build updater: {}", e),
+        })?;
 
     let update = updater.check().await.map_err(|e| AppError::NetworkError {
         code: NetworkErrorCode::ConnectionFailed,
@@ -55,7 +58,10 @@ pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, AppE
 /// while an install is in progress returns an error immediately.
 #[command]
 pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError> {
-    if INSTALLING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+    if INSTALLING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
         return Err(AppError::NetworkError {
             code: NetworkErrorCode::ConnectionFailed,
             message: "An update install is already in progress".into(),
@@ -71,10 +77,13 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
 }
 
 async fn do_install(app: &AppHandle) -> Result<(), AppError> {
-    let updater = app.updater_builder().build().map_err(|e| AppError::NetworkError {
-        code: NetworkErrorCode::ConnectionFailed,
-        message: format!("Failed to build updater: {}", e),
-    })?;
+    let updater = app
+        .updater_builder()
+        .build()
+        .map_err(|e| AppError::NetworkError {
+            code: NetworkErrorCode::ConnectionFailed,
+            message: format!("Failed to build updater: {}", e),
+        })?;
 
     let update = updater.check().await.map_err(|e| AppError::NetworkError {
         code: NetworkErrorCode::ConnectionFailed,
@@ -96,7 +105,6 @@ async fn do_install(app: &AppHandle) -> Result<(), AppError> {
 
     app.restart();
 }
-
 
 #[cfg(test)]
 mod tests {

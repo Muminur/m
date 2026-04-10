@@ -1,6 +1,4 @@
-use crate::ai::provider::{
-    AiProvider, CompletionRequest, CompletionResponse, ModelInfo,
-};
+use crate::ai::provider::{AiProvider, CompletionRequest, CompletionResponse, ModelInfo};
 use crate::error::{AiErrorCode, AppError};
 use crate::network::guard::NetworkGuard;
 use serde::{Deserialize, Serialize};
@@ -151,10 +149,7 @@ impl AiProvider for OllamaProvider {
                     message: format!("Failed to parse Ollama response: {}", e),
                 })?;
 
-            let content = resp
-                .message
-                .and_then(|m| m.content)
-                .unwrap_or_default();
+            let content = resp.message.and_then(|m| m.content).unwrap_or_default();
 
             Ok(CompletionResponse {
                 content,
@@ -228,8 +223,7 @@ impl AiProvider for OllamaProvider {
                                     continue;
                                 }
 
-                                if let Ok(chunk) =
-                                    serde_json::from_str::<OllamaStreamChunk>(&line)
+                                if let Ok(chunk) = serde_json::from_str::<OllamaStreamChunk>(&line)
                                 {
                                     if let Some(msg) = chunk.message {
                                         if let Some(text) = msg.content {

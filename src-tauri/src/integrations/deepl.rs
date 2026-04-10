@@ -33,7 +33,10 @@ fn deepl_endpoint(api_key: &str) -> &'static str {
 }
 
 /// Check a DeepL HTTP response status and return a typed error on failure.
-fn check_deepl_response_status(status: reqwest::StatusCode, error_text: &str) -> Result<(), AppError> {
+fn check_deepl_response_status(
+    status: reqwest::StatusCode,
+    error_text: &str,
+) -> Result<(), AppError> {
     if status == reqwest::StatusCode::FORBIDDEN || status == reqwest::StatusCode::UNAUTHORIZED {
         return Err(AppError::IntegrationError {
             code: IntegrationErrorCode::AuthenticationFailed,
@@ -70,7 +73,10 @@ pub async fn translate_text(
     let req = guard
         .client()
         .post(base_url)
-        .header("Authorization", format!("DeepL-Auth-Key {}", config.api_key))
+        .header(
+            "Authorization",
+            format!("DeepL-Auth-Key {}", config.api_key),
+        )
         .header("Content-Type", "application/json")
         .json(&serde_json::json!({
             "text": [text],
@@ -165,7 +171,10 @@ pub async fn translate_srt(
         let req = guard
             .client()
             .post(base_url)
-            .header("Authorization", format!("DeepL-Auth-Key {}", config.api_key))
+            .header(
+                "Authorization",
+                format!("DeepL-Auth-Key {}", config.api_key),
+            )
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
                 "text": batch,
@@ -240,7 +249,10 @@ pub async fn translate_segments(
         let req = guard
             .client()
             .post(base_url)
-            .header("Authorization", format!("DeepL-Auth-Key {}", config.api_key))
+            .header(
+                "Authorization",
+                format!("DeepL-Auth-Key {}", config.api_key),
+            )
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
                 "text": batch,
