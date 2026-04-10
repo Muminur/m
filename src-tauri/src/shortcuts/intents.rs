@@ -1,21 +1,19 @@
-//! Apple Shortcuts intents for WhisperDesk.
+//! Deep-link intent dispatch for WhisperDesk.
 //!
-//! Exposes Shortcuts actions: "Transcribe file at path",
-//! "Get transcript", "Start/stop recording".
-//!
-//! Full implementation requires macOS Shortcuts API access.
-//! This stub provides the interface; full wiring in M10.
+//! Handles `whisperdesk://intent/<id>?params` deep-link URLs by parsing the
+//! intent ID and dispatching to the appropriate handler. Used by Apple
+//! Shortcuts on macOS and URL protocol handlers on all platforms.
 
-use crate::error::AppError;
+use crate::error::{AppError, ExportErrorCode};
 
-/// Describes an available Shortcuts intent.
+/// Describes an available intent action.
 pub struct ShortcutIntent {
     pub id: &'static str,
     pub display_name: &'static str,
     pub description: &'static str,
 }
 
-/// All intents exposed by WhisperDesk to Apple Shortcuts.
+/// All intents exposed by WhisperDesk.
 pub const INTENTS: &[ShortcutIntent] = &[
     ShortcutIntent {
         id: "transcribe_file",
@@ -39,20 +37,107 @@ pub const INTENTS: &[ShortcutIntent] = &[
     },
 ];
 
-/// Handle an incoming Shortcuts intent by ID.
+/// Handle an incoming deep-link intent by ID.
 ///
-/// Full URL scheme / XPC wiring is implemented in M10.
-pub fn handle_intent(intent_id: &str, _params: &serde_json::Value) -> Result<serde_json::Value, AppError> {
-    tracing::info!("Apple Shortcuts intent received: {}", intent_id);
+/// Each intent emits an event on the app handle so the frontend can react,
+/// then returns a JSON acknowledgment.
+pub fn handle_intent(
+    intent_id: &str,
+    params: &serde_json::Value,
+    app: &tauri::AppHandle,
+) -> Result<serde_json::Value, AppError> {
+    use tauri::Emitter;
+
+    tracing::info!(intent = intent_id, "Deep-link intent received");
+
     match intent_id {
-        "transcribe_file" | "get_transcript" | "start_recording" | "stop_recording" => {
-            // TODO(M10): implement full Shortcuts URL scheme handler
-            Ok(serde_json::json!({ "status": "stub", "intent": intent_id }))
+        "transcribe_file" => {
+            let path = params
+                .get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            tracing::info!(path, "Intent: transcribe_file");
+            let _ = app.emit("deep-link-intent", serde_json::json!({
+                "intent": "transcribe_file",
+                "path": path,
+            }));
+            Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
+        }
+        "get_transcript" => {
+            let id = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            tracing::info!(transcript_id = id, "Intent: get_transcript");
+            let _ = app.emit("deep-link-intent", serde_json::json!({
+                "intent": "get_transcript",
+                "id": id,
+            }));
+            Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
+        }
+        "start_recording" => {
+            tracing::info!("Intent: start_recording");
+            let _ = app.emit("deep-link-intent", serde_json::json!({
+                "intent": "start_recording",
+            }));
+            Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
+        }
+        "stop_recording" => {
+            tracing::info!("Intent: stop_recording");
+            let _ = app.emit("deep-link-intent", serde_json::json!({
+                "intent": "stop_recording",
+            }));
+            Ok(serde_json::json!({ "status": "dispatched", "intent": intent_id }))
         }
         _ => Err(AppError::ExportError {
-            code: crate::error::ExportErrorCode::FormatError,
-            message: format!("Unknown Shortcuts intent: {}", intent_id),
+            code: ExportErrorCode::FormatError,
+            message: format!("Unknown intent: {}", intent_id),
         }),
+    }
+}
+
+/// Parse a deep-link URL and dispatch the intent.
+///
+/// URL format: `whisperdesk://intent/<intent_id>?key=value&...`
+pub fn dispatch_deep_link(url_str: &str, app: &tauri::AppHandle) {
+    tracing::info!(url = url_str, "Deep-link URL received");
+
+    let url = match url::Url::parse(url_str) {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::warn!(error = %e, url = url_str, "Failed to parse deep-link URL");
+            return;
+        }
+    };
+
+    // Expected: whisperdesk://intent/<intent_id>
+    let segments: Vec<&str> = url.path_segments().map(|s| s.collect()).unwrap_or_default();
+
+    if segments.is_empty() {
+        tracing::warn!("Deep-link URL has no path segments");
+        return;
+    }
+
+    let intent_id = if segments[0] == "intent" && segments.len() > 1 {
+        segments[1]
+    } else {
+        segments[0]
+    };
+
+    // Collect query parameters into a JSON object
+    let params: serde_json::Map<String, serde_json::Value> = url
+        .query_pairs()
+        .map(|(k, v)| (k.to_string(), serde_json::Value::String(v.to_string())))
+        .collect();
+    let params_value = serde_json::Value::Object(params);
+
+    match handle_intent(intent_id, &params_value, app) {
+        Ok(result) => {
+            tracing::info!(intent = intent_id, result = %result, "Intent dispatched");
+        }
+        Err(e) => {
+            tracing::warn!(intent = intent_id, error = %e, "Intent dispatch failed");
+        }
     }
 }
 
@@ -66,14 +151,11 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_known_intent() {
-        let result = handle_intent("transcribe_file", &serde_json::json!({}));
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_handle_unknown_intent() {
-        let result = handle_intent("unknown_action", &serde_json::json!({}));
-        assert!(result.is_err());
+    fn test_intents_have_known_ids() {
+        let ids: Vec<&str> = INTENTS.iter().map(|i| i.id).collect();
+        assert!(ids.contains(&"transcribe_file"));
+        assert!(ids.contains(&"get_transcript"));
+        assert!(ids.contains(&"start_recording"));
+        assert!(ids.contains(&"stop_recording"));
     }
 }

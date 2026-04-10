@@ -32,6 +32,19 @@
       "iconAsTemplate": true
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://releases.whisperdesk.app/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "pubkey": ""
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["whisperdesk"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

@@ -27,6 +27,7 @@ tauri-plugin-shell = "2.2"
 tauri-plugin-notification = "2.2"
 tauri-plugin-clipboard-manager = "2.2"
 tauri-plugin-process = "2.2"
+tauri-plugin-deep-link = "2.2"
 
 # Database
 rusqlite = { version = "0.32", features = ["bundled-full"] }

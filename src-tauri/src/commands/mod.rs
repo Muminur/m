@@ -14,4 +14,5 @@ pub mod settings;
 pub mod shortcuts;
 pub mod transcription;
 pub mod translate;
+pub mod update;
 pub mod watch;

@@ -48,6 +48,20 @@
     "export": "Export",
     "copy": "Copy to Clipboard"
   },
+  "update": {
+    "title": "Updates",
+    "current_version": "Current version",
+    "check": "Check for Updates",
+    "up_to_date": "WhisperDesk is up to date",
+    "available": "Update available: {{version}}",
+    "install": "Install & Restart",
+    "checking": "Checking..."
+  },
+  "about": {
+    "title": "About WhisperDesk",
+    "license": "Released under the MIT License",
+    "github": "View on GitHub"
+  },
   "common": {
     "cancel": "Cancel",
     "save": "Save",

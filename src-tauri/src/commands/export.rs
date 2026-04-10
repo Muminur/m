@@ -148,6 +148,36 @@ pub async fn render_custom_template(
     export::template::render_export_template(&template, title, &segs, duration_ms, language)
 }
 
+/// Share a transcript by exporting it to a temp file and opening with the system handler.
+#[command]
+pub async fn share_transcript(
+    transcript_id: String,
+    format: String,
+    db: State<'_, Arc<Database>>,
+) -> Result<(), AppError> {
+    let content = export_transcript_inner(&transcript_id, &format, None, &db)?;
+    let extension = match format.as_str() {
+        "txt" => "txt",
+        "srt" => "srt",
+        "vtt" => "vtt",
+        "html" => "html",
+        "csv" => "csv",
+        "json" => "json",
+        "markdown" | "md" => "md",
+        _ => "txt",
+    };
+    let temp_dir = std::env::temp_dir();
+    let file_name = format!("whisperdesk_share_{}.{}", &transcript_id[..8.min(transcript_id.len())], extension);
+    let file_path = temp_dir.join(&file_name);
+    std::fs::write(&file_path, &content).map_err(|e| AppError::ExportError {
+        code: ExportErrorCode::IoError,
+        message: format!("Failed to write temp file: {}", e),
+    })?;
+    let path_str = file_path.to_string_lossy().to_string();
+    export::share::share_via_sheet(&path_str, "WhisperDesk Transcript")?;
+    Ok(())
+}
+
 #[command]
 pub async fn copy_transcript_text(
     transcript_id: String,

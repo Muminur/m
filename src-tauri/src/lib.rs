@@ -21,6 +21,7 @@ pub mod watch;
 
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_plugin_deep_link::DeepLinkExt;
 use tokio::sync::Mutex as TokioMutex;
 
 pub fn run() {
@@ -36,6 +37,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -122,6 +124,15 @@ pub fn run() {
                 wm.init(watch_handle, &watch_configs).await;
             });
 
+            // Register deep-link URL scheme handler
+            let deep_link_handle = app_handle.clone();
+            app.deep_link().on_open_url(move |event| {
+                let urls = event.urls();
+                for url in &urls {
+                    shortcuts::intents::dispatch_deep_link(url.as_str(), &deep_link_handle);
+                }
+            });
+
             tracing::info!("WhisperDesk initialized");
             Ok(())
         })
@@ -177,6 +188,11 @@ pub fn run() {
             commands::export::export_to_file,
             commands::export::copy_transcript_text,
             commands::export::render_custom_template,
+            commands::export::share_transcript,
+            // Update
+            commands::update::get_app_version,
+            commands::update::check_for_update,
+            commands::update::download_and_install_update,
             // Recording
             commands::recording::get_audio_devices,
             commands::recording::start_recording,
