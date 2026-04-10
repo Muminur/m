@@ -182,47 +182,34 @@ impl WhisperEngine {
                 });
             }
 
-            let n_segments = state
-                .full_n_segments()
-                .map_err(|e| AppError::TranscriptionError {
-                    code: TranscriptionErrorCode::InferenceFailure,
-                    message: format!("Failed to get segment count: {}", e),
-                })?;
+            // whisper-rs 0.16.0: full_n_segments() returns c_int directly (not Result)
+            let n_segments = state.full_n_segments();
 
             let mut results = Vec::with_capacity(n_segments as usize);
 
             for i in 0..n_segments {
-                let text =
-                    state
-                        .full_get_segment_text(i)
-                        .map_err(|e| AppError::TranscriptionError {
-                            code: TranscriptionErrorCode::InferenceFailure,
-                            message: format!("Failed to get segment text: {}", e),
-                        })?;
+                // whisper-rs 0.16.0: use get_segment(i) -> Option<WhisperSegment>
+                let segment = match state.get_segment(i) {
+                    Some(s) => s,
+                    None => continue,
+                };
 
-                let start_ms =
-                    state
-                        .full_get_segment_t0(i)
-                        .map_err(|_| AppError::TranscriptionError {
-                            code: TranscriptionErrorCode::InferenceFailure,
-                            message: "Failed to get segment start".into(),
-                        })?
-                        * 10;
+                let text = segment
+                    .to_str()
+                    .map_err(|e| AppError::TranscriptionError {
+                        code: TranscriptionErrorCode::InferenceFailure,
+                        message: format!("Failed to get segment text: {}", e),
+                    })?;
 
-                let end_ms =
-                    state
-                        .full_get_segment_t1(i)
-                        .map_err(|_| AppError::TranscriptionError {
-                            code: TranscriptionErrorCode::InferenceFailure,
-                            message: "Failed to get segment end".into(),
-                        })?
-                        * 10;
+                // start/end_timestamp() returns centiseconds; multiply by 10 → milliseconds
+                let start_ms = segment.start_timestamp() * 10;
+                let end_ms = segment.end_timestamp() * 10;
 
-                let n_tokens = state.full_n_tokens(i).unwrap_or(0);
+                let n_tokens = segment.n_tokens();
                 let confidence = if n_tokens > 0 {
                     let sum: f32 = (0..n_tokens)
-                        .filter_map(|t| state.full_get_token_data(i, t).ok())
-                        .map(|td| td.p)
+                        .filter_map(|t| segment.get_token(t))
+                        .map(|tok| tok.token_probability())
                         .sum();
                     sum / n_tokens as f32
                 } else {
