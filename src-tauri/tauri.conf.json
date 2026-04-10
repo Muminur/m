@@ -35,9 +35,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://releases.whisperdesk.app/{{target}}/{{arch}}/{{current_version}}"
+        "https://whisperdesk-updater.whisperdesk.workers.dev/{{target}}/{{arch}}/{{current_version}}"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNGNUM3NzM3NkVDRjY1QzQKUldURVpjOXVOM2RjUDM5dlhpMlA5ektVamFyeElPR214eTlzeTYzR0FnQ2ZmTkkyL2tOdGhJaE8K"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIzMzY0NjQyNDIwMjY4RDQKUldUVWFBSkNRa1kyc3hudndFM0JwU2tPdmFnZmRXOG1XWWJHQnc2WXFnSWNRL1FLNG0ySm9CTG0K"
     },
     "deep-link": {
       "desktop": {
