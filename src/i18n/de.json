@@ -48,6 +48,20 @@
     "export": "Exportieren",
     "copy": "In Zwischenablage kopieren"
   },
+  "update": {
+    "title": "Updates",
+    "current_version": "Aktuelle Version",
+    "check": "Nach Updates suchen",
+    "up_to_date": "WhisperDesk ist aktuell",
+    "available": "Update verfügbar: {{version}}",
+    "install": "Installieren und neu starten",
+    "checking": "Überprüfe..."
+  },
+  "about": {
+    "title": "Über WhisperDesk",
+    "license": "Veröffentlicht unter der MIT-Lizenz",
+    "github": "Auf GitHub ansehen"
+  },
   "common": {
     "cancel": "Abbrechen",
     "save": "Speichern",

@@ -1,10 +1,21 @@
 import { useState, useRef, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { Loader2, Users } from "lucide-react";
 import { getSpeakerColor } from "@/lib/diarizationTypes";
 import type { DiarizedSegment } from "@/lib/diarizationTypes";
 
+interface DiarizeTranscriptResult {
+  transcriptId: string;
+  segmentCount: number;
+  speakerCount: number;
+  segments: DiarizedSegment[];
+}
+
 interface SpeakerLabelsProps {
+  transcriptId: string;
   segments: DiarizedSegment[];
   onRenameLabel: (speakerId: string, newLabel: string) => void;
+  onDiarizeComplete?: (result: DiarizeTranscriptResult) => void;
 }
 
 interface EditingState {
@@ -35,8 +46,10 @@ function formatMs(ms: number): string {
  * Displays diarized transcript segments with per-speaker color coding and
  * inline label rename functionality.
  */
-export function SpeakerLabels({ segments, onRenameLabel }: SpeakerLabelsProps) {
+export function SpeakerLabels({ transcriptId, segments, onRenameLabel, onDiarizeComplete }: SpeakerLabelsProps) {
   const [editing, setEditing] = useState<EditingState | null>(null);
+  const [isDiarizing, setIsDiarizing] = useState(false);
+  const [diarizeError, setDiarizeError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const speakerIndex = buildSpeakerIndex(segments);
@@ -65,10 +78,45 @@ export function SpeakerLabels({ segments, onRenameLabel }: SpeakerLabelsProps) {
     [commitEdit]
   );
 
+  const handleDiarize = useCallback(async () => {
+    if (!transcriptId || isDiarizing) return;
+    setIsDiarizing(true);
+    setDiarizeError(null);
+    try {
+      const result = await invoke<DiarizeTranscriptResult>("diarize_transcript", {
+        transcriptId,
+        provider: "tinydiarize",
+      });
+      onDiarizeComplete?.(result);
+    } catch (err) {
+      setDiarizeError(String(err));
+    } finally {
+      setIsDiarizing(false);
+    }
+  }, [transcriptId, isDiarizing, onDiarizeComplete]);
+
   if (segments.length === 0) {
     return (
-      <div className="text-sm text-muted-foreground text-center py-8">
-        No diarized segments available.
+      <div className="text-center py-8 space-y-3">
+        <p className="text-sm text-muted-foreground">
+          No diarized segments available.
+        </p>
+        {diarizeError && (
+          <p className="text-xs text-destructive">{diarizeError}</p>
+        )}
+        <button
+          type="button"
+          disabled={isDiarizing || !transcriptId}
+          onClick={handleDiarize}
+          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {isDiarizing ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Users size={12} />
+          )}
+          {isDiarizing ? "Diarizing\u2026" : "Run Diarization"}
+        </button>
       </div>
     );
   }

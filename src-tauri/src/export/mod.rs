@@ -1,4 +1,12 @@
+pub mod csv;
+pub mod docx;
+pub mod html;
+pub mod json;
+pub mod markdown;
+pub mod pdf;
 pub mod srt;
+pub mod template;
 pub mod text;
 pub mod vtt;
+pub mod share;
 pub mod whisper_archive;

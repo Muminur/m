@@ -1,0 +1,13 @@
+name = "whisperdesk-updater"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[vars]
+GITHUB_REPO = "Muminur/MACwhisper2"
+
+# Production custom domain:
+# Configure releases.whisperdesk.app -> this worker in Cloudflare dashboard
+# or add routes:
+# [[routes]]
+# pattern = "releases.whisperdesk.app/*"
+# zone_name = "whisperdesk.app"

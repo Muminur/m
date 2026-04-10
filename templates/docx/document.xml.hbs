@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+      <w:r><w:t>{{title}}</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Meta"/></w:pPr>
+      <w:r><w:t>Language: {{language}}  |  Duration: {{duration}}  |  Segments: {{segmentCount}}</w:t></w:r>
+    </w:p>
+    {{#each segments}}
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading2"/></w:pPr>
+      <w:r><w:rPr><w:rStyle w:val="Timestamp"/></w:rPr><w:t xml:space="preserve">[{{startTime}}] </w:t></w:r>
+      <w:r><w:t>{{speaker}}</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Normal"/></w:pPr>
+      <w:r><w:t xml:space="preserve">{{text}}</w:t></w:r>
+    </w:p>
+    {{/each}}
+  </w:body>
+</w:document>

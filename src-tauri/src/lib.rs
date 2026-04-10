@@ -1,5 +1,7 @@
+pub mod ai;
 pub mod audio;
 pub mod batch;
+pub mod cloud_transcription;
 pub mod commands;
 pub mod database;
 pub mod diarization;
@@ -7,6 +9,7 @@ pub mod dictation;
 pub mod error;
 pub mod export;
 pub mod import;
+pub mod integrations;
 pub mod keychain;
 pub mod logging;
 pub mod models;
@@ -18,6 +21,8 @@ pub mod watch;
 
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_plugin_deep_link::DeepLinkExt;
+use tokio::sync::Mutex as TokioMutex;
 
 pub fn run() {
     // Initialize logging first
@@ -32,6 +37,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -97,8 +103,14 @@ pub fn run() {
 
             // Initialize batch queue
             let db_ref = app.state::<Arc<database::Database>>();
-            let batch_queue = Arc::new(batch::queue::BatchQueue::new(Arc::clone(&db_ref)));
+            let batch_queue = Arc::new(batch::queue::BatchQueue::new(Arc::clone(&db_ref), Arc::clone(&model_manager)));
             app.manage(Arc::clone(&batch_queue));
+
+            // Initialize AI provider registry
+            let provider_registry = Arc::new(TokioMutex::new(
+                ai::provider::ProviderRegistry::new(),
+            ));
+            app.manage(Arc::clone(&provider_registry));
 
             // Start watching configured folders
             let watch_handle = app_handle.clone();
@@ -110,6 +122,15 @@ pub fn run() {
             let wm = Arc::clone(&watch_manager);
             tauri::async_runtime::spawn(async move {
                 wm.init(watch_handle, &watch_configs).await;
+            });
+
+            // Register deep-link URL scheme handler
+            let deep_link_handle = app_handle.clone();
+            app.deep_link().on_open_url(move |event| {
+                let urls = event.urls();
+                for url in &urls {
+                    shortcuts::intents::dispatch_deep_link(url.as_str(), &deep_link_handle);
+                }
             });
 
             tracing::info!("WhisperDesk initialized");
@@ -166,6 +187,12 @@ pub fn run() {
             commands::export::export_transcript,
             commands::export::export_to_file,
             commands::export::copy_transcript_text,
+            commands::export::render_custom_template,
+            commands::export::share_transcript,
+            // Update
+            commands::update::get_app_version,
+            commands::update::check_for_update,
+            commands::update::download_and_install_update,
             // Recording
             commands::recording::get_audio_devices,
             commands::recording::start_recording,
@@ -221,6 +248,32 @@ pub fn run() {
             // Captions
             commands::captions::start_captions,
             commands::captions::stop_captions,
+            // AI
+            commands::ai::list_ai_providers,
+            commands::ai::run_ai_action,
+            commands::ai::estimate_ai_cost,
+            commands::ai::list_ai_templates,
+            commands::ai::create_ai_template,
+            commands::ai::update_ai_template,
+            commands::ai::delete_ai_template,
+            commands::ai::list_ollama_models,
+            // Keychain
+            commands::keychain::set_api_key,
+            commands::keychain::check_api_key_set,
+            commands::keychain::delete_api_key,
+            // Cloud Transcription
+            commands::cloud_transcription::list_cloud_providers,
+            commands::cloud_transcription::transcribe_with_cloud,
+            commands::cloud_transcription::estimate_cloud_cost,
+            commands::cloud_transcription::refine_with_cloud,
+            // Integrations
+            commands::integrations::push_to_notion,
+            commands::integrations::write_to_obsidian,
+            commands::integrations::fire_webhook,
+            commands::integrations::translate_with_deepl,
+            commands::integrations::translate_transcript_deepl,
+            commands::integrations::translate_segments_deepl,
+            commands::integrations::translate_srt_deepl,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

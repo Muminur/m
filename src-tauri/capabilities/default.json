@@ -27,6 +27,8 @@
     "process:allow-exit",
     "process:allow-restart",
     "updater:allow-check",
-    "updater:allow-download-and-install"
+    "updater:allow-download-and-install",
+    "deep-link:default",
+    "deep-link:allow-get-current"
   ]
 }

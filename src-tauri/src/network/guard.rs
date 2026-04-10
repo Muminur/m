@@ -37,7 +37,10 @@ impl NetworkGuard {
 
                 let is_local = host == "localhost"
                     || host == "127.0.0.1"
-                    || host == "::1";
+                    || host.starts_with("127.")
+                    || host == "::1"
+                    || host == "0.0.0.0"
+                    || host.starts_with("fe80");
 
                 if !is_local {
                     return Err(AppError::NetworkError {
@@ -130,5 +133,43 @@ mod tests {
     fn test_network_guard_new_offline() {
         let guard = NetworkGuard::new(NetworkPolicy::Offline).unwrap();
         assert_eq!(guard.policy(), &NetworkPolicy::Offline);
+    }
+
+    #[tokio::test]
+    async fn test_local_only_allows_localhost() {
+        let guard = NetworkGuard::new(NetworkPolicy::LocalOnly).unwrap();
+        // 127.0.0.1 is local -- request will be attempted (may fail to connect, but not PolicyBlocked)
+        let req = guard.client().get("http://127.0.0.1:99999/test");
+        let result = guard.request(req).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NetworkError { code: NetworkErrorCode::ConnectionFailed, .. } => {}
+            other => panic!("Expected ConnectionFailed for local host, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_local_only_allows_127_range() {
+        let guard = NetworkGuard::new(NetworkPolicy::LocalOnly).unwrap();
+        let req = guard.client().get("http://127.0.0.2:99999/test");
+        let result = guard.request(req).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NetworkError { code: NetworkErrorCode::ConnectionFailed, .. } => {}
+            other => panic!("Expected ConnectionFailed for 127.x, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_local_only_blocks_zero_addr() {
+        let guard = NetworkGuard::new(NetworkPolicy::LocalOnly).unwrap();
+        // 0.0.0.0 is now treated as local, not blocked as external
+        let req = guard.client().get("http://0.0.0.0:99999/test");
+        let result = guard.request(req).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NetworkError { code: NetworkErrorCode::ConnectionFailed, .. } => {}
+            other => panic!("Expected ConnectionFailed for 0.0.0.0, got {:?}", other),
+        }
     }
 }

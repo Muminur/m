@@ -48,6 +48,20 @@
     "export": "Exporteren",
     "copy": "Kopiëren naar klembord"
   },
+  "update": {
+    "title": "Updates",
+    "current_version": "Huidige versie",
+    "check": "Controleren op updates",
+    "up_to_date": "WhisperDesk is up-to-date",
+    "available": "Update beschikbaar: {{version}}",
+    "install": "Installeren en herstarten",
+    "checking": "Controleren..."
+  },
+  "about": {
+    "title": "Over WhisperDesk",
+    "license": "Uitgebracht onder de MIT-licentie",
+    "github": "Bekijk op GitHub"
+  },
   "common": {
     "cancel": "Annuleren",
     "save": "Opslaan",

@@ -58,21 +58,21 @@ describe("SpeakerLabels", () => {
   });
 
   it("renders all segment texts", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     expect(screen.getByText("Hello, how are you?")).toBeInTheDocument();
     expect(screen.getByText("I'm doing well, thanks.")).toBeInTheDocument();
     expect(screen.getByText("Great to hear.")).toBeInTheDocument();
   });
 
   it("renders speaker label buttons with correct testids", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     expect(screen.getByTestId("speaker-label-spk_0")).toBeInTheDocument();
     expect(screen.getByTestId("speaker-label-spk_1")).toBeInTheDocument();
     expect(screen.getByTestId("speaker-label-spk_2")).toBeInTheDocument();
   });
 
   it("renders color dot for each segment", () => {
-    render(<SpeakerLabels segments={SEGMENTS_REPEATED} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS_REPEATED} onRenameLabel={mockRename} />);
     // spk_0 appears twice in SEGMENTS_REPEATED
     const dots0 = screen.getAllByTestId("speaker-color-spk_0");
     expect(dots0).toHaveLength(2);
@@ -80,21 +80,21 @@ describe("SpeakerLabels", () => {
   });
 
   it("applies distinct colors for different speakers", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     const dot0 = screen.getByTestId("speaker-color-spk_0");
     const dot1 = screen.getByTestId("speaker-color-spk_1");
     expect(dot0.style.backgroundColor).not.toBe(dot1.style.backgroundColor);
   });
 
   it("uses colors from the predefined SPEAKER_COLORS palette", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     const dot0 = screen.getByTestId("speaker-color-spk_0");
     expect(dot0).toHaveAttribute("style");
     expect(dot0.style.backgroundColor).toBeTruthy();
   });
 
   it("clicking speaker label shows rename input", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     const labelBtn = screen.getByTestId("speaker-label-spk_0");
     fireEvent.click(labelBtn);
     // Only one segment has spk_0 in SEGMENTS, so exactly one input
@@ -102,7 +102,7 @@ describe("SpeakerLabels", () => {
   });
 
   it("pressing Enter in rename input calls onRenameLabel", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     const labelBtn = screen.getByTestId("speaker-label-spk_0");
     fireEvent.click(labelBtn);
     const input = screen.getByTestId("speaker-rename-input");
@@ -112,7 +112,7 @@ describe("SpeakerLabels", () => {
   });
 
   it("blurring rename input commits the rename", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     const labelBtn = screen.getByTestId("speaker-label-spk_0");
     fireEvent.click(labelBtn);
     const input = screen.getByTestId("speaker-rename-input");
@@ -122,7 +122,7 @@ describe("SpeakerLabels", () => {
   });
 
   it("pressing Escape cancels rename without calling onRenameLabel", () => {
-    render(<SpeakerLabels segments={SEGMENTS} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={SEGMENTS} onRenameLabel={mockRename} />);
     // Click spk_2 which has only one segment, so only one input will appear
     const labelBtn = screen.getByTestId("speaker-label-spk_2");
     fireEvent.click(labelBtn);
@@ -133,7 +133,7 @@ describe("SpeakerLabels", () => {
   });
 
   it("renders empty state message when no segments provided", () => {
-    render(<SpeakerLabels segments={[]} onRenameLabel={mockRename} />);
+    render(<SpeakerLabels transcriptId="test-tx-1" segments={[]} onRenameLabel={mockRename} />);
     expect(screen.getByText(/no diarized segments/i)).toBeInTheDocument();
   });
 });

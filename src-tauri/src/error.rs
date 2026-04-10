@@ -75,6 +75,18 @@ pub enum AppError {
         code: BatchErrorCode,
         message: String,
     },
+
+    #[error("AI error: {message}")]
+    AiError {
+        code: AiErrorCode,
+        message: String,
+    },
+
+    #[error("Cloud transcription error: {message}")]
+    CloudTranscriptionError {
+        code: CloudTranscriptionErrorCode,
+        message: String,
+    },
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -179,6 +191,25 @@ pub enum BatchErrorCode {
     InvalidState,
     ConcurrencyLimit,
     ExportFailed,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum AiErrorCode {
+    ProviderNotFound,
+    ModelNotFound,
+    ApiError,
+    RateLimited,
+    TokenLimitExceeded,
+    InvalidApiKey,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum CloudTranscriptionErrorCode {
+    ProviderNotFound,
+    UploadFailed,
+    TranscriptionFailed,
+    InvalidApiKey,
+    FileTooLarge,
 }
 
 // Implement From for common error types

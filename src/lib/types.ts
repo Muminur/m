@@ -155,7 +155,9 @@ export interface AppError {
     | "DictationError"
     | "ImportError"
     | "DiarizationError"
-    | "BatchError";
+    | "BatchError"
+    | "AiError"
+    | "CloudTranscriptionError";
   detail: {
     code: string;
     message: string;

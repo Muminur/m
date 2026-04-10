@@ -7,14 +7,18 @@ import { RecordingPanel } from "./components/recording/RecordingPanel";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Toaster } from "sonner";
 import { useSettingsStore } from "./stores/settingsStore";
+import { useUpdateStore } from "./stores/updateStore";
 import { useEffect } from "react";
 
 export default function App() {
   const { settings, loadSettings } = useSettingsStore();
+  const { loadVersion, checkForUpdate } = useUpdateStore();
 
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    loadVersion();
+    checkForUpdate();
+  }, [loadSettings, loadVersion, checkForUpdate]);
 
   // Apply theme class to document root
   useEffect(() => {

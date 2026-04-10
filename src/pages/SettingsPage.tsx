@@ -1,5 +1,7 @@
 import { AccelerationSettings } from "@/components/settings/AccelerationSettings";
 import { WatchFolderSettings } from "@/components/settings/WatchFolderSettings";
+import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
+import { UpdateSettings } from "@/components/settings/UpdateSettings";
 
 export function SettingsPage() {
   return (
@@ -16,7 +18,19 @@ export function SettingsPage() {
         <div className="h-px bg-border" />
 
         <section>
+          <ApiKeySettings />
+        </section>
+
+        <div className="h-px bg-border" />
+
+        <section>
           <WatchFolderSettings />
+        </section>
+
+        <div className="h-px bg-border" />
+
+        <section>
+          <UpdateSettings />
         </section>
       </div>
     </div>

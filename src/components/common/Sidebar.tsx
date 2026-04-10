@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useState } from "react";
 import {
   FileText,
   Mic,
@@ -9,13 +10,16 @@ import {
   Sun,
   Moon,
   Monitor,
+  Info,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useTranslation } from "react-i18next";
+import { AboutDialog } from "./AboutDialog";
 
 export function Sidebar() {
   const { t } = useTranslation();
   const { settings, updateSettings } = useSettingsStore();
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const cycleTheme = () => {
     const themes = ["light", "dark", "system"] as const;
@@ -52,6 +56,17 @@ export function Sidebar() {
       </button>
 
       <NavItem to="/settings" icon={<Settings size={16} />} label={t("nav.settings")} />
+
+      <button
+        onClick={() => setAboutOpen(true)}
+        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors w-full text-left"
+        title={t("about.title", "About WhisperDesk")}
+      >
+        <Info size={16} />
+        <span>{t("about.title", "About")}</span>
+      </button>
+
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </nav>
   );
 }
