@@ -28,10 +28,10 @@ export function ApiKeySettings() {
     const status: Record<string, boolean> = {};
     for (const provider of PROVIDERS) {
       try {
-        const key = await invoke<string | null>("get_api_key", {
+        const hasKey = await invoke<boolean>("check_api_key_set", {
           service: provider.service,
         });
-        status[provider.service] = key !== null;
+        status[provider.service] = hasKey;
       } catch {
         status[provider.service] = false;
       }

@@ -27,9 +27,13 @@ pub async fn set_api_key(service: String, key: String) -> Result<(), AppError> {
     })?
 }
 
-/// Retrieve an API key from the system keychain.
+/// Check whether an API key exists in the system keychain.
+///
+/// Returns `true` if a key is stored for the given service, `false` otherwise.
+/// The actual key value is never sent to the renderer process; internal Rust
+/// code should call `crate::keychain::get()` directly.
 #[tauri::command]
-pub async fn get_api_key(service: String) -> Result<Option<String>, AppError> {
+pub async fn check_api_key_set(service: String) -> Result<bool, AppError> {
     if service.is_empty() {
         return Err(AppError::StorageError {
             code: crate::error::StorageErrorCode::IoError,
@@ -37,14 +41,16 @@ pub async fn get_api_key(service: String) -> Result<Option<String>, AppError> {
         });
     }
 
-    tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || {
         crate::keychain::get(&service, "api_key")
     })
     .await
     .map_err(|e| AppError::StorageError {
         code: crate::error::StorageErrorCode::IoError,
         message: format!("Keychain task failed: {}", e),
-    })?
+    })??;
+
+    Ok(result.is_some())
 }
 
 /// Delete an API key from the system keychain.

@@ -243,7 +243,7 @@ pub fn run() {
             commands::ai::list_ollama_models,
             // Keychain
             commands::keychain::set_api_key,
-            commands::keychain::get_api_key,
+            commands::keychain::check_api_key_set,
             commands::keychain::delete_api_key,
             // Cloud Transcription
             commands::cloud_transcription::list_cloud_providers,

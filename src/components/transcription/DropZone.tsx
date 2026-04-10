@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Upload, FileAudio, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, FileAudio, AlertCircle, Loader2, Youtube } from "lucide-react";
 import { useModelStore } from "@/stores/modelStore";
 import {
   TranscriptionSettings,
@@ -46,6 +46,10 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
   const [progress, setProgress] = useState<number | null>(null);
   const [params, setParams] = useState<TranscriptionParams>(DEFAULT_PARAMS);
   const [selectedModelId, setSelectedModelId] = useState(initialModelId);
+
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [isImportingYt, setIsImportingYt] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
 
   const dragCounter = useRef(0);
 
@@ -179,6 +183,32 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
     }
   }
 
+  async function handleYoutubeImport() {
+    const trimmed = youtubeUrl.trim();
+    if (!trimmed) return;
+    setIsImportingYt(true);
+    setYtError(null);
+    try {
+      const result = await invoke<{
+        audioPath: string;
+        title: string;
+        durationMs: number | null;
+        sourceUrl: string;
+        thumbnailUrl: string | null;
+      }>("import_youtube", { url: trimmed });
+      // Feed the downloaded audio into the file selection flow
+      const name = result.title
+        ? `${result.title}.wav`
+        : trimmed.split("/").pop() ?? "youtube-audio.wav";
+      applyFile(result.audioPath, name);
+      setYoutubeUrl("");
+    } catch (err) {
+      setYtError(String(err));
+    } finally {
+      setIsImportingYt(false);
+    }
+  }
+
   const downloadedModels = models.filter((m) => m.isDownloaded);
   const noModels = downloadedModels.length === 0;
 
@@ -243,6 +273,46 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
             <span>{fileError}</span>
           </div>
         )}
+
+        {/* YouTube import */}
+        <div className="rounded-lg border border-border p-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <Youtube size={13} />
+            Import from YouTube
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleYoutubeImport()}
+              placeholder="https://youtube.com/watch?v=..."
+              disabled={isImportingYt}
+              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+            />
+            <button
+              type="button"
+              disabled={!youtubeUrl.trim() || isImportingYt}
+              onClick={handleYoutubeImport}
+              className="rounded-md px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+            >
+              {isImportingYt ? (
+                <>
+                  <Loader2 size={11} className="animate-spin" />
+                  Importing…
+                </>
+              ) : (
+                "Import"
+              )}
+            </button>
+          </div>
+          {ytError && (
+            <div className="flex items-start gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-1.5 text-xs text-destructive">
+              <AlertCircle size={12} className="mt-0.5 flex-none" />
+              <span>{ytError}</span>
+            </div>
+          )}
+        </div>
 
         {/* Settings */}
         {!noModels && (

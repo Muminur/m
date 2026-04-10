@@ -52,14 +52,14 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Spotlight bar** — Cmd+Shift+Space global input bar: speak, see text, copy or insert
 - **Live translation** — real-time caption translation via Whisper translate mode or DeepL API
 - **Global shortcuts** — configurable hotkeys with collision detection and conflict resolution
-- **Speaker diarization** — local tinydiarize speaker turn detection; cloud diarization via ElevenLabs Scribe and Deepgram Nova
+- **Speaker diarization** — local tinydiarize speaker turn detection; cloud diarization via ElevenLabs Scribe and Deepgram Nova; "Run Diarization" button in the transcript editor triggers on demand
 - **Speaker labels** — per-speaker colors, inline rename; speaker count hint before transcription
 - **Batch processing** — queue multiple files with configurable concurrency (1-4); per-file progress, pause/resume/cancel
 - **Batch export** — export all completed batch items to TXT/SRT/VTT in one operation
-- **YouTube import** — paste YouTube URL; audio extracted via yt-dlp and queued for transcription
+- **YouTube import** — paste a YouTube URL directly in the drop zone; audio extracted via yt-dlp and queued for transcription automatically
 - **yt-dlp detection** — auto-detect yt-dlp in PATH, Homebrew, or local app data
 - **Filler word removal** — configurable word list (um, uh, er, like, you know); word-boundary aware
-- **Privacy-first architecture** — NetworkGuard enforces offline/local-only/allow-all network policies; all HTTP routed through a single guard module
+- **Privacy-first architecture** — NetworkGuard enforces offline/local-only/allow-all network policies; all HTTP routed through a single guard module; loopback, link-local, and RFC-1918 ranges blocked in LocalOnly mode
 - **AI Action Panel** — summarize, extract key points, Q&A, translate, rewrite, or generate chapters from any transcript using 9 LLM providers
 - **LLM providers** — OpenAI (GPT-4o, GPT-4o-mini), Anthropic (Claude Opus/Sonnet/Haiku), Groq (llama3, mixtral), Ollama (local), DeepSeek, xAI, OpenRouter, Azure, and custom OpenAI-compatible endpoints
 - **Streaming AI responses** — real-time token streaming from AI providers with animated cursor display
@@ -67,7 +67,7 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Prompt templates** — create, edit, and reuse custom AI prompts with `{{transcript}}`, `{{speaker_list}}`, and `{{duration}}` variable substitution
 - **Cloud transcription** — upload audio to OpenAI Whisper, Deepgram Nova-2 (with diarization), Groq Whisper, or ElevenLabs with explicit opt-in and cost estimate shown first
 - **Hybrid transcription** — transcribe locally then refine with cloud in one click
-- **API key management** — all provider keys stored in macOS Keychain (never written to disk); manage from Settings
+- **API key management** — all provider keys stored in macOS Keychain (never written to disk or returned to the renderer process); manage from Settings
 - **Notion integration** — push transcripts to any Notion database via the Notion API; configurable database ID; returns page URL
 - **Obsidian integration** — write transcripts as `.md` files to any Obsidian vault folder with YAML frontmatter (date, duration, language, speakers)
 - **Webhook system** — POST transcript JSON to any Zapier, Make, n8n, or custom endpoint on transcription complete; HMAC-SHA256 request signing; SSRF-protected URL validation

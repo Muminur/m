@@ -33,10 +33,10 @@ export function ProviderSelector({
       const status: Record<string, boolean> = {};
       for (const provider of ["openai", "anthropic", "groq"]) {
         try {
-          const key = await invoke<string | null>("get_api_key", {
+          const hasKey = await invoke<boolean>("check_api_key_set", {
             service: provider,
           });
-          status[provider] = key !== null;
+          status[provider] = hasKey;
         } catch {
           status[provider] = false;
         }
