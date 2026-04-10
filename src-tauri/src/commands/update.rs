@@ -2,8 +2,12 @@
 
 use crate::error::{AppError, NetworkErrorCode};
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{command, AppHandle};
 use tauri_plugin_updater::UpdaterExt;
+
+/// Guard against concurrent update installs.
+static INSTALLING: AtomicBool = AtomicBool::new(false);
 
 /// Information about an available update.
 #[derive(Debug, Clone, Serialize)]
@@ -46,8 +50,27 @@ pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, AppE
 }
 
 /// Download and install the pending update, then restart the application.
+///
+/// Guards against concurrent invocations with an atomic flag — a second call
+/// while an install is in progress returns an error immediately.
 #[command]
 pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError> {
+    if INSTALLING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        return Err(AppError::NetworkError {
+            code: NetworkErrorCode::ConnectionFailed,
+            message: "An update install is already in progress".into(),
+        });
+    }
+
+    let result = do_install(&app).await;
+    // Reset flag on error; on success app.restart() diverges so this is unreachable.
+    if result.is_err() {
+        INSTALLING.store(false, Ordering::SeqCst);
+    }
+    result
+}
+
+async fn do_install(app: &AppHandle) -> Result<(), AppError> {
     let updater = app.updater_builder().build().map_err(|e| AppError::NetworkError {
         code: NetworkErrorCode::ConnectionFailed,
         message: format!("Failed to build updater: {}", e),
@@ -73,6 +96,7 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
 
     app.restart();
 }
+
 
 #[cfg(test)]
 mod tests {
