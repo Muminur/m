@@ -95,3 +95,12 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        run: gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
