@@ -61,6 +61,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS deployment target — fixes ___isPlatformVersionAtLeast linker error with Xcode 16.x
+          MACOSX_DEPLOYMENT_TARGET: '13.0'
           # macOS code signing — Developer ID Application certificate
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
