@@ -71,7 +71,7 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
             message: format!("Download/install failed: {}", e),
         })?;
 
-    Ok(())
+    app.restart();
 }
 
 #[cfg(test)]

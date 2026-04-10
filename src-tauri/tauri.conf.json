@@ -37,7 +37,7 @@
       "endpoints": [
         "https://releases.whisperdesk.app/{{target}}/{{arch}}/{{current_version}}"
       ],
-      "pubkey": ""
+      "pubkey": "REPLACE_WITH_PUBLIC_KEY_FROM_scripts/generate-updater-keys.sh"
     },
     "deep-link": {
       "desktop": {
