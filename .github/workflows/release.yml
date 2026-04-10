@@ -116,13 +116,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          # The Tauri v2 updater needs the .nsis.zip bundle + .nsis.zip.sig signature.
-          # tauri-action only uploads the .exe; upload the zip and re-sign here.
-          NSIS_ZIP=$(find src-tauri/target/release/bundle/nsis -name "*.nsis.zip" 2>/dev/null | head -1)
-          if [ -n "$NSIS_ZIP" ]; then
-            npx tauri signer sign "$NSIS_ZIP" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-            gh release upload "${{ github.ref_name }}" "$NSIS_ZIP" --clobber
-            gh release upload "${{ github.ref_name }}" "${NSIS_ZIP}.sig" --clobber
+          # tauri-action uploads the .exe but not its .sig. Re-sign the .exe and
+          # upload the .sig so the Cloudflare updater worker can serve it.
+          EXE=$(find src-tauri/target/release/bundle/nsis -name "*-setup.exe" 2>/dev/null | head -1)
+          if [ -n "$EXE" ]; then
+            npx tauri signer sign "$EXE" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+            gh release upload "${{ github.ref_name }}" "${EXE}.sig" --clobber
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

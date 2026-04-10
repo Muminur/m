@@ -43,10 +43,11 @@ function getAssetPatterns(target: string): { bundle: RegExp; sig: RegExp } {
         sig: /\.app\.tar\.gz\.sig$/,
       };
     case 'windows':
-      // Match WhisperDesk NSIS bundles specifically to avoid picking up debug/unsigned variants
+      // Match the NSIS installer .exe — tauri-action uploads the .exe directly;
+      // we re-sign it in CI and upload the .exe.sig alongside it.
       return {
-        bundle: /WhisperDesk.*nsis.*\.zip$/i,
-        sig: /WhisperDesk.*nsis.*\.zip\.sig$/i,
+        bundle: /WhisperDesk.*-setup\.exe$/i,
+        sig: /WhisperDesk.*-setup\.exe\.sig$/i,
       };
     default:
       throw new Error(`Unsupported target: ${target}`);
