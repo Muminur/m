@@ -96,29 +96,38 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      # tauri-action v0 skips uploading .sig files for Tauri v2 updater.
-      # Upload them explicitly so the Cloudflare updater worker can serve signatures.
-      # Use `find` so the step succeeds even when no .sig files are present.
-      - name: Upload updater signatures (macOS)
+      # tauri-action v0 consumes .sig files for its internal updater JSON (Tauri v1
+      # behaviour). Re-sign the bundle here so the Tauri v2 Cloudflare worker can
+      # fetch the standalone signature.
+      - name: Sign and upload updater bundle (macOS)
         if: runner.os == 'macOS'
         run: |
-          find src-tauri/target -name "*.sig" | while IFS= read -r sig; do
-            echo "Uploading signature: $sig"
-            gh release upload "${{ github.ref_name }}" "$sig" --clobber
-          done
+          BUNDLE="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/WhisperDesk.app.tar.gz"
+          if [ -f "$BUNDLE" ]; then
+            npx tauri signer sign "$BUNDLE" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+            gh release upload "${{ github.ref_name }}" "${BUNDLE}.sig" --clobber
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Upload updater signatures (Windows)
+      - name: Sign and upload updater bundle (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          find src-tauri/target -name "*.sig" | while IFS= read -r sig; do
-            echo "Uploading signature: $sig"
-            gh release upload "${{ github.ref_name }}" "$sig" --clobber
-          done
+          # The Tauri v2 updater needs the .nsis.zip bundle + .nsis.zip.sig signature.
+          # tauri-action only uploads the .exe; upload the zip and re-sign here.
+          NSIS_ZIP=$(ls src-tauri/target/release/bundle/nsis/*.nsis.zip 2>/dev/null | head -1)
+          if [ -n "$NSIS_ZIP" ]; then
+            npx tauri signer sign "$NSIS_ZIP" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+            gh release upload "${{ github.ref_name }}" "$NSIS_ZIP" --clobber
+            gh release upload "${{ github.ref_name }}" "${NSIS_ZIP}.sig" --clobber
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   publish:
     needs: release
