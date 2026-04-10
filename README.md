@@ -4,7 +4,7 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 
 ## Project Status
 
-**Milestones 1–9 complete.** Fully functional transcription, editing, processing, integrations, and export suite. Currently preparing for production release (M10: licensing, notarization, auto-update, website).
+**Milestones 1–10 complete.** Fully functional transcription, editing, processing, integrations, export suite, auto-update, deep-link protocol, and about dialog.
 
 ## Features
 
@@ -74,8 +74,11 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **DeepL translation** — translate full transcripts or individual subtitle segments to 30+ languages; auto-detects free vs Pro API endpoint; preserves SRT/VTT structure
 - **Dual subtitles** — display original and DeepL-translated subtitles side-by-side with active segment highlighting synchronized to video playback
 - **Integration wizard** — step-by-step setup UI for all integrations: API key entry, vault/database configuration, connection testing
-- **Apple Shortcuts** — "Transcribe File", "Get Transcript", "Start/Stop Recording" intent stubs for automation workflows (full implementation in M10)
-- **macOS Share Sheet** — share transcripts via AirDrop, Mail, Messages via NSSharingService (full Swift plugin in M10)
+- **Auto-update** — check for updates, download and install in-app via tauri-plugin-updater
+- **Deep-link protocol** — `whisperdesk://` URL scheme for external automation (transcribe file, get transcript, start/stop recording)
+- **About dialog** — version display, license info, acknowledgments, and GitHub link
+- **Cross-platform sharing** — share transcripts via system default handler (macOS `open`, Windows `start`, Linux `xdg-open`)
+- **Apple Shortcuts** — "Transcribe File", "Get Transcript", "Start/Stop Recording" intents dispatched via deep-link events
 - **Localization** — i18n support via react-i18next with English, Dutch, and German translations
 - **Typed error handling** — all backend commands return typed `AppError` variants with error codes; no raw string errors (14 error categories)
 
