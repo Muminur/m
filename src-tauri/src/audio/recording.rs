@@ -146,43 +146,52 @@ impl RecordingManager {
 
         std::fs::create_dir_all(&recordings_dir)?;
 
-        let active = match source {
-            AudioSource::Microphone => {
-                let device = mic::get_device_by_id(device_id.as_deref())?;
-                let path = recordings_dir.join(format!("{}.wav", rec_id));
-                let recorder = MicRecorder::new(&device, path)?;
-                recorder.start()?;
-                ActiveRecording::Mic(recorder)
+        let active_result: Result<ActiveRecording, AppError> = (|| {
+            match source {
+                AudioSource::Microphone => {
+                    let device = mic::get_device_by_id(device_id.as_deref())?;
+                    let path = recordings_dir.join(format!("{}.wav", rec_id));
+                    let recorder = MicRecorder::new(&device, path)?;
+                    recorder.start()?;
+                    Ok(ActiveRecording::Mic(recorder))
+                }
+                #[cfg(target_os = "windows")]
+                AudioSource::System => {
+                    let path = recordings_dir.join(format!("{}_system.wav", rec_id));
+                    let capture =
+                        crate::audio::system_audio::wasapi_loopback::SystemAudioCapture::new(path)?;
+                    capture.start()?;
+                    Ok(ActiveRecording::System(capture))
+                }
+                #[cfg(not(target_os = "windows"))]
+                AudioSource::System => {
+                    Err(AppError::AudioError {
+                        code: AudioErrorCode::CaptureFailure,
+                        message: "System audio capture not supported on this platform".into(),
+                    })
+                }
+                AudioSource::Both => {
+                    let mic_path = recordings_dir.join(format!("{}_mic.wav", rec_id));
+                    let sys_path = recordings_dir.join(format!("{}_system.wav", rec_id));
+                    let combined = crate::audio::combined::CombinedCapture::new(
+                        device_id.as_deref(),
+                        mic_path,
+                        sys_path,
+                    )?;
+                    combined.start()?;
+                    Ok(ActiveRecording::Combined(combined))
+                }
             }
-            #[cfg(target_os = "windows")]
-            AudioSource::System => {
-                let path = recordings_dir.join(format!("{}_system.wav", rec_id));
-                let capture =
-                    crate::audio::system_audio::wasapi_loopback::SystemAudioCapture::new(path)?;
-                capture.start()?;
-                ActiveRecording::System(capture)
-            }
-            #[cfg(not(target_os = "windows"))]
-            AudioSource::System => {
-                // Reset state before returning error
+        })();
+
+        let active = match active_result {
+            Ok(a) => a,
+            Err(e) => {
+                // Reset to Idle — initialization failed, no audio stream was created
                 let mut inner = lock(&self.inner);
                 inner.status = RecordingStatus::Idle;
                 inner.recording_id = None;
-                return Err(AppError::AudioError {
-                    code: AudioErrorCode::CaptureFailure,
-                    message: "System audio capture not supported on this platform".into(),
-                });
-            }
-            AudioSource::Both => {
-                let mic_path = recordings_dir.join(format!("{}_mic.wav", rec_id));
-                let sys_path = recordings_dir.join(format!("{}_system.wav", rec_id));
-                let combined = crate::audio::combined::CombinedCapture::new(
-                    device_id.as_deref(),
-                    mic_path,
-                    sys_path,
-                )?;
-                combined.start()?;
-                ActiveRecording::Combined(combined)
+                return Err(e);
             }
         };
 

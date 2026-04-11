@@ -55,11 +55,13 @@ pub fn init(app: &AppHandle) -> Result<Database, AppError> {
         }
     })?;
 
-    conn.pragma_update(None, "journal_mode", "WAL")
+    let journal_mode: String = conn
+        .pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))
         .map_err(|e| AppError::StorageError {
             code: StorageErrorCode::DatabaseError,
             message: format!("Failed to set WAL mode: {}", e),
         })?;
+    tracing::debug!("SQLite journal_mode set to: {}", journal_mode);
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(|e| AppError::StorageError {
             code: StorageErrorCode::DatabaseError,

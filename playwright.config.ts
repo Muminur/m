@@ -13,9 +13,11 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "webkit",
-      use: { ...devices["Desktop Safari"] },
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
+    // webkit requires macOS 14+; enable when upgrading CI runners
+    // { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
   webServer: {
     command: "npm run dev",

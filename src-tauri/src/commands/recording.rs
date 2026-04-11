@@ -19,7 +19,13 @@ pub async fn start_recording(
     device_id: Option<String>,
 ) -> Result<String, AppError> {
     let audio_source: AudioSource = source.parse()?;
-    manager.start(&app, audio_source, device_id)
+    let manager = Arc::clone(&*manager);
+    tokio::task::spawn_blocking(move || manager.start(&app, audio_source, device_id))
+        .await
+        .map_err(|e| AppError::AudioError {
+            code: crate::error::AudioErrorCode::CaptureFailure,
+            message: format!("Recording thread failed: {}", e),
+        })?
 }
 
 #[tauri::command]
@@ -27,7 +33,13 @@ pub async fn stop_recording(
     app: AppHandle,
     manager: State<'_, Arc<RecordingManager>>,
 ) -> Result<String, AppError> {
-    manager.stop(&app)
+    let manager = Arc::clone(&*manager);
+    tokio::task::spawn_blocking(move || manager.stop(&app))
+        .await
+        .map_err(|e| AppError::AudioError {
+            code: crate::error::AudioErrorCode::CaptureFailure,
+            message: format!("Recording stop thread failed: {}", e),
+        })?
 }
 
 #[tauri::command]

@@ -22,10 +22,10 @@ jobs:
           - platform: windows-latest
             args: ''
             rust_target: ''
-          # macOS Intel (x86_64) — add back when macos-13 runners are available on this plan
-          # - platform: macos-13
-          #   args: '--target x86_64-apple-darwin'
-          #   rust_target: x86_64-apple-darwin
+          # macOS Intel (x86_64) — cross-compiled on ARM runner
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+            rust_target: x86_64-apple-darwin
 
     runs-on: ${{ matrix.platform }}
 
@@ -73,13 +73,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS deployment target — sets minimum SDK floor; matches tauri.conf.json minimumSystemVersion
-          MACOSX_DEPLOYMENT_TARGET: '14.0'
+          MACOSX_DEPLOYMENT_TARGET: '13.0'
           # Tauri updater artifact signing (all platforms)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS code signing — add these secrets when an Apple Developer account is available:
-          # APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY
-          # APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+          # macOS code signing + notarization (requires Apple Developer ID)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "WhisperDesk ${{ github.ref_name }}"
@@ -99,18 +103,15 @@ jobs:
       # tauri-action v0 consumes .sig files for its internal updater JSON (Tauri v1
       # behaviour). Re-sign the bundle here so the Tauri v2 Cloudflare worker can
       # fetch the standalone signature.
-      - name: Sign and upload updater bundle (macOS)
+      - name: Upload updater signatures (macOS)
         if: runner.os == 'macOS'
         run: |
-          BUNDLE="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/WhisperDesk.app.tar.gz"
-          if [ -f "$BUNDLE" ]; then
-            npx tauri signer sign "$BUNDLE" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-            gh release upload "${{ github.ref_name }}" "${BUNDLE}.sig" --clobber
-          fi
+          TARGET="${{ matrix.rust_target }}"
+          for sig in src-tauri/target/${TARGET}/release/bundle/macos/*.sig; do
+            [ -f "$sig" ] && gh release upload "${{ github.ref_name }}" "$sig" --clobber
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Sign and upload updater bundle (Windows)
         if: runner.os == 'Windows'

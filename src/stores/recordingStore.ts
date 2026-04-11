@@ -33,7 +33,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   selectedDeviceId: null,
   devices: [],
   durationMs: 0,
-  audioLevel: 0,
+  audioLevel: -60,
   isLoadingDevices: false,
   error: null,
 
