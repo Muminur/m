@@ -127,7 +127,9 @@ export default {
 
     const archAssets = filterByArch(release.assets, arch);
     const bundleAsset = archAssets.find(a => patterns.bundle.test(a.name));
-    const sigAsset = archAssets.find(a => patterns.sig.test(a.name));
+    // Sig files may not include the arch in their name (e.g. macOS .app.tar.gz.sig),
+    // so search all assets for the sig pattern rather than only arch-filtered ones.
+    const sigAsset = release.assets.find(a => patterns.sig.test(a.name));
 
     if (!bundleAsset || !sigAsset) {
       return jsonResponse(
