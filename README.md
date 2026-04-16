@@ -4,7 +4,31 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 
 ## Project Status
 
-**v1.0.0 released.** Fully functional transcription, editing, processing, integrations, export suite, auto-update, deep-link protocol, and about dialog.
+**v1.0.1 released.** Fully functional transcription, editing, processing, integrations, export suite, auto-update, deep-link protocol, and about dialog.
+
+## Install
+
+### macOS (one-liner)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Muminur/m/master/scripts/install.sh | bash
+```
+
+Downloads the latest release DMG, mounts it, and copies WhisperDesk to `/Applications`. On first launch, macOS may show a security prompt — go to **System Settings → Privacy & Security → Open Anyway**.
+
+### Manual download
+
+Visit [Releases](https://github.com/Muminur/m/releases) and download the DMG for your architecture:
+
+| File | Architecture |
+|------|-------------|
+| `WhisperDesk_*_aarch64.dmg` | Apple Silicon (M1/M2/M3/M4) |
+| `WhisperDesk_*_x64.dmg` | Intel Mac |
+| `WhisperDesk_*_x64-setup.exe` | Windows 10+ |
+
+### Windows
+
+Run `WhisperDesk_*_x64-setup.exe` from the [latest release](https://github.com/Muminur/m/releases/latest).
 
 ## Features
 
@@ -67,14 +91,14 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Prompt templates** — create, edit, and reuse custom AI prompts with `{{transcript}}`, `{{speaker_list}}`, and `{{duration}}` variable substitution
 - **Cloud transcription** — upload audio to OpenAI Whisper, Deepgram Nova-2 (with diarization), Groq Whisper, or ElevenLabs with explicit opt-in and cost estimate shown first
 - **Hybrid transcription** — transcribe locally then refine with cloud in one click
-- **API key management** — all provider keys stored in system Keychain (never written to disk or returned to the renderer process); manage from Settings
+- **API key management** — all provider keys stored in macOS Keychain (never written to disk or returned to the renderer process); manage from Settings
 - **Notion integration** — push transcripts to any Notion database via the Notion API; configurable database ID; returns page URL
 - **Obsidian integration** — write transcripts as `.md` files to any Obsidian vault folder with YAML frontmatter (date, duration, language, speakers)
 - **Webhook system** — POST transcript JSON to any Zapier, Make, n8n, or custom endpoint on transcription complete; HMAC-SHA256 request signing; SSRF-protected URL validation
 - **DeepL translation** — translate full transcripts or individual subtitle segments to 30+ languages; auto-detects free vs Pro API endpoint; preserves SRT/VTT structure
 - **Dual subtitles** — display original and DeepL-translated subtitles side-by-side with active segment highlighting synchronized to video playback
 - **Integration wizard** — step-by-step setup UI for all integrations: API key entry, vault/database configuration, connection testing
-- **Auto-update** — check for updates, download and install in-app via tauri-plugin-updater; update manifest served by a Cloudflare Worker
+- **Auto-update** — check for updates, download and install in-app via tauri-plugin-updater
 - **Deep-link protocol** — `whisperdesk://` URL scheme for external automation (transcribe file, get transcript, start/stop recording)
 - **About dialog** — version display, license info, acknowledgments, and GitHub link
 - **Cross-platform sharing** — share transcripts via system default handler (macOS `open`, Windows `start`, Linux `xdg-open`)
@@ -90,12 +114,11 @@ A local-first desktop transcription app built with Tauri 2, React 19, and whispe
 - **Inference:** whisper-rs with Metal feature flag (macOS only)
 - **Export:** SRT, VTT, TXT, PDF (printpdf), DOCX (zip+handlebars OOXML), HTML, CSV, JSON, Markdown, ZIP-based .whisper archive
 - **Integrations:** Notion API, Obsidian vault, webhooks (HMAC-SHA256 signed), DeepL translation API
-- **Updater:** Cloudflare Worker serving Tauri v2 update manifests from GitHub Releases
 
 ## Requirements
 
 - macOS 14+ (Apple Silicon recommended for Metal acceleration) or Windows 10+
-- Rust 1.77+, Node.js 20+
+- Rust 1.77+, Node.js 22+
 
 ## Development
 
@@ -109,19 +132,6 @@ npm run tauri dev
 # Build for production
 npm run tauri build
 ```
-
-## Releases
-
-Releases are built and published automatically on tag push via GitHub Actions.
-
-```bash
-# Tag a new release — CI builds macOS ARM + Windows and publishes automatically
-git tag v1.0.1 && git push origin v1.0.1
-```
-
-Downloads are available on the [Releases page](https://github.com/Muminur/m/releases).
-
-> **Note:** macOS builds are currently unsigned. On first launch, right-click → Open or allow via System Settings → Privacy & Security → Open Anyway.
 
 ## Database Migrations
 
@@ -165,18 +175,18 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 
 ## Export Formats
 
-| Format | Description |
-|--------|-------------|
-| TXT | Plain text with optional timestamps and speaker labels |
-| SRT | SubRip subtitles with millisecond timestamps and speaker tags |
-| VTT | WebVTT subtitles with millisecond timestamps and speaker tags |
-| PDF | Formatted A4/Letter with header, metadata, and speaker sections |
-| DOCX | Word document via OOXML templates; compatible with Word and Pages |
-| HTML | Styled page with interactive timestamp anchors and speaker colors |
-| CSV | RFC 4180 with columns: start_ms, end_ms, timestamps, speaker, text |
-| JSON | Structured with metadata and per-segment data including confidence |
-| Markdown | Speaker-grouped sections with timestamps for Obsidian/Notion |
-| .whisper | ZIP archive with manifest.json, transcript.json, and optional audio |
+| Format | Description | Features |
+|--------|-------------|----------|
+| TXT | Plain text | Timestamps, speaker labels |
+| SRT | SubRip subtitle | Millisecond timestamps, speaker tags |
+| VTT | WebVTT subtitle | Millisecond timestamps, speaker tags |
+| PDF | Formatted document | A4/Letter, metadata, page breaks |
+| DOCX | Word document | Styles, speaker headings (OOXML) |
+| HTML | Web page | Interactive timestamps, speaker colors |
+| CSV | Spreadsheet | RFC 4180, per-segment rows |
+| JSON | Structured data | Metadata, segments, confidence scores |
+| Markdown | Note format | Speaker sections, Obsidian/Notion compatible |
+| .whisper | WhisperDesk archive | ZIP containing manifest.json, transcript.json, optional audio |
 
 ## Project Structure
 
@@ -205,30 +215,52 @@ src-tauri/              # Rust backend
   src/
     audio/              # Decode, resample, mic recording, system audio, combined capture
     batch/              # Batch processing queue and export
-    ai/                 # LLM abstraction: AiProvider trait, ProviderRegistry, providers, actions, templates, cost estimation
+    ai/                 # LLM abstraction: AiProvider trait, ProviderRegistry, 5 providers + OpenAI-compat adapter, actions, templates, cost estimation
     cloud_transcription/ # Cloud transcription: OpenAI Whisper, Deepgram, Groq Whisper, ElevenLabs
-    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts, batch, diarization, import, ai, keychain, cloud_transcription, integrations)
+    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts, batch, diarization, import, ai, keychain, cloud_transcription)
     database/           # SQLite + migrations, search, smart_folders, recordings, undo
     dictation/          # Dictation pipeline: accessibility, postprocessing, AI correction, history
     diarization/        # Speaker diarization: tinydiarize, ElevenLabs, Deepgram providers
-    export/             # TXT, SRT, VTT, PDF, DOCX, HTML, CSV, JSON, Markdown, .whisper archive
+    export/             # TXT, SRT, VTT renderers + .whisper archive
     import/             # YouTube import via yt-dlp, yt-dlp detection
-    integrations/       # Notion, Obsidian, webhook (HMAC-signed), DeepL
+    integrations/       # Notion, Obsidian, webhooks, DeepL
     models/             # Model manager (download, verify, manage)
-    network/            # NetworkGuard module (HTTP policy enforcement, SSRF protection)
     shortcuts/          # Global shortcut manager with collision detection
-    transcription/      # WhisperEngine, pipeline, streaming, VAD, translation, filler word removal, hybrid cloud refinement
+    transcription/      # WhisperEngine + pipeline + streaming + VAD + translation + filler word removal + hybrid cloud refinement
     watch/              # Watch folder manager + audio file handler
+    network/            # NetworkGuard module (HTTP policy enforcement)
     settings.rs         # AppSettings with AccelerationBackend and NetworkPolicy
     error.rs            # Typed error enum (14 error categories with codes)
-    keychain.rs         # System Keychain integration for API key storage
+    keychain.rs         # macOS Keychain integration for API key storage
     logging.rs          # Tracing/logging infrastructure with file rotation
   migrations/           # SQL migration files (V001-V016)
   benches/              # Criterion benchmark suite
 
+scripts/
+  install.sh            # One-liner macOS installer (downloads latest DMG from GitHub Releases)
+  reinstall.sh          # Rebuild from source and reinstall to /Applications
+  clean-build-verify.sh # Full clean build with TypeScript, Clippy, and feature checks
+
 workers/
-  updater/              # Cloudflare Worker — serves Tauri v2 update manifests from GitHub Releases
+  updater/              # Cloudflare Worker serving Tauri auto-update manifests
 ```
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/install.sh` | Download latest release and install to `/Applications` |
+| `scripts/reinstall.sh` | Build from source and reinstall (accepts `--keep-data`, `--skip-build`, `--launch`) |
+| `scripts/clean-build-verify.sh` | Full clean build with TypeScript, Clippy, and feature verification |
+| `scripts/generate-updater-keys.sh` | Generate Tauri updater signing key pair |
+
+## CI / CD
+
+- **CI** (`.github/workflows/ci.yml`): Rust checks (fmt, clippy, tests) + frontend checks (tsc, vitest, eslint) on every push/PR
+- **Release** (`.github/workflows/release.yml`): Builds and publishes a GitHub Release on every `v*` tag push
+  - macOS Apple Silicon: `WhisperDesk_*_aarch64.dmg`
+  - Windows x64: `WhisperDesk_*_x64-setup.exe` + `WhisperDesk_*_x64_en-US.msi`
+- **Auto-update**: Cloudflare Worker at `whisperdesk-updater.whisperdesk.workers.dev` proxies GitHub Releases to serve Tauri-compatible update manifests
 
 ## License
 
