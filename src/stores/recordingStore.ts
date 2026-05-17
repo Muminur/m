@@ -94,3 +94,13 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   setAudioSource: (source) => set({ audioSource: source }),
   setSelectedDevice: (deviceId) => set({ selectedDeviceId: deviceId }),
 }));
+
+// Push status changes to the backend so the menu bar tray icon updates.
+let lastTrayStatus: string | null = null;
+useRecordingStore.subscribe((state) => {
+  if (state.status === lastTrayStatus) return;
+  lastTrayStatus = state.status;
+  Promise.resolve(invoke("set_tray_state", { state: state.status })).catch((err) => {
+    console.warn("set_tray_state failed:", err);
+  });
+});
