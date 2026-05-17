@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Layout } from "./components/common/Layout";
 import { TranscriptDetail } from "./components/library/TranscriptDetail";
 import { ModelManager } from "./components/transcription/ModelManager";
@@ -9,8 +9,20 @@ import { Toaster } from "sonner";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useUpdateStore } from "./stores/updateStore";
 import { useEffect } from "react";
+import { initTrayBridge } from "./lib/trayBridge";
+import { setAutoTranscribeNavigate } from "./lib/autoTranscribe";
 
 export default function App() {
+  return (
+    <>
+      <AppInner />
+      <Toaster position="bottom-right" richColors />
+    </>
+  );
+}
+
+function AppInner() {
+  const navigate = useNavigate();
   const { settings, loadSettings } = useSettingsStore();
   const { loadVersion, checkForUpdate } = useUpdateStore();
 
@@ -36,20 +48,29 @@ export default function App() {
     }
   }, [settings?.theme]);
 
+  // Mount tray bridge once and register navigate for auto-transcribe
+  useEffect(() => {
+    setAutoTranscribeNavigate(navigate);
+    let unmount: (() => void) | null = null;
+    initTrayBridge().then((u) => {
+      unmount = u;
+    });
+    return () => {
+      unmount?.();
+    };
+  }, [navigate]);
+
   return (
-    <>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/library" replace />} />
-          <Route path="library" element={<TranscriptDetail />} />
-          <Route path="library/:id" element={<TranscriptDetail />} />
-          <Route path="recording" element={<RecordingPanel />} />
-          <Route path="models" element={<ModelManager />} />
-          <Route path="transcribe" element={<DropZone />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
-      <Toaster position="bottom-right" richColors />
-    </>
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Navigate to="/library" replace />} />
+        <Route path="library" element={<TranscriptDetail />} />
+        <Route path="library/:id" element={<TranscriptDetail />} />
+        <Route path="recording" element={<RecordingPanel />} />
+        <Route path="models" element={<ModelManager />} />
+        <Route path="transcribe" element={<DropZone />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+    </Routes>
   );
 }
