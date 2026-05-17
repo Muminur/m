@@ -26,11 +26,7 @@
         "titleBarStyle": "Overlay"
       }
     ],
-    "macOSPrivateApi": true,
-    "trayIcon": {
-      "iconPath": "icons/tray-icon.png",
-      "iconAsTemplate": true
-    }
+    "macOSPrivateApi": true
   },
   "plugins": {
     "updater": {
@@ -63,6 +59,13 @@
       "signingIdentity": null,
       "minimumSystemVersion": "13.0"
     },
-    "resources": []
+    "resources": [
+      "icons/tray-idle.png",
+      "icons/tray-idle@2x.png",
+      "icons/tray-recording.png",
+      "icons/tray-recording@2x.png",
+      "icons/tray-paused.png",
+      "icons/tray-paused@2x.png"
+    ]
   }
 }
