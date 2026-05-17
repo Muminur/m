@@ -136,8 +136,21 @@ pub fn run() {
                 }
             });
 
+            // Initialize macOS menu bar tray
+            tray::setup_tray(app)?;
+
             tracing::info!("WhisperDesk initialized");
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Hide instead of quit so the tray keeps working.
+                // Quit goes through the tray "Quit" item or Cmd+Q on a focused window.
+                if window.label() == "main" {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             // Settings
@@ -277,6 +290,8 @@ pub fn run() {
             commands::integrations::translate_transcript_deepl,
             commands::integrations::translate_segments_deepl,
             commands::integrations::translate_srt_deepl,
+            // Tray
+            commands::tray::set_tray_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
