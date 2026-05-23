@@ -1,8 +1,6 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { exit } from "@tauri-apps/plugin-process";
 import { toast } from "sonner";
-import { useRecordingStore } from "@/stores/recordingStore";
+import { useRecordingStore, type StopRecordingResult } from "@/stores/recordingStore";
 import { autoTranscribeAndNavigate } from "./autoTranscribe";
 
 let bridgeInitialized = false;
@@ -11,6 +9,10 @@ let unlisteners: UnlistenFn[] = [];
 /**
  * Mount listeners for tray menu events. Safe to call multiple times — only
  * the first call has effect. Returns the unmount function for the first call.
+ *
+ * Note: tray://window/show and tray://app/quit are handled directly in the
+ * Rust backend (more reliable when the window is hidden), so we don't
+ * subscribe to them here.
  */
 export async function initTrayBridge(): Promise<() => void> {
   if (bridgeInitialized) {
@@ -22,9 +24,13 @@ export async function initTrayBridge(): Promise<() => void> {
     listen("tray://record/start", handleStart),
     listen("tray://record/pause", handlePause),
     listen("tray://record/resume", handleResume),
-    listen("tray://record/stop", handleStop),
-    listen("tray://window/show", focusMainWindow),
-    listen("tray://app/quit", handleQuit),
+    // tray.stop is handled in Rust (calls stop_recording directly so it
+    // works even when the webview is busy/unresponsive). We just react to
+    // the resulting "stopped" event with the audio path + transcript id.
+    listen<StopRecordingResult>("tray://record/stopped", handleStopped),
+    listen<string>("tray://record/stop-failed", (event) => {
+      toast.error(`Failed to stop recording: ${event.payload}`, { duration: 8000 });
+    }),
   ]);
 
   return () => {
@@ -56,26 +62,14 @@ async function handleResume() {
   await resumeRecording();
 }
 
-async function handleStop() {
-  const { status, stopRecording } = useRecordingStore.getState();
-  if (status !== "recording" && status !== "paused") return;
-  const audioPath = await stopRecording();
-  if (!audioPath) return;
-  await focusMainWindow();
-  await autoTranscribeAndNavigate(audioPath);
-}
-
-async function focusMainWindow() {
-  try {
-    const w = getCurrentWindow();
-    await w.show();
-    await w.unminimize();
-    await w.setFocus();
-  } catch (err) {
-    console.error("focusMainWindow failed:", err);
-  }
-}
-
-async function handleQuit() {
-  await exit(0);
+async function handleStopped(event: { payload: StopRecordingResult }) {
+  // Backend (tray.rs) already called stop_recording; we just need to sync
+  // the frontend store and kick off auto-transcription. Window focus and
+  // recording stop both happened in Rust BEFORE this event fired.
+  useRecordingStore.setState({
+    status: "idle",
+    recordingId: null,
+    durationMs: 0,
+  });
+  await autoTranscribeAndNavigate(event.payload.audioPath, event.payload.transcriptId);
 }

@@ -9,7 +9,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    App, AppHandle, Emitter, Manager, Runtime,
+    App, AppHandle, Emitter, Manager,
 };
 
 /// High-level state the tray icon visualizes.
@@ -22,17 +22,17 @@ pub enum TrayState {
 
 /// Stored references to the menu items so [`update_tray_state`] can toggle
 /// their enabled flag without rebuilding the whole menu.
-pub struct TrayMenuItems<R: Runtime> {
-    pub start: MenuItem<R>,
-    pub pause: MenuItem<R>,
-    pub resume: MenuItem<R>,
-    pub stop: MenuItem<R>,
+pub struct TrayMenuItems {
+    pub start: MenuItem<tauri::Wry>,
+    pub pause: MenuItem<tauri::Wry>,
+    pub resume: MenuItem<tauri::Wry>,
+    pub stop: MenuItem<tauri::Wry>,
 }
 
 /// App-managed handle to mutate tray state after setup.
-pub struct TrayHandle<R: Runtime> {
+pub struct TrayHandle {
     pub tray_id: tauri::tray::TrayIconId,
-    pub items: TrayMenuItems<R>,
+    pub items: TrayMenuItems,
     pub current: Mutex<TrayState>,
 }
 
@@ -43,7 +43,7 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
     let start = MenuItem::with_id(handle, "tray.start", "Start Recording", true, None::<&str>)?;
     let pause = MenuItem::with_id(handle, "tray.pause", "Pause", false, None::<&str>)?;
     let resume = MenuItem::with_id(handle, "tray.resume", "Resume", false, None::<&str>)?;
-    let stop = MenuItem::with_id(handle, "tray.stop", "Stop & Transcribe", false, None::<&str>)?;
+    let stop = MenuItem::with_id(handle, "tray.stop", "Stop and Transcribe", false, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(handle)?;
     let show = MenuItem::with_id(handle, "tray.show", "Show WhisperDesk", true, None::<&str>)?;
     let quit = MenuItem::with_id(handle, "tray.quit", "Quit WhisperDesk", true, Some("Cmd+Q"))?;
@@ -57,7 +57,7 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
 
     let tray = TrayIconBuilder::with_id("whisperdesk-tray")
         .icon(idle_icon)
-        .icon_as_template(true)
+        .icon_as_template(false)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(handle_menu_event)
@@ -77,15 +77,76 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
     Ok(())
 }
 
-fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
+fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
     let id = event.id.as_ref();
+
+    // Handle window-show and quit directly in the backend. Routing these
+    // through the frontend is unreliable on macOS because once the main
+    // window is hidden the webview can be suspended and may not receive
+    // events promptly. The backend has direct access to the window handle.
+    //
+    // For "tray.stop" we ALSO bring the window forward here (before emitting)
+    // so the subsequent JS handler — which shows the "Transcribing…" toast,
+    // calls transcribe_file, and navigates — runs on an awake, foreground
+    // webview. Without this, the user sees no toast, no focus, and no nav.
+    match id {
+        "tray.show" => {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            return;
+        }
+        "tray.quit" => {
+            app.exit(0);
+            return;
+        }
+        "tray.stop" => {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            // Run the actual stop_recording in Rust so it works even when
+            // the webview is busy or unresponsive (the in-app Recording
+            // panel can hang for reasons unrelated to recording state).
+            // Spawn off the menu thread so we don't block the UI event loop.
+            let app_clone = app.clone();
+            std::thread::spawn(move || {
+                let manager = match app_clone
+                    .try_state::<std::sync::Arc<crate::audio::recording::RecordingManager>>()
+                {
+                    Some(m) => m,
+                    None => {
+                        tracing::error!("RecordingManager not initialized");
+                        return;
+                    }
+                };
+                match manager.stop(&app_clone) {
+                    Ok(result) => {
+                        if let Err(e) = app_clone.emit("tray://record/stopped", &result) {
+                            tracing::error!(error = ?e, "failed to emit tray://record/stopped");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(error = ?e, "tray stop_recording failed");
+                        let _ = app_clone.emit("tray://record/stop-failed", e.to_string());
+                    }
+                }
+            });
+            return;
+        }
+        _ => {}
+    }
+
+    // Recording actions that still need frontend state (audio source
+    // preference, store-managed status) — emit and let the frontend bridge
+    // handle them.
     let event_name = match id {
         "tray.start" => "tray://record/start",
         "tray.pause" => "tray://record/pause",
         "tray.resume" => "tray://record/resume",
-        "tray.stop" => "tray://record/stop",
-        "tray.show" => "tray://window/show",
-        "tray.quit" => "tray://app/quit",
         _ => return,
     };
     if let Err(e) = app.emit(event_name, ()) {
@@ -94,8 +155,8 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
 }
 
 /// Swap the icon and toggle menu item enabled flags based on the new state.
-pub fn update_tray_state<R: Runtime>(app: &AppHandle<R>, state: TrayState) {
-    let Some(handle) = app.try_state::<TrayHandle<R>>() else {
+pub fn update_tray_state(app: &AppHandle, state: TrayState) {
+    let Some(handle) = app.try_state::<TrayHandle>() else {
         tracing::warn!("update_tray_state called before setup_tray");
         return;
     };
@@ -129,7 +190,7 @@ pub fn update_tray_state<R: Runtime>(app: &AppHandle<R>, state: TrayState) {
     let _ = handle.items.stop.set_enabled(stop_enabled);
 }
 
-fn load_tray_image<R: Runtime, M: Manager<R>>(
+fn load_tray_image<M: Manager<tauri::Wry>>(
     manager: &M,
     state: TrayState,
 ) -> tauri::Result<Image<'static>> {
