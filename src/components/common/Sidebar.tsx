@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import {
   FileText,
@@ -20,6 +20,7 @@ export function Sidebar() {
   const { t } = useTranslation();
   const { settings, updateSettings } = useSettingsStore();
   const [aboutOpen, setAboutOpen] = useState(false);
+  const location = useLocation();
 
   const cycleTheme = () => {
     const themes = ["light", "dark", "system"] as const;
@@ -31,17 +32,27 @@ export function Sidebar() {
   const ThemeIcon =
     settings?.theme === "dark" ? Moon : settings?.theme === "light" ? Sun : Monitor;
 
+  // Determine which library sub-view is active by combining the pathname
+  // with the ?filter query param. NavLink's built-in isActive matches by
+  // pathname only, so all three /library?filter=* links highlighted at
+  // once on first open. We compute the active flag explicitly below.
+  const onLibraryPath = location.pathname === "/library" || location.pathname.startsWith("/library/");
+  const filterParam = new URLSearchParams(location.search).get("filter");
+  const libraryActive = onLibraryPath && !filterParam;
+  const starredActive = onLibraryPath && filterParam === "starred";
+  const trashActive = onLibraryPath && filterParam === "trash";
+
   return (
     <nav className="flex flex-col h-full pt-8 pb-3 px-2 gap-1 no-drag">
       {/* Navigation items */}
-      <NavItem to="/library" icon={<FileText size={16} />} label={t("nav.library")} />
-      <NavItem to="/library?filter=starred" icon={<Star size={16} />} label={t("nav.starred")} />
+      <NavItem to="/library" icon={<FileText size={16} />} label={t("nav.library")} active={libraryActive} />
+      <NavItem to="/library?filter=starred" icon={<Star size={16} />} label={t("nav.starred")} active={starredActive} />
       <NavItem to="/recording" icon={<Mic size={16} />} label={t("nav.recording")} />
       <NavItem to="/models" icon={<Download size={16} />} label={t("nav.models")} />
 
       <div className="h-px bg-border my-2 mx-1" />
 
-      <NavItem to="/library?filter=trash" icon={<Trash2 size={16} />} label={t("nav.trash")} />
+      <NavItem to="/library?filter=trash" icon={<Trash2 size={16} />} label={t("nav.trash")} active={trashActive} />
 
       <div className="flex-1" />
 
@@ -75,21 +86,28 @@ function NavItem({
   to,
   icon,
   label,
+  active,
 }: {
   to: string;
   icon: React.ReactNode;
   label: string;
+  /** Override NavLink's built-in pathname-only active matching. When
+   *  provided, this value wins; when undefined, NavLink computes from the
+   *  current pathname (used for Recording/Models/Settings/etc.). */
+  active?: boolean;
 }) {
   return (
     <NavLink
       to={to}
-      className={({ isActive }) =>
-        `flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
-          isActive
+      end
+      className={({ isActive }) => {
+        const isOn = active ?? isActive;
+        return `flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+          isOn
             ? "bg-accent text-accent-foreground font-medium"
             : "text-muted-foreground hover:text-foreground hover:bg-accent"
-        }`
-      }
+        }`;
+      }}
     >
       {icon}
       <span>{label}</span>

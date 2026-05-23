@@ -1,20 +1,38 @@
 import { useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLibraryStore } from "@/stores/libraryStore";
 import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
 import { FileText, Mic, Monitor, Star, Clock, ArrowUp, ArrowDown } from "lucide-react";
-import type { Transcript, TranscriptSort } from "@/lib/types";
+import type { Transcript, TranscriptFilter, TranscriptSort } from "@/lib/types";
 
 export function LibraryList() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { transcripts, isLoading, error, sort, loadTranscripts, setSort } = useLibraryStore();
 
+  // Sync the libraryStore filter to the URL's ?filter= query param. The
+  // sidebar uses ?filter=starred and ?filter=trash to switch views without
+  // re-renders. Without this effect those URLs do nothing and the list
+  // always shows all non-deleted transcripts.
+  const filterParam = searchParams.get("filter");
+  useEffect(() => {
+    const filter: TranscriptFilter = { isDeleted: false };
+    if (filterParam === "starred") {
+      filter.isStarred = true;
+    } else if (filterParam === "trash") {
+      filter.isDeleted = true;
+    }
+    useLibraryStore.setState({ filter, page: 0 });
+  }, [filterParam]);
+
   useEffect(() => {
     loadTranscripts();
-  }, [loadTranscripts, sort]);
+    // filterParam is a dependency so the list reloads after the filter
+    // effect above mutates the store.
+  }, [loadTranscripts, sort, filterParam]);
 
   if (isLoading) {
     return (
