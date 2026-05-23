@@ -36,6 +36,7 @@ impl Default for TranscriptionParams {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SegmentResult {
     pub index: usize,
     pub start_ms: i64,
@@ -101,13 +102,27 @@ impl WhisperEngine {
                 });
             }
 
-            // Build context parameters based on requested backend
+            // Build context parameters based on requested backend.
+            //
+            // CRITICAL: Metal is unstable on Intel x86_64. With older ggml
+            // it calls abort() and kills the whole process; with newer ggml
+            // it silently produces NaN/garbage output (the infamous "hotly"
+            // single-token result with NaN beam scores). Force-disable GPU
+            // on any non-Apple-Silicon target regardless of what the user's
+            // settings.json says. Apple Silicon (aarch64) is the only place
+            // Metal is safe to use here.
+            let allow_gpu = cfg!(target_arch = "aarch64");
             let ctx_params = {
                 let mut p = WhisperContextParameters::default();
-                if self.backend == AccelerationBackend::Cpu {
+                if self.backend == AccelerationBackend::Cpu || !allow_gpu {
                     p.use_gpu(false);
+                    if !allow_gpu {
+                        tracing::info!(
+                            "Forcing CPU backend (target_arch != aarch64). Requested: {:?}",
+                            self.backend
+                        );
+                    }
                 }
-                // Auto and Metal: use_gpu stays true (default with metal feature)
                 p
             };
 
@@ -223,8 +238,12 @@ impl WhisperEngine {
                 });
             }
 
-            let backend_used = if self.backend == AccelerationBackend::Auto
-                || self.backend == AccelerationBackend::Metal
+            // Report the backend actually used — must match what was passed
+            // to WhisperContextParameters above. On Intel we force CPU even
+            // when the user asked for Auto/Metal, so we must report CPU.
+            let backend_used = if (self.backend == AccelerationBackend::Auto
+                || self.backend == AccelerationBackend::Metal)
+                && allow_gpu
             {
                 AccelerationBackend::Metal
             } else {
