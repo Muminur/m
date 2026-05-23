@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -8,6 +9,12 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ videoUrl, currentTimeMs, subtitles, onTimeUpdate }: VideoPlayerProps) {
+  // Same asset-protocol conversion as usePlayer — Tauri webviews can't
+  // fetch raw file:// paths directly.
+  const src =
+    videoUrl.startsWith("http") || videoUrl.startsWith("asset:")
+      ? videoUrl
+      : convertFileSrc(videoUrl);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -32,7 +39,7 @@ export function VideoPlayer({ videoUrl, currentTimeMs, subtitles, onTimeUpdate }
     <div className="relative bg-black rounded-lg overflow-hidden">
       <video
         ref={videoRef}
-        src={videoUrl}
+        src={src}
         onTimeUpdate={handleTimeUpdate}
         controls
         className="w-full max-h-[400px]"

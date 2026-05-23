@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { useTranscriptStore } from "@/stores/transcriptStore";
 import { useTranslation } from "react-i18next";
 import { FileText, Loader2 } from "lucide-react";
@@ -100,10 +101,17 @@ export function TranscriptDetail() {
         }
       );
 
-      unlistenError = await listen("transcription:error", () => {
-        setIsTranscribing(false);
-        setStreamingSegments([]);
-      });
+      unlistenError = await listen<{ transcriptId?: string; jobId?: string; error: string }>(
+        "transcription:error",
+        (event) => {
+          // Scope to this transcript when payload carries an id, otherwise
+          // assume it's for us (current behavior pre-fix).
+          if (event.payload.transcriptId && event.payload.transcriptId !== id) return;
+          setIsTranscribing(false);
+          setStreamingSegments([]);
+          toast.error(`Transcription failed: ${event.payload.error}`, { duration: 10000 });
+        }
+      );
     };
 
     setup();

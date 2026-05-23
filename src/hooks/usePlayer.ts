@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import WaveSurfer from "wavesurfer.js";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 export interface PlayerState {
   isPlaying: boolean;
@@ -32,7 +33,14 @@ export function usePlayer(containerRef: React.RefObject<HTMLDivElement | null>, 
       normalize: true,
     });
 
-    ws.load(audioUrl);
+    // Tauri webviews can't fetch raw file:// paths — convert to the
+    // asset:// protocol (enabled in tauri.conf.json) for filesystem paths.
+    // Leave http(s) and existing asset:// URLs alone.
+    const src =
+      audioUrl.startsWith("http") || audioUrl.startsWith("asset:")
+        ? audioUrl
+        : convertFileSrc(audioUrl);
+    ws.load(src);
 
     ws.on("ready", () => {
       setState((prev) => ({ ...prev, duration: ws.getDuration() }));
