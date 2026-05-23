@@ -9,6 +9,7 @@ import { Toaster } from "sonner";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useUpdateStore } from "./stores/updateStore";
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { initTrayBridge } from "./lib/trayBridge";
 import { setAutoTranscribeNavigate } from "./lib/autoTranscribe";
 
@@ -30,6 +31,17 @@ function AppInner() {
     loadSettings();
     loadVersion();
     checkForUpdate();
+    // Auto-purge: permanently delete transcripts trashed >30 days ago.
+    // Backend uses a hard-coded 30-day window (commands/library.rs::purge_old_trash).
+    // Logged at info-level on backend; we ignore errors here since stale
+    // trash isn't user-facing-critical.
+    invoke<number>("purge_old_trash")
+      .then((count) => {
+        if (count > 0) {
+          console.info(`[trash] auto-purged ${count} transcripts older than 30 days`);
+        }
+      })
+      .catch((err) => console.warn("[trash] purge_old_trash failed:", err));
   }, [loadSettings, loadVersion, checkForUpdate]);
 
   // Apply theme class to document root
