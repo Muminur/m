@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Layout } from "./components/common/Layout";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { TranscriptDetail } from "./components/library/TranscriptDetail";
 import { ModelManager } from "./components/transcription/ModelManager";
 import { DropZone } from "./components/transcription/DropZone";
@@ -11,7 +12,6 @@ import { useUpdateStore } from "./stores/updateStore";
 import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { initTrayBridge } from "./lib/trayBridge";
-import { setAutoTranscribeNavigate } from "./lib/autoTranscribe";
 
 export default function App() {
   return (
@@ -60,11 +60,12 @@ function AppInner() {
     }
   }, [settings?.theme]);
 
-  // Mount tray bridge once and register navigate for auto-transcribe
+  // Mount tray bridge once. The navigate function is re-captured on every
+  // render (initTrayBridge updates its internal ref even on guarded calls),
+  // so React Router context stays fresh inside the tray event listeners.
   useEffect(() => {
-    setAutoTranscribeNavigate(navigate);
     let unmount: (() => void) | null = null;
-    initTrayBridge().then((u) => {
+    initTrayBridge(navigate).then((u) => {
       unmount = u;
     });
     return () => {
@@ -76,12 +77,15 @@ function AppInner() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/library" replace />} />
-        <Route path="library" element={<TranscriptDetail />} />
-        <Route path="library/:id" element={<TranscriptDetail />} />
-        <Route path="recording" element={<RecordingPanel />} />
-        <Route path="models" element={<ModelManager />} />
-        <Route path="transcribe" element={<DropZone />} />
-        <Route path="settings" element={<SettingsPage />} />
+        {/* Each route is wrapped so a crash in one page doesn't blank the
+            sidebar/list panes and the user sees the actual error message
+            (with stack trace) instead of an empty screen. */}
+        <Route path="library" element={<ErrorBoundary><TranscriptDetail /></ErrorBoundary>} />
+        <Route path="library/:id" element={<ErrorBoundary><TranscriptDetail /></ErrorBoundary>} />
+        <Route path="recording" element={<ErrorBoundary><RecordingPanel /></ErrorBoundary>} />
+        <Route path="models" element={<ErrorBoundary><ModelManager /></ErrorBoundary>} />
+        <Route path="transcribe" element={<ErrorBoundary><DropZone /></ErrorBoundary>} />
+        <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
       </Route>
     </Routes>
   );

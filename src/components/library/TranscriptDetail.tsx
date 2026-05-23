@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { useTranscriptStore } from "@/stores/transcriptStore";
+import { useTranscribingStore } from "@/stores/transcribingStore";
 import { useTranslation } from "react-i18next";
 import { FileText, Loader2 } from "lucide-react";
 import type { Segment } from "@/lib/types";
@@ -209,6 +210,15 @@ export function TranscriptDetail() {
       ? streamingSegments
       : (current?.segments ?? []);
 
+  // Spinner state: the tray "Stop and Transcribe" flow registers this
+  // transcript in useTranscribingStore the moment it kicks off whisper.
+  // Subscribe to the pending map so we re-render when the entry is added/removed.
+  const pendingModel = useTranscribingStore((s) =>
+    id ? s.pending[id] : undefined
+  );
+  const showStartupSpinner =
+    pendingModel !== undefined && displaySegments.length === 0;
+
   return (
     <div className="flex flex-col h-full overflow-hidden" tabIndex={0}>
       {/* Header */}
@@ -248,8 +258,21 @@ export function TranscriptDetail() {
         />
       )}
 
-      {/* Segments - use TranscriptView for loaded transcripts, flat list for streaming */}
-      {isTranscribing && streamingSegments.length > 0 ? (
+      {/* Startup spinner: transcript exists but transcription job is still
+          warming up (no segments emitted yet). Replaced as soon as the first
+          streaming segment arrives. */}
+      {showStartupSpinner ? (
+        <div className="flex flex-col items-center justify-center flex-1 gap-3 text-muted-foreground">
+          <Loader2 size={28} className="animate-spin text-primary" />
+          <p className="text-sm">
+            {t(
+              "transcription.starting_with_model",
+              "Transcribing with {{model}}…",
+              { model: pendingModel }
+            )}
+          </p>
+        </div>
+      ) : isTranscribing && streamingSegments.length > 0 ? (
         <div className="flex-1 overflow-auto px-6 py-4 space-y-1">
           {displaySegments.length === 0 && isTranscribing && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">

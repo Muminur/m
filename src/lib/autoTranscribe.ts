@@ -3,15 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import type { WhisperModel } from "./types";
 import { useTranscriptStore } from "@/stores/transcriptStore";
-
-// A `navigate` setter so non-React modules (like the tray bridge) can use
-// react-router. The App component calls `setNavigate(useNavigate())` on mount.
-type NavigateFn = (path: string) => void;
-let navigateFn: NavigateFn | null = null;
-
-export function setAutoTranscribeNavigate(fn: NavigateFn) {
-  navigateFn = fn;
-}
+import { useTranscribingStore } from "@/stores/transcribingStore";
 
 interface TranscribeFileResult {
   jobId: string;
@@ -30,31 +22,28 @@ async function pickDefaultModel(): Promise<WhisperModel | null> {
 }
 
 /**
- * After a recording stops, transcribe the audio file with the default model
- * and navigate to the transcript detail page. Shows toast notifications on
- * progress/failure. Returns the new transcriptId on success, null on failure.
+ * Fire-and-forget: kick off whisper for the just-stopped recording.
  *
- * Safe to call from anywhere (React or not) as long as setAutoTranscribeNavigate
- * has been called at app startup.
- */
-/**
- * Auto-transcribe a recording and navigate to its transcript page.
+ * Navigation to `/library/${transcriptId}` is done by the caller (tray
+ * bridge) BEFORE invoking this — we want the user on the transcript page
+ * instantly, not after `transcribe_file` finishes its setup work.
  *
- * @param audioPath  filesystem path to the just-recorded audio
- * @param existingTranscriptId  optional placeholder transcript id created by
- *   `stop_recording` — when provided, the backend UPDATES this row instead of
- *   INSERTing a new one, so the library shows exactly one entry per recording.
+ * Registers the transcript in useTranscribingStore so TranscriptDetail can
+ * render the "Transcribing with X…" spinner while we wait for whisper to
+ * emit its first segment.
  */
-export async function autoTranscribeAndNavigate(
+export async function startTranscriptionInBackground(
   audioPath: string,
-  existingTranscriptId?: string
-): Promise<string | null> {
+  existingTranscriptId: string
+): Promise<void> {
+  const transcribingStore = useTranscribingStore.getState();
   console.info(
     "[autoTranscribe] starting for audioPath:",
     audioPath,
     "existingTranscriptId:",
-    existingTranscriptId ?? "(none)"
+    existingTranscriptId
   );
+
   try {
     const model = await pickDefaultModel();
     if (!model) {
@@ -62,42 +51,37 @@ export async function autoTranscribeAndNavigate(
       toast.error("No transcription model downloaded. Open Models to download one.", {
         duration: 8000,
       });
-      return null;
+      // Clear the pending flag so the spinner doesn't hang. The placeholder
+      // transcript row stays in the library; user can delete or retry from
+      // there.
+      transcribingStore.finish(existingTranscriptId);
+      return;
     }
 
     console.info("[autoTranscribe] picked model:", model.id, model.displayName);
+    // Mark this transcript as transcribing — TranscriptDetail's spinner
+    // keys off this. Must happen BEFORE invoke so the page (which already
+    // mounted from the caller's prior navigate) shows the spinner from t=0.
+    transcribingStore.start(existingTranscriptId, model.displayName);
     toast.info(`Transcribing with ${model.displayName}…`, { duration: 3000 });
 
     const result = await invoke<TranscribeFileResult>("transcribe_file", {
       audioPath,
       modelId: model.id,
       params: null,
-      existingTranscriptId: existingTranscriptId ?? null,
+      existingTranscriptId,
     });
 
     console.info("[autoTranscribe] transcribe_file returned:", result);
 
-    // Pre-register a one-shot completion listener BEFORE navigating, so we
-    // don't depend on TranscriptDetail mounting in time to catch the
-    // `transcription:complete` event for short clips. The DB reload is
-    // what populates the segments/waveform on the page.
+    // Pre-register a one-shot completion listener BEFORE leaving — short
+    // clips can complete before TranscriptDetail's own listener mounts and
+    // would otherwise miss the event entirely.
     await attachCompletionListener(result.transcriptId);
-
-    if (navigateFn) {
-      console.info("[autoTranscribe] navigating to:", `/library/${result.transcriptId}`);
-      navigateFn(`/library/${result.transcriptId}`);
-    } else {
-      console.error("[autoTranscribe] navigateFn is NULL — cannot navigate");
-      toast.error("Recording transcribed but navigation failed (no router).", {
-        duration: 8000,
-      });
-    }
-
-    return result.transcriptId;
   } catch (err) {
     console.error("[autoTranscribe] FAILED:", err);
     toast.error(`Transcription failed: ${String(err)}`, { duration: 10000 });
-    return null;
+    transcribingStore.finish(existingTranscriptId);
   }
 }
 
@@ -116,6 +100,7 @@ async function attachCompletionListener(transcriptId: string): Promise<void> {
       if (event.payload.transcriptId !== transcriptId) return;
       firedOrCancelled = true;
       console.info("[autoTranscribe] complete event for", transcriptId, "→ reloading from DB");
+      useTranscribingStore.getState().finish(transcriptId);
       useTranscriptStore
         .getState()
         .loadTranscript(transcriptId)
@@ -127,6 +112,7 @@ async function attachCompletionListener(transcriptId: string): Promise<void> {
     () => {
       if (firedOrCancelled) return;
       firedOrCancelled = true;
+      useTranscribingStore.getState().finish(transcriptId);
       unlisten();
     },
     5 * 60 * 1000

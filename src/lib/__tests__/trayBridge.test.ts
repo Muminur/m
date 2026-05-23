@@ -17,7 +17,8 @@ const stopRecording = vi.fn().mockResolvedValue({
   transcriptId: "tx-stop",
   recordingId: "rec-stop",
 });
-const autoTranscribeAndNavigate = vi.fn();
+const startTranscriptionInBackground = vi.fn();
+const navigateMock = vi.fn();
 let currentStatus: "idle" | "recording" | "paused" = "idle";
 
 const setStateMock = vi.fn();
@@ -37,15 +38,18 @@ vi.mock("@/stores/recordingStore", () => ({
 }));
 
 vi.mock("../autoTranscribe", () => ({
-  autoTranscribeAndNavigate: (...args: unknown[]) => autoTranscribeAndNavigate(...args),
+  startTranscriptionInBackground: (...args: unknown[]) =>
+    startTranscriptionInBackground(...args),
 }));
 
 // Capture the listener registered for each event name
-const listenerMap = new Map<string, () => Promise<void> | void>();
-listenMock.mockImplementation((event: string, cb: () => Promise<void> | void) => {
-  listenerMap.set(event, cb);
-  return Promise.resolve(() => {});
-});
+const listenerMap = new Map<string, (e: { payload: unknown }) => Promise<void> | void>();
+listenMock.mockImplementation(
+  (event: string, cb: (e: { payload: unknown }) => Promise<void> | void) => {
+    listenerMap.set(event, cb);
+    return Promise.resolve(() => {});
+  }
+);
 
 describe("trayBridge", () => {
   beforeEach(async () => {
@@ -58,14 +62,15 @@ describe("trayBridge", () => {
       transcriptId: "tx-stop",
       recordingId: "rec-stop",
     });
-    autoTranscribeAndNavigate.mockClear();
+    startTranscriptionInBackground.mockClear();
+    navigateMock.mockClear();
     setStateMock.mockClear();
     listenerMap.clear();
     currentStatus = "idle";
     // Reset module-level state by re-requiring the module
     vi.resetModules();
     const { initTrayBridge: freshInit } = await import("../trayBridge");
-    await freshInit();
+    await freshInit(navigateMock);
   });
 
   afterEach(() => {
@@ -74,30 +79,30 @@ describe("trayBridge", () => {
 
   it("calls startRecording when tray emits record/start in idle state", async () => {
     currentStatus = "idle";
-    await listenerMap.get("tray://record/start")?.();
+    await listenerMap.get("tray://record/start")?.({ payload: undefined });
     expect(startRecording).toHaveBeenCalledOnce();
   });
 
   it("does NOT call startRecording when already recording", async () => {
     currentStatus = "recording";
-    await listenerMap.get("tray://record/start")?.();
+    await listenerMap.get("tray://record/start")?.({ payload: undefined });
     expect(startRecording).not.toHaveBeenCalled();
   });
 
   it("calls pauseRecording only when status is recording", async () => {
     currentStatus = "recording";
-    await listenerMap.get("tray://record/pause")?.();
+    await listenerMap.get("tray://record/pause")?.({ payload: undefined });
     expect(pauseRecording).toHaveBeenCalledOnce();
 
     pauseRecording.mockClear();
     currentStatus = "idle";
-    await listenerMap.get("tray://record/pause")?.();
+    await listenerMap.get("tray://record/pause")?.({ payload: undefined });
     expect(pauseRecording).not.toHaveBeenCalled();
   });
 
   it("calls resumeRecording only when status is paused", async () => {
     currentStatus = "paused";
-    await listenerMap.get("tray://record/resume")?.();
+    await listenerMap.get("tray://record/resume")?.({ payload: undefined });
     expect(resumeRecording).toHaveBeenCalledOnce();
   });
 
@@ -108,20 +113,31 @@ describe("trayBridge", () => {
     expect(listenerMap.has("tray://record/stop")).toBe(false);
   });
 
-  it("forwards payload from tray://record/stopped to autoTranscribe", async () => {
+  it("navigates BEFORE firing the background transcription", async () => {
     const listener = listenerMap.get("tray://record/stopped");
     expect(listener).toBeDefined();
-    await (listener as (e: { payload: unknown }) => Promise<void>)({
+    await listener!({
       payload: {
         audioPath: "/tmp/from-event.wav",
         transcriptId: "tx-from-event",
         recordingId: "rec-from-event",
       },
     });
-    expect(autoTranscribeAndNavigate).toHaveBeenCalledWith(
+
+    // Both should have been called
+    expect(navigateMock).toHaveBeenCalledWith("/library/tx-from-event");
+    expect(startTranscriptionInBackground).toHaveBeenCalledWith(
       "/tmp/from-event.wav",
       "tx-from-event"
     );
+
+    // Navigation must happen BEFORE the IPC kicks off — that's the whole
+    // point of this refactor. invocationCallOrder lets us assert call order
+    // across separate mocks.
+    expect(navigateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      startTranscriptionInBackground.mock.invocationCallOrder[0]
+    );
+
     // We should NOT call stopRecording from the bridge anymore — Rust did it
     expect(stopRecording).not.toHaveBeenCalled();
   });
@@ -130,7 +146,7 @@ describe("trayBridge", () => {
     const { toast } = await import("sonner");
     const listener = listenerMap.get("tray://record/stop-failed");
     expect(listener).toBeDefined();
-    await (listener as (e: { payload: string }) => Promise<void>)({
+    await listener!({
       payload: "Mic busy",
     });
     expect(toast.error).toHaveBeenCalledWith(
