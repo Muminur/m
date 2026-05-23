@@ -68,12 +68,16 @@ pub fn get_device_by_id(device_id: Option<&str>) -> Result<Device, AppError> {
             }
 
             if let Some(idx) = index_match {
-                return Ok(devices.into_iter().nth(idx).unwrap());
+                let device = devices.into_iter().nth(idx).unwrap();
+                let name = device.name().unwrap_or_else(|_| "<unknown>".into());
+                tracing::info!(target = "audio.pcm", "mic: selected device by id='{}' -> '{}'", id, name);
+                return Ok(device);
             }
 
             // Fallback: match by device name (handles hot-plug index shifts)
             for device in devices {
                 if device.name().ok().as_deref() == Some(id) {
+                    tracing::info!(target = "audio.pcm", "mic: selected device by name='{}'", id);
                     return Ok(device);
                 }
             }
@@ -82,10 +86,13 @@ pub fn get_device_by_id(device_id: Option<&str>) -> Result<Device, AppError> {
         }
     }
 
-    host.default_input_device().ok_or(AppError::AudioError {
+    let device = host.default_input_device().ok_or(AppError::AudioError {
         code: AudioErrorCode::DeviceNotFound,
         message: "No default input device available".into(),
-    })
+    })?;
+    let name = device.name().unwrap_or_else(|_| "<unknown>".into());
+    tracing::info!(target = "audio.pcm", "mic: selected default input device '{}'", name);
+    Ok(device)
 }
 
 pub struct MicRecorder {
@@ -111,6 +118,12 @@ impl MicRecorder {
 
         let sample_rate = config.sample_rate().0;
         let channels = config.channels();
+        let name = device.name().unwrap_or_else(|_| "<unknown>".into());
+        tracing::info!(
+            target = "audio.pcm",
+            "mic: using device '{}' (sample_rate={}, channels={}, sample_format={:?})",
+            name, sample_rate, channels, config.sample_format()
+        );
 
         let spec = WavSpec {
             channels,
