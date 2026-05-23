@@ -1,4 +1,5 @@
 import { AccelerationSettings } from "@/components/settings/AccelerationSettings";
+import { DefaultModelSettings } from "@/components/settings/DefaultModelSettings";
 import { WatchFolderSettings } from "@/components/settings/WatchFolderSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
 import { UpdateSettings } from "@/components/settings/UpdateSettings";
@@ -11,6 +12,12 @@ export function SettingsPage() {
       </div>
 
       <div className="flex-1 px-6 py-6 space-y-8 max-w-lg">
+        <section>
+          <DefaultModelSettings />
+        </section>
+
+        <div className="h-px bg-border" />
+
         <section>
           <AccelerationSettings />
         </section>
