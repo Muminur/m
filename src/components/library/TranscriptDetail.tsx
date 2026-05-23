@@ -37,6 +37,15 @@ export function TranscriptDetail() {
   const { t } = useTranslation();
   const { current, isLoading, error, loadTranscript, clearCurrent } = useTranscriptStore();
 
+  // Spinner state: the tray "Stop and Transcribe" flow registers this
+  // transcript in useTranscribingStore the moment it kicks off whisper.
+  // MUST live above any conditional early returns to satisfy the Rules of
+  // Hooks — the early returns below render different hook-counts on different
+  // ids/loading states, and a Zustand selector hook must run on every render.
+  const pendingModel = useTranscribingStore((s) =>
+    id ? s.pending[id] : undefined
+  );
+
   // Real-time segments streamed via events before the full transcript loads
   const [streamingSegments, setStreamingSegments] = useState<Segment[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -210,12 +219,6 @@ export function TranscriptDetail() {
       ? streamingSegments
       : (current?.segments ?? []);
 
-  // Spinner state: the tray "Stop and Transcribe" flow registers this
-  // transcript in useTranscribingStore the moment it kicks off whisper.
-  // Subscribe to the pending map so we re-render when the entry is added/removed.
-  const pendingModel = useTranscribingStore((s) =>
-    id ? s.pending[id] : undefined
-  );
   const showStartupSpinner =
     pendingModel !== undefined && displaySegments.length === 0;
 
