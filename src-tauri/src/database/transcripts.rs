@@ -366,6 +366,34 @@ pub fn update(conn: &Connection, id: &str, upd: &TranscriptUpdate) -> Result<(),
     Ok(())
 }
 
+/// Attach a freshly-started transcription run to an existing placeholder
+/// transcript row (created at recording-stop time). Updates model_id and
+/// language unconditionally; updates audio_path only if currently NULL so
+/// we never clobber a path the placeholder already had.
+pub fn attach_to_transcription(
+    conn: &Connection,
+    id: &str,
+    model_id: &str,
+    language: Option<&str>,
+    audio_path: Option<&str>,
+) -> Result<(), AppError> {
+    let now = Utc::now().timestamp();
+    conn.execute(
+        "UPDATE transcripts SET
+            model_id = ?2,
+            language = COALESCE(?3, language),
+            audio_path = COALESCE(audio_path, ?4),
+            updated_at = ?5
+         WHERE id = ?1",
+        params![id, model_id, language, audio_path, now],
+    )
+    .map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to attach transcription to transcript: {}", e),
+    })?;
+    Ok(())
+}
+
 pub fn soft_delete(conn: &Connection, id: &str) -> Result<(), AppError> {
     let now = Utc::now().timestamp();
     conn.execute(

@@ -85,9 +85,11 @@ export function RecordingPanel() {
   }, [startRecording]);
 
   const handleStop = useCallback(async () => {
-    const path = await stopRecording();
-    if (path) {
-      // Recording saved — could navigate to transcript
+    const result = await stopRecording();
+    if (result?.audioPath) {
+      // Recording saved — auto-transcription is handled by the tray's
+      // "Stop and Transcribe" flow; the in-app Stop button just saves
+      // a placeholder transcript that the user can transcribe later.
     }
   }, [stopRecording]);
 

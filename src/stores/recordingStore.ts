@@ -5,6 +5,12 @@ import type { AudioDevice } from "@/lib/types";
 type RecordingStatus = "idle" | "recording" | "paused" | "stopping";
 type AudioSource = "Microphone" | "System" | "Both";
 
+export interface StopRecordingResult {
+  audioPath: string;
+  transcriptId: string;
+  recordingId: string;
+}
+
 interface RecordingState {
   status: RecordingStatus;
   recordingId: string | null;
@@ -19,7 +25,7 @@ interface RecordingState {
   // Actions
   loadDevices: () => Promise<void>;
   startRecording: () => Promise<void>;
-  stopRecording: () => Promise<string | null>;
+  stopRecording: () => Promise<StopRecordingResult | null>;
   pauseRecording: () => Promise<void>;
   resumeRecording: () => Promise<void>;
   setAudioSource: (source: AudioSource) => void;
@@ -64,9 +70,9 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   stopRecording: async () => {
     set({ status: "stopping" });
     try {
-      const audioPath = await invoke<string>("stop_recording");
+      const result = await invoke<StopRecordingResult>("stop_recording");
       set({ status: "idle", recordingId: null, durationMs: 0 });
-      return audioPath;
+      return result;
     } catch (err) {
       set({ error: String(err), status: "idle" });
       return null;

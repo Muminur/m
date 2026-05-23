@@ -1,6 +1,6 @@
 use crate::audio::mic;
 use crate::audio::recording::{
-    AudioSource, RecordingLevelEvent, RecordingManager, RecordingStatus,
+    AudioSource, RecordingLevelEvent, RecordingManager, RecordingStatus, StopRecordingResult,
 };
 use crate::error::AppError;
 use std::sync::Arc;
@@ -32,7 +32,7 @@ pub async fn start_recording(
 pub async fn stop_recording(
     app: AppHandle,
     manager: State<'_, Arc<RecordingManager>>,
-) -> Result<String, AppError> {
+) -> Result<StopRecordingResult, AppError> {
     let manager = Arc::clone(&*manager);
     tokio::task::spawn_blocking(move || manager.stop(&app))
         .await

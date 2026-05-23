@@ -64,6 +64,17 @@ pub struct RecordingStatusEvent {
     pub recording_id: Option<String>,
 }
 
+/// Result of stopping a recording — includes the placeholder transcript id
+/// so the frontend can pass it to `transcribe_file` to reuse the same row
+/// instead of creating a duplicate.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StopRecordingResult {
+    pub audio_path: String,
+    pub transcript_id: String,
+    pub recording_id: String,
+}
+
 enum ActiveRecording {
     Mic(MicRecorder),
     #[cfg(target_os = "windows")]
@@ -209,7 +220,7 @@ impl RecordingManager {
         Ok(rec_id)
     }
 
-    pub fn stop(&self, app: &AppHandle) -> Result<String, AppError> {
+    pub fn stop(&self, app: &AppHandle) -> Result<StopRecordingResult, AppError> {
         // Phase 1: Atomically check status, set to Stopping, and take ownership of state
         let (active, source, device_id, rec_id) = {
             let mut inner = lock(&self.inner);
@@ -289,8 +300,11 @@ impl RecordingManager {
             }
         };
 
-        // Phase 3: Save to database — reset to Idle regardless of success/failure
-        let db_result = (|| -> Result<(), AppError> {
+        // Phase 3: Save to database — reset to Idle regardless of success/failure.
+        // Returns the placeholder transcript id so callers (e.g. tray "Stop and
+        // Transcribe" → transcribe_file) can REUSE this row instead of creating
+        // a duplicate.
+        let db_result = (|| -> Result<String, AppError> {
             let db = app.state::<Arc<Database>>();
             let conn = db.get()?;
 
@@ -311,7 +325,7 @@ impl RecordingManager {
                 "Recording {}",
                 chrono::Local::now().format("%Y-%m-%d %H:%M")
             );
-            database::transcripts::insert(
+            let transcript_id = database::transcripts::insert(
                 &conn,
                 &database::transcripts::NewTranscript {
                     title,
@@ -324,7 +338,11 @@ impl RecordingManager {
                 },
             )?;
 
-            Ok(())
+            // Link the recording row to the placeholder transcript so
+            // get-recording-with-transcript queries work later.
+            database::recordings::link_transcript(&conn, &rec_id, &transcript_id)?;
+
+            Ok(transcript_id)
         })();
 
         // Phase 4: Always reset to Idle — even if DB failed, audio is already saved to disk
@@ -337,8 +355,12 @@ impl RecordingManager {
             },
         );
 
-        db_result?;
-        Ok(audio_path)
+        let transcript_id = db_result?;
+        Ok(StopRecordingResult {
+            audio_path,
+            transcript_id,
+            recording_id: rec_id,
+        })
     }
 
     pub fn pause(&self, app: &AppHandle) -> Result<(), AppError> {

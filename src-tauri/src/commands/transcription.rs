@@ -110,6 +110,7 @@ pub async fn transcribe_file(
     audio_path: String,
     model_id: String,
     params: Option<TranscriptionParams>,
+    existing_transcript_id: Option<String>,
     app_handle: AppHandle,
     db: State<'_, Arc<Database>>,
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
@@ -132,6 +133,7 @@ pub async fn transcribe_file(
         app_handle,
         Arc::clone(&db),
         Arc::clone(&model_manager),
+        existing_transcript_id,
     )?;
 
     Ok(StartTranscriptionResult {

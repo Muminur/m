@@ -95,13 +95,19 @@ describe("recordingStore", () => {
   });
 
   describe("stopRecording", () => {
-    it("transitions through stopping to idle and returns audio path", async () => {
+    it("transitions through stopping to idle and returns audio path + transcript id", async () => {
       useRecordingStore.setState({ status: "recording", recordingId: "rec-123" });
-      mockInvoke.mockResolvedValue("/path/to/audio.wav");
+      mockInvoke.mockResolvedValue({
+        audioPath: "/path/to/audio.wav",
+        transcriptId: "tx-456",
+        recordingId: "rec-123",
+      });
 
-      const path = await useRecordingStore.getState().stopRecording();
+      const result = await useRecordingStore.getState().stopRecording();
 
-      expect(path).toBe("/path/to/audio.wav");
+      expect(result?.audioPath).toBe("/path/to/audio.wav");
+      expect(result?.transcriptId).toBe("tx-456");
+      expect(result?.recordingId).toBe("rec-123");
       expect(useRecordingStore.getState().status).toBe("idle");
       expect(useRecordingStore.getState().recordingId).toBeNull();
       expect(useRecordingStore.getState().durationMs).toBe(0);
@@ -111,9 +117,9 @@ describe("recordingStore", () => {
       useRecordingStore.setState({ status: "recording" });
       mockInvoke.mockRejectedValue("stop failed");
 
-      const path = await useRecordingStore.getState().stopRecording();
+      const result = await useRecordingStore.getState().stopRecording();
 
-      expect(path).toBeNull();
+      expect(result).toBeNull();
       expect(useRecordingStore.getState().error).toBe("stop failed");
       expect(useRecordingStore.getState().status).toBe("idle");
     });

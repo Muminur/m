@@ -115,6 +115,7 @@ impl TranscriptionManager {
         app_handle: AppHandle,
         db: Arc<Database>,
         model_manager: Arc<ModelManager>,
+        existing_transcript_id: Option<String>,
     ) -> Result<(String, String), AppError> {
         // Guard: only one job at a time
         {
@@ -144,14 +145,24 @@ impl TranscriptionManager {
         let model_path = model_manager.model_path(&model_id);
         let audio_path_buf = std::path::PathBuf::from(&audio_path);
 
-        // Create a transcript record immediately so the UI can navigate to it
-        let title = audio_path_buf
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Untitled")
-            .to_string();
-
-        let transcript_id = {
+        // Either reuse an existing placeholder transcript (e.g. created by
+        // recording-stop) or create a fresh row so the UI can navigate to it.
+        let transcript_id = if let Some(existing_id) = existing_transcript_id {
+            let conn = db.get()?;
+            transcripts::attach_to_transcription(
+                &conn,
+                &existing_id,
+                &model_id,
+                params.language.as_deref(),
+                Some(&audio_path),
+            )?;
+            existing_id
+        } else {
+            let title = audio_path_buf
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Untitled")
+                .to_string();
             let conn = db.get()?;
             transcripts::insert(
                 &conn,
