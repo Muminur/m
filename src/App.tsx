@@ -1,17 +1,47 @@
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, Link } from "react-router-dom";
 import { Layout } from "./components/common/Layout";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { TranscriptDetail } from "./components/library/TranscriptDetail";
-import { ModelManager } from "./components/transcription/ModelManager";
 import { DropZone } from "./components/transcription/DropZone";
 import { RecordingPanel } from "./components/recording/RecordingPanel";
-import { SettingsPage } from "./pages/SettingsPage";
 import { Toaster } from "sonner";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useUpdateStore } from "./stores/updateStore";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { initTrayBridge } from "./lib/trayBridge";
+
+const SettingsPage = lazy(() =>
+  import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+const ModelManager = lazy(() =>
+  import("./components/transcription/ModelManager").then((m) => ({
+    default: m.ModelManager,
+  })),
+);
+
+function LazyFallback() {
+  return (
+    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+      Loading…
+    </div>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-4 p-6">
+      <p className="text-4xl font-bold text-muted-foreground">404</p>
+      <p className="text-base text-muted-foreground">Page not found</p>
+      <Link
+        to="/library"
+        className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+      >
+        Back to Library
+      </Link>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -83,9 +113,10 @@ function AppInner() {
         <Route path="library" element={<ErrorBoundary><TranscriptDetail /></ErrorBoundary>} />
         <Route path="library/:id" element={<ErrorBoundary><TranscriptDetail /></ErrorBoundary>} />
         <Route path="recording" element={<ErrorBoundary><RecordingPanel /></ErrorBoundary>} />
-        <Route path="models" element={<ErrorBoundary><ModelManager /></ErrorBoundary>} />
+        <Route path="models" element={<ErrorBoundary><Suspense fallback={<LazyFallback />}><ModelManager /></Suspense></ErrorBoundary>} />
         <Route path="transcribe" element={<ErrorBoundary><DropZone /></ErrorBoundary>} />
-        <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+        <Route path="settings" element={<ErrorBoundary><Suspense fallback={<LazyFallback />}><SettingsPage /></Suspense></ErrorBoundary>} />
+        <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
       </Route>
     </Routes>
   );
