@@ -1,26 +1,29 @@
-import { useEffect } from "react";
+import { useEffect, useCallback, memo } from "react";
 import { Star, Download, Trash2, X, CheckCircle } from "lucide-react";
 import { useModelStore } from "@/stores/modelStore";
 import type { WhisperModel } from "@/lib/types";
 
 export function ModelManager() {
-  const {
-    models,
-    downloadProgress,
-    isLoading,
-    error,
-    loadModels,
-    downloadModel,
-    cancelDownload,
-    deleteModel,
-    setDefaultModel,
-    initEventListeners,
-  } = useModelStore();
+  const models = useModelStore((s) => s.models);
+  const downloadProgress = useModelStore((s) => s.downloadProgress);
+  const isLoading = useModelStore((s) => s.isLoading);
+  const error = useModelStore((s) => s.error);
+  const loadModels = useModelStore((s) => s.loadModels);
+  const downloadModel = useModelStore((s) => s.downloadModel);
+  const cancelDownload = useModelStore((s) => s.cancelDownload);
+  const deleteModel = useModelStore((s) => s.deleteModel);
+  const setDefaultModel = useModelStore((s) => s.setDefaultModel);
+  const initEventListeners = useModelStore((s) => s.initEventListeners);
 
   useEffect(() => {
     initEventListeners();
     loadModels();
   }, []);
+
+  const handleDownload = useCallback((id: string) => downloadModel(id), [downloadModel]);
+  const handleCancel = useCallback((id: string) => cancelDownload(id), [cancelDownload]);
+  const handleDelete = useCallback((id: string) => deleteModel(id), [deleteModel]);
+  const handleSetDefault = useCallback((id: string) => setDefaultModel(id), [setDefaultModel]);
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -45,14 +48,14 @@ export function ModelManager() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {models.map((model) => (
-              <ModelCard
+              <MemoModelCard
                 key={model.id}
                 model={model}
                 progress={downloadProgress[model.id]}
-                onDownload={() => downloadModel(model.id)}
-                onCancel={() => cancelDownload(model.id)}
-                onDelete={() => deleteModel(model.id)}
-                onSetDefault={() => setDefaultModel(model.id)}
+                onDownload={handleDownload}
+                onCancel={handleCancel}
+                onDelete={handleDelete}
+                onSetDefault={handleSetDefault}
               />
             ))}
           </div>
@@ -69,11 +72,13 @@ interface ModelCardProps {
     totalBytes: number;
     percentage: number;
   };
-  onDownload: () => void;
-  onCancel: () => void;
-  onDelete: () => void;
-  onSetDefault: () => void;
+  onDownload: (id: string) => void;
+  onCancel: (id: string) => void;
+  onDelete: (id: string) => void;
+  onSetDefault: (id: string) => void;
 }
+
+const MemoModelCard = memo(ModelCard);
 
 function ModelCard({
   model,
@@ -84,6 +89,10 @@ function ModelCard({
   onSetDefault,
 }: ModelCardProps) {
   const isDownloading = progress !== undefined;
+  const handleDownload = useCallback(() => onDownload(model.id), [onDownload, model.id]);
+  const handleCancel = useCallback(() => onCancel(model.id), [onCancel, model.id]);
+  const handleDelete = useCallback(() => onDelete(model.id), [onDelete, model.id]);
+  const handleSetDefault = useCallback(() => onSetDefault(model.id), [onSetDefault, model.id]);
 
   return (
     <div className="rounded-lg border border-border bg-background p-4 flex flex-col gap-3 hover:border-primary/40 transition-colors">
@@ -108,7 +117,7 @@ function ModelCard({
         <button
           type="button"
           title={model.isDefault ? "Default model" : "Set as default"}
-          onClick={onSetDefault}
+          onClick={handleSetDefault}
           disabled={!model.isDownloaded || model.isDefault}
           className={[
             "flex-none p-1 rounded transition-colors",
@@ -160,7 +169,7 @@ function ModelCard({
         {isDownloading ? (
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
           >
             <X size={12} />
@@ -169,7 +178,7 @@ function ModelCard({
         ) : model.isDownloaded ? (
           <button
             type="button"
-            onClick={onDelete}
+            onClick={handleDelete}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
           >
             <Trash2 size={12} />
@@ -178,7 +187,7 @@ function ModelCard({
         ) : (
           <button
             type="button"
-            onClick={onDownload}
+            onClick={handleDownload}
             className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
           >
             <Download size={12} />

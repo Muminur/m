@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -31,7 +31,9 @@ function isWma(filename: string): boolean {
 
 export function DropZone({ onTranscriptionStart }: DropZoneProps) {
   const navigate = useNavigate();
-  const { models, loadModels, initEventListeners } = useModelStore();
+  const models = useModelStore((s) => s.models);
+  const loadModels = useModelStore((s) => s.loadModels);
+  const initEventListeners = useModelStore((s) => s.initEventListeners);
 
   const defaultModel = models.find((m) => m.isDefault && m.isDownloaded);
   const firstDownloaded = models.find((m) => m.isDownloaded);
@@ -209,7 +211,7 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
     }
   }
 
-  const downloadedModels = models.filter((m) => m.isDownloaded);
+  const downloadedModels = useMemo(() => models.filter((m) => m.isDownloaded), [models]);
   const noModels = downloadedModels.length === 0;
 
   return (

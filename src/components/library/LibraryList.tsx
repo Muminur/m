@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback, memo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLibraryStore } from "@/stores/libraryStore";
 import { useTranslation } from "react-i18next";
@@ -11,7 +11,12 @@ export function LibraryList() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { transcripts, isLoading, error, sort, loadTranscripts, setSort } = useLibraryStore();
+  const transcripts = useLibraryStore((s) => s.transcripts);
+  const isLoading = useLibraryStore((s) => s.isLoading);
+  const error = useLibraryStore((s) => s.error);
+  const sort = useLibraryStore((s) => s.sort);
+  const loadTranscripts = useLibraryStore((s) => s.loadTranscripts);
+  const setSort = useLibraryStore((s) => s.setSort);
 
   // Sync the libraryStore filter to the URL's ?filter= query param. The
   // sidebar uses ?filter=starred and ?filter=trash to switch views without
@@ -33,6 +38,11 @@ export function LibraryList() {
     // filterParam is a dependency so the list reloads after the filter
     // effect above mutates the store.
   }, [loadTranscripts, sort, filterParam]);
+
+  const handleSelectTranscript = useCallback(
+    (transcriptId: string) => navigate(`/library/${transcriptId}`),
+    [navigate],
+  );
 
   if (isLoading) {
     return (
@@ -71,11 +81,11 @@ export function LibraryList() {
       {/* Transcript list */}
       <ul className="flex-1 divide-y divide-border">
         {transcripts.map((transcript) => (
-          <TranscriptRow
+          <MemoTranscriptRow
             key={transcript.id}
             transcript={transcript}
             isSelected={transcript.id === id}
-            onClick={() => navigate(`/library/${transcript.id}`)}
+            onSelect={handleSelectTranscript}
           />
         ))}
       </ul>
@@ -124,15 +134,19 @@ function SortableHeaders({
   );
 }
 
+const MemoTranscriptRow = memo(TranscriptRow);
+
 function TranscriptRow({
   transcript,
   isSelected,
-  onClick,
+  onSelect,
 }: {
   transcript: Transcript;
   isSelected: boolean;
-  onClick: () => void;
+  onSelect: (id: string) => void;
 }) {
+  const handleClick = useCallback(() => onSelect(transcript.id), [onSelect, transcript.id]);
+
   const SourceIcon =
     transcript.sourceType === "mic"
       ? Mic
@@ -145,7 +159,7 @@ function TranscriptRow({
       className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors ${
         isSelected ? "bg-accent" : "hover:bg-accent/50"
       }`}
-      onClick={onClick}
+      onClick={handleClick}
     >
       <div className="mt-0.5 text-muted-foreground flex-none">
         <SourceIcon size={16} />
