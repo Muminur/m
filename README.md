@@ -44,7 +44,9 @@ Run `WhisperDesk_*_x64-setup.exe` from the [latest release](https://github.com/M
 - **Find and replace** — Cmd+F search within transcript with case-sensitive toggle and replace all
 - **Compact mode** — toggle timestamps on/off for dense text-only view (Cmd+Shift+C)
 - **FTS5 search** — full-text search across all transcripts with highlighted match excerpts
-- **Library** — browse, search, sort, and filter transcripts; starred items and trash with 30-day recovery
+- **Library** — browse, search, sort, and filter transcripts; starred items and trash with 30-day recovery (items older than 30 days are auto-purged on startup)
+- **Menu bar tray (macOS)** — state-aware tray icon (gray idle, red recording, amber paused) with Start / Pause / Resume / Stop / Stop and Transcribe controls; closing the main window keeps the app alive in the tray
+- **Default transcription model** — pick which downloaded model the tray "Stop and Transcribe" action and auto-transcribe flow should use, from Settings
 - **Folders and tags** — organize transcripts into folders and assign tags; filter by folder/tag
 - **Smart folders** — auto-populating folders based on filter criteria
 - **Export** — TXT, SRT, VTT, PDF, DOCX, HTML, CSV, JSON, and Markdown formats with speaker labels and timestamps
@@ -162,7 +164,7 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 |---------|-------------|--------|
 | Auto | Use fastest available (default) | Supported |
 | CPU | Force software inference | Supported |
-| Metal | Apple GPU via Metal | Supported (macOS only) |
+| Metal | Apple GPU via Metal | Supported (Apple Silicon only — Intel Macs always use CPU) |
 | CoreML + ANE | Apple Neural Engine | Coming soon |
 
 ## Audio Recording
@@ -206,8 +208,8 @@ src/                    # React frontend
   hooks/                # usePlayer (wavesurfer.js audio player hook)
   i18n/                 # Localization (en.json, nl.json, de.json)
   pages/                # SettingsPage
-  stores/               # Zustand stores (settings, transcript, model, recording, library, caption, batch, ai)
-  lib/                  # types.ts, batchTypes.ts, captionTypes.ts, diarizationTypes.ts, aiTypes.ts
+  stores/               # Zustand stores (settings, transcript, model, recording, library, caption, batch, ai, transcribing)
+  lib/                  # types.ts, batchTypes.ts, captionTypes.ts, diarizationTypes.ts, aiTypes.ts, trayBridge.ts (tray event ↔ store wiring)
   styles/               # Global CSS (Tailwind)
   test/                 # Component and store tests
 
@@ -230,6 +232,7 @@ src-tauri/              # Rust backend
     watch/              # Watch folder manager + audio file handler
     network/            # NetworkGuard module (HTTP policy enforcement)
     settings.rs         # AppSettings with AccelerationBackend and NetworkPolicy
+    tray.rs             # macOS menu bar tray (state-aware icon, menu actions handled in Rust to bypass webview suspension)
     error.rs            # Typed error enum (14 error categories with codes)
     keychain.rs         # macOS Keychain integration for API key storage
     logging.rs          # Tracing/logging infrastructure with file rotation
