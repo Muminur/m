@@ -2,6 +2,9 @@ use crate::error::{AppError, NetworkErrorCode};
 use crate::settings::NetworkPolicy;
 use reqwest::{Client, RequestBuilder, Response};
 
+/// Maximum response body bytes to capture in error messages (4 KB).
+const MAX_ERROR_BODY_BYTES: usize = 4096;
+
 pub struct NetworkGuard {
     client: Client,
     policy: NetworkPolicy,
@@ -68,6 +71,7 @@ impl NetworkGuard {
                 } else if let Some(status) = e.status() {
                     NetworkErrorCode::HttpError {
                         status: status.as_u16(),
+                        response_body: None,
                     }
                 } else {
                     NetworkErrorCode::ConnectionFailed
@@ -78,6 +82,35 @@ impl NetworkGuard {
                 }
             }),
         }
+    }
+
+    /// Like [`request`](Self::request), but automatically checks the HTTP status
+    /// code and returns an error with the (truncated) response body for non-2xx
+    /// responses. Use this when you want errors to include the server's message.
+    pub async fn request_checked(&self, req: RequestBuilder) -> Result<Response, AppError> {
+        let response = self.request(req).await?;
+        let status = response.status();
+        if !status.is_success() {
+            let body = Self::read_error_body(response).await;
+            return Err(AppError::NetworkError {
+                code: NetworkErrorCode::HttpError {
+                    status: status.as_u16(),
+                    response_body: Some(body.clone()),
+                },
+                message: format!("HTTP {} — {}", status.as_u16(), body),
+            });
+        }
+        Ok(response)
+    }
+
+    /// Read the response body for error reporting, truncating to [`MAX_ERROR_BODY_BYTES`].
+    async fn read_error_body(response: Response) -> String {
+        let bytes = response
+            .bytes()
+            .await
+            .unwrap_or_default();
+        let truncated = &bytes[..bytes.len().min(MAX_ERROR_BODY_BYTES)];
+        String::from_utf8_lossy(truncated).into_owned()
     }
 
     pub fn client(&self) -> &Client {
@@ -92,6 +125,8 @@ impl NetworkGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::AsyncWriteExt;
+    use tokio::net::TcpListener;
 
     #[tokio::test]
     async fn test_offline_policy_blocks_requests() {
@@ -179,6 +214,107 @@ mod tests {
                 ..
             } => {}
             other => panic!("Expected ConnectionFailed for 0.0.0.0, got {:?}", other),
+        }
+    }
+
+    /// Spawn a minimal HTTP server that always replies with the given status and body.
+    async fn spawn_http_server(status: u16, body: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let response_bytes = format!(
+            "HTTP/1.1 {} ERR\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            status,
+            body.len(),
+            body,
+        );
+        tokio::spawn(async move {
+            // Accept one connection and send the canned response.
+            if let Ok((mut stream, _)) = listener.accept().await {
+                // Read the request (discard it).
+                let mut buf = [0u8; 1024];
+                let _ = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await;
+                let _ = stream.write_all(response_bytes.as_bytes()).await;
+                let _ = stream.shutdown().await;
+            }
+        });
+        format!("http://127.0.0.1:{}", addr.port())
+    }
+
+    #[tokio::test]
+    async fn test_request_checked_captures_body_on_error() {
+        let error_body = r#"{"error":"invalid_api_key","message":"The API key is not valid"}"#;
+        let url = spawn_http_server(401, error_body).await;
+
+        let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
+        let req = guard.client().get(&url);
+        let result = guard.request_checked(req).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NetworkError { code, message } => {
+                match &code {
+                    NetworkErrorCode::HttpError {
+                        status,
+                        response_body,
+                    } => {
+                        assert_eq!(*status, 401);
+                        let body = response_body.as_deref().unwrap();
+                        assert!(
+                            body.contains("invalid_api_key"),
+                            "response_body should contain the API error: {}",
+                            body
+                        );
+                    }
+                    other => panic!("Expected HttpError, got {:?}", other),
+                }
+                assert!(
+                    message.contains("invalid_api_key"),
+                    "message should contain the API error: {}",
+                    message
+                );
+            }
+            other => panic!("Expected NetworkError, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_request_checked_passes_success_through() {
+        let url = spawn_http_server(200, "OK").await;
+
+        let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
+        let req = guard.client().get(&url);
+        let result = guard.request_checked(req).await;
+
+        assert!(result.is_ok(), "200 response should pass through");
+    }
+
+    #[tokio::test]
+    async fn test_request_checked_truncates_large_body() {
+        // 8 KB body — should be truncated to 4 KB
+        let large_body: String = "X".repeat(8192);
+        let url = spawn_http_server(500, &large_body).await;
+
+        let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
+        let req = guard.client().get(&url);
+        let result = guard.request_checked(req).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NetworkError { code, .. } => match code {
+                NetworkErrorCode::HttpError {
+                    response_body, ..
+                } => {
+                    let body = response_body.unwrap();
+                    assert_eq!(
+                        body.len(),
+                        MAX_ERROR_BODY_BYTES,
+                        "Body should be truncated to {} bytes",
+                        MAX_ERROR_BODY_BYTES
+                    );
+                }
+                other => panic!("Expected HttpError, got {:?}", other),
+            },
+            other => panic!("Expected NetworkError, got {:?}", other),
         }
     }
 }

@@ -168,6 +168,7 @@ impl<'a> TranslationProvider for DeepLProvider<'a> {
             return Err(AppError::NetworkError {
                 code: NetworkErrorCode::HttpError {
                     status: status.as_u16(),
+                    response_body: None,
                 },
                 message: format!("DeepL API returned HTTP {}", status.as_u16()),
             });

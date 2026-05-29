@@ -170,7 +170,10 @@ pub enum NetworkErrorCode {
     ConnectionFailed,
     Timeout,
     TlsError,
-    HttpError { status: u16 },
+    HttpError {
+        status: u16,
+        response_body: Option<String>,
+    },
 }
 
 #[derive(Debug, Serialize, Clone)]
