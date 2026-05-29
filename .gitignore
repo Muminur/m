@@ -3,6 +3,12 @@ node_modules
 dist
 dist-ssr
 
+# Build artifacts
+*.dmg
+*.exe
+*.msi
+*.AppImage
+
 # AI / planning artifacts (never commit)
 .omc/
 .serena/
