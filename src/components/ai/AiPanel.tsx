@@ -44,15 +44,14 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
 
   const {
     isRunning,
-    result,
-    streamingText,
+    output,
     costEstimate,
     error,
     runAction,
     estimateCost,
-    appendStreamingText,
-    setStreamingText,
-    clearResult,
+    appendOutput,
+    setOutput,
+    clearOutput,
   } = useAiStore();
 
   // Listen for streaming chunks
@@ -61,13 +60,13 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
       if (event.payload.done) {
         return;
       }
-      appendStreamingText(event.payload.chunk);
+      appendOutput(event.payload.chunk);
     });
 
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [appendStreamingText]);
+  }, [appendOutput]);
 
   // Estimate cost when provider/model/text changes
   const handleEstimateCost = useCallback(async () => {
@@ -84,8 +83,8 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
   }, [handleEstimateCost]);
 
   const handleRunAction = async () => {
-    clearResult();
-    setStreamingText("");
+    clearOutput();
+    setOutput("");
     try {
       await runAction(transcriptId, {
         actionType: selectedAction,
@@ -100,14 +99,11 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
   };
 
   const handleCopy = async () => {
-    const text = result || streamingText;
-    if (text) {
-      await navigator.clipboard.writeText(text);
+    if (output) {
+      await navigator.clipboard.writeText(output);
       toast.success("Copied to clipboard");
     }
   };
-
-  const displayText = result || streamingText;
 
   return (
     <div className="flex flex-col h-full border-l border-border bg-background w-80">
@@ -228,7 +224,7 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
         )}
 
         {/* Result */}
-        {displayText && (
+        {output && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Result</span>
@@ -241,7 +237,7 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
               </button>
             </div>
             <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap max-h-64 overflow-auto">
-              {displayText}
+              {output}
               {isRunning && <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5" />}
             </div>
           </div>

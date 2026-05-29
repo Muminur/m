@@ -15,8 +15,7 @@ interface AiState {
 
   // Action state
   isRunning: boolean;
-  result: string;
-  streamingText: string;
+  output: string;
 
   // Cost estimate
   costEstimate: CostEstimate | null;
@@ -54,17 +53,16 @@ interface AiState {
   loadCloudProviders: () => Promise<void>;
   estimateCloudCost: (filePath: string, provider: string) => Promise<CloudCostEstimate>;
   loadOllamaModels: () => Promise<void>;
-  setStreamingText: (text: string) => void;
-  appendStreamingText: (chunk: string) => void;
-  clearResult: () => void;
+  setOutput: (text: string) => void;
+  appendOutput: (chunk: string) => void;
+  clearOutput: () => void;
 }
 
 export const useAiStore = create<AiState>((set, get) => ({
   providers: [],
   isLoadingProviders: false,
   isRunning: false,
-  result: "",
-  streamingText: "",
+  output: "",
   costEstimate: null,
   templates: [],
   cloudProviders: [],
@@ -82,13 +80,13 @@ export const useAiStore = create<AiState>((set, get) => ({
   },
 
   runAction: async (transcriptId: string, action: AiActionInput) => {
-    set({ isRunning: true, error: null, streamingText: "", result: "" });
+    set({ isRunning: true, error: null, output: "" });
     try {
       const result = await invoke<string>("run_ai_action", {
         transcriptId,
         action,
       });
-      set({ result, isRunning: false });
+      set({ output: result, isRunning: false });
       return result;
     } catch (err) {
       set({ error: String(err), isRunning: false });
@@ -170,8 +168,8 @@ export const useAiStore = create<AiState>((set, get) => ({
     }
   },
 
-  setStreamingText: (text: string) => set({ streamingText: text }),
-  appendStreamingText: (chunk: string) =>
-    set({ streamingText: get().streamingText + chunk }),
-  clearResult: () => set({ result: "", streamingText: "", costEstimate: null, error: null }),
+  setOutput: (text: string) => set({ output: text }),
+  appendOutput: (chunk: string) =>
+    set({ output: get().output + chunk }),
+  clearOutput: () => set({ output: "", costEstimate: null, error: null }),
 }));

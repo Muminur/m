@@ -31,8 +31,7 @@ describe("aiStore", () => {
       providers: [],
       isLoadingProviders: false,
       isRunning: false,
-      result: "",
-      streamingText: "",
+      output: "",
       costEstimate: null,
       templates: [],
       cloudProviders: [],
@@ -73,7 +72,7 @@ describe("aiStore", () => {
       });
 
       expect(result).toBe("This is a summary of the transcript.");
-      expect(useAiStore.getState().result).toBe("This is a summary of the transcript.");
+      expect(useAiStore.getState().output).toBe("This is a summary of the transcript.");
       expect(useAiStore.getState().isRunning).toBe(false);
       expect(mockInvoke).toHaveBeenCalledWith("run_ai_action", {
         transcriptId: "t1",
@@ -81,8 +80,8 @@ describe("aiStore", () => {
       });
     });
 
-    it("resets streaming state before running", async () => {
-      useAiStore.setState({ result: "old", streamingText: "partial" });
+    it("resets output before running", async () => {
+      useAiStore.setState({ output: "old partial" });
       mockInvoke.mockResolvedValue("new result");
 
       await useAiStore.getState().runAction("t1", {
@@ -91,7 +90,7 @@ describe("aiStore", () => {
         model: "gpt-4o",
       });
 
-      expect(useAiStore.getState().result).toBe("new result");
+      expect(useAiStore.getState().output).toBe("new result");
     });
 
     it("sets error and re-throws on failure", async () => {
@@ -208,31 +207,29 @@ describe("aiStore", () => {
     });
   });
 
-  describe("streaming helpers", () => {
-    it("setStreamingText sets text", () => {
-      useAiStore.getState().setStreamingText("hello");
-      expect(useAiStore.getState().streamingText).toBe("hello");
+  describe("output helpers", () => {
+    it("setOutput sets text", () => {
+      useAiStore.getState().setOutput("hello");
+      expect(useAiStore.getState().output).toBe("hello");
     });
 
-    it("appendStreamingText appends to existing", () => {
-      useAiStore.setState({ streamingText: "hello " });
-      useAiStore.getState().appendStreamingText("world");
-      expect(useAiStore.getState().streamingText).toBe("hello world");
+    it("appendOutput appends to existing", () => {
+      useAiStore.setState({ output: "hello " });
+      useAiStore.getState().appendOutput("world");
+      expect(useAiStore.getState().output).toBe("hello world");
     });
 
-    it("clearResult resets result, streamingText, costEstimate, and error", () => {
+    it("clearOutput resets output, costEstimate, and error", () => {
       useAiStore.setState({
-        result: "some result",
-        streamingText: "partial",
+        output: "some result",
         costEstimate: { inputTokens: 1, outputTokens: 1, estimatedUsd: 0.01 },
         error: "some error",
       });
 
-      useAiStore.getState().clearResult();
+      useAiStore.getState().clearOutput();
 
       const state = useAiStore.getState();
-      expect(state.result).toBe("");
-      expect(state.streamingText).toBe("");
+      expect(state.output).toBe("");
       expect(state.costEstimate).toBeNull();
       expect(state.error).toBeNull();
     });
