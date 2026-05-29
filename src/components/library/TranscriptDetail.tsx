@@ -51,6 +51,10 @@ export function TranscriptDetail() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Inactivity timeout: if 60s pass with no new segment and no
+  // complete/error event, treat the transcription as stalled.
+  const stallTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Editor state
   const [showFindReplace, setShowFindReplace] = useState(false);
   const [_editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
@@ -98,12 +102,30 @@ export function TranscriptDetail() {
             },
           ];
         });
+
+        // Reset the 60-second inactivity timeout on every new segment
+        if (stallTimeoutRef.current) clearTimeout(stallTimeoutRef.current);
+        stallTimeoutRef.current = setTimeout(() => {
+          console.warn("[TranscriptDetail] transcription stall detected for", id);
+          setIsTranscribing(false);
+          setStreamingSegments([]);
+          useTranscribingStore.getState().finish(id);
+          toast.warning(
+            "Transcription may have stalled — check transcript for partial results",
+            { duration: 8000 }
+          );
+          loadTranscript(id);
+        }, 60_000);
       });
 
       unlistenComplete = await listen<TranscriptionCompleteEvent>(
         "transcription:complete",
         async (event) => {
           if (event.payload.transcriptId !== id) return;
+          if (stallTimeoutRef.current) {
+            clearTimeout(stallTimeoutRef.current);
+            stallTimeoutRef.current = null;
+          }
           setIsTranscribing(false);
           setStreamingSegments([]);
           // Full reload from DB to get persisted data with real IDs
@@ -117,6 +139,10 @@ export function TranscriptDetail() {
           // Scope to this transcript when payload carries an id, otherwise
           // assume it's for us (current behavior pre-fix).
           if (event.payload.transcriptId && event.payload.transcriptId !== id) return;
+          if (stallTimeoutRef.current) {
+            clearTimeout(stallTimeoutRef.current);
+            stallTimeoutRef.current = null;
+          }
           setIsTranscribing(false);
           setStreamingSegments([]);
           toast.error(`Transcription failed: ${event.payload.error}`, { duration: 10000 });
@@ -130,6 +156,10 @@ export function TranscriptDetail() {
       unlistenSegment?.();
       unlistenComplete?.();
       unlistenError?.();
+      if (stallTimeoutRef.current) {
+        clearTimeout(stallTimeoutRef.current);
+        stallTimeoutRef.current = null;
+      }
     };
   }, [id, loadTranscript]);
 
