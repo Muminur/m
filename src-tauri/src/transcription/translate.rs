@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::error::{AppError, IntegrationErrorCode, NetworkErrorCode};
+use crate::error::{AppError, IntegrationErrorCode, NetworkErrorCode, TranscriptionErrorCode};
 use crate::network::guard::NetworkGuard;
 
 // ---------------------------------------------------------------------------
@@ -248,12 +248,23 @@ impl TranslationManager {
         }
     }
 
-    pub fn config(&self) -> TranslationConfig {
-        self.config.lock().expect("config lock poisoned").clone()
+    pub fn config(&self) -> Result<TranslationConfig, AppError> {
+        Ok(self
+            .config
+            .lock()
+            .map_err(|_| AppError::TranscriptionError {
+                code: TranscriptionErrorCode::InferenceFailure,
+                message: "mutex poisoned in TranslationManager::config".into(),
+            })?
+            .clone())
     }
 
-    pub fn set_config(&self, config: TranslationConfig) {
-        *self.config.lock().expect("config lock poisoned") = config;
+    pub fn set_config(&self, config: TranslationConfig) -> Result<(), AppError> {
+        *self.config.lock().map_err(|_| AppError::TranscriptionError {
+            code: TranscriptionErrorCode::InferenceFailure,
+            message: "mutex poisoned in TranslationManager::set_config".into(),
+        })? = config;
+        Ok(())
     }
 
     /// Translate text using the currently configured provider.
@@ -264,7 +275,7 @@ impl TranslationManager {
         network: &NetworkGuard,
         api_key: Option<String>,
     ) -> Result<TranslationResult, AppError> {
-        let cfg = self.config();
+        let cfg = self.config()?;
 
         if !cfg.enabled {
             return Err(AppError::IntegrationError {
@@ -312,9 +323,9 @@ impl TranslationManager {
     }
 
     /// Return supported languages for the currently selected provider.
-    pub fn supported_languages(&self) -> Vec<SupportedLanguage> {
-        let cfg = self.config();
-        match cfg.provider {
+    pub fn supported_languages(&self) -> Result<Vec<SupportedLanguage>, AppError> {
+        let cfg = self.config()?;
+        Ok(match cfg.provider {
             TranslationProviderKind::DeepL => deepl_supported_languages(),
             #[cfg(target_os = "macos")]
             TranslationProviderKind::WhisperTranslate => {
@@ -325,7 +336,7 @@ impl TranslationManager {
             }
             #[cfg(not(target_os = "macos"))]
             TranslationProviderKind::WhisperTranslate => vec![],
-        }
+        })
     }
 }
 
@@ -530,8 +541,8 @@ mod tests {
             target_language: "FR".into(),
             source_language: Some("EN".into()),
         };
-        manager.set_config(cfg.clone());
-        let loaded = manager.config();
+        manager.set_config(cfg.clone()).unwrap();
+        let loaded = manager.config().unwrap();
         assert!(loaded.enabled);
         assert_eq!(loaded.target_language, "FR");
     }
@@ -541,8 +552,8 @@ mod tests {
         let manager = TranslationManager::new();
         let mut cfg = TranslationConfig::default();
         cfg.provider = TranslationProviderKind::DeepL;
-        manager.set_config(cfg);
-        let langs = manager.supported_languages();
+        manager.set_config(cfg).unwrap();
+        let langs = manager.supported_languages().unwrap();
         assert!(!langs.is_empty());
     }
 
@@ -565,12 +576,14 @@ mod tests {
     #[tokio::test]
     async fn test_translate_deepl_missing_key_returns_error() {
         let manager = TranslationManager::new();
-        manager.set_config(TranslationConfig {
-            enabled: true,
-            provider: TranslationProviderKind::DeepL,
-            target_language: "DE".into(),
-            source_language: None,
-        });
+        manager
+            .set_config(TranslationConfig {
+                enabled: true,
+                provider: TranslationProviderKind::DeepL,
+                target_language: "DE".into(),
+                source_language: None,
+            })
+            .unwrap();
         let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
         let result = manager.translate("hello", "DE", &guard, None).await;
         assert!(result.is_err());
@@ -586,12 +599,14 @@ mod tests {
     #[tokio::test]
     async fn test_translate_offline_policy_blocks() {
         let manager = TranslationManager::new();
-        manager.set_config(TranslationConfig {
-            enabled: true,
-            provider: TranslationProviderKind::DeepL,
-            target_language: "DE".into(),
-            source_language: None,
-        });
+        manager
+            .set_config(TranslationConfig {
+                enabled: true,
+                provider: TranslationProviderKind::DeepL,
+                target_language: "DE".into(),
+                source_language: None,
+            })
+            .unwrap();
         let guard = NetworkGuard::new(NetworkPolicy::Offline).unwrap();
         let result = manager
             .translate("hello", "DE", &guard, Some("fake-key:fx".into()))
@@ -664,12 +679,14 @@ mod tests {
     #[tokio::test]
     async fn test_whisper_translate_unavailable_on_non_macos() {
         let manager = TranslationManager::new();
-        manager.set_config(TranslationConfig {
-            enabled: true,
-            provider: TranslationProviderKind::WhisperTranslate,
-            target_language: "EN".into(),
-            source_language: None,
-        });
+        manager
+            .set_config(TranslationConfig {
+                enabled: true,
+                provider: TranslationProviderKind::WhisperTranslate,
+                target_language: "EN".into(),
+                source_language: None,
+            })
+            .unwrap();
         let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
         let result = manager.translate("hello", "EN", &guard, None).await;
         assert!(result.is_err());

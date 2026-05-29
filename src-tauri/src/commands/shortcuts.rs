@@ -29,7 +29,7 @@ pub async fn unregister_shortcut(
 pub async fn list_shortcuts(
     manager: State<'_, Arc<ShortcutManager>>,
 ) -> Result<Vec<ShortcutBinding>, AppError> {
-    Ok(manager.list_registered())
+    manager.list_registered()
 }
 
 #[tauri::command]
@@ -46,5 +46,5 @@ pub async fn check_shortcut_conflict(
     accelerator: String,
     manager: State<'_, Arc<ShortcutManager>>,
 ) -> Result<Vec<ShortcutConflict>, AppError> {
-    Ok(manager.detect_conflicts(&accelerator))
+    manager.detect_conflicts(&accelerator)
 }

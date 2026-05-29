@@ -3,6 +3,7 @@ pub mod recordings;
 pub mod search;
 pub mod segments;
 pub mod smart_folders;
+pub mod transcript_queries;
 pub mod transcripts;
 pub mod undo;
 
