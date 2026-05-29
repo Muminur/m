@@ -34,7 +34,7 @@ rusqlite = { version = "0.32", features = ["bundled-full"] }
 refinery = { version = "0.8", features = ["rusqlite"] }
 
 # Async / networking
-tokio = { version = "1.42", features = ["full"] }
+tokio = { version = "1.42", features = ["rt-multi-thread", "sync", "time", "macros", "fs"] }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "multipart"], default-features = false }
 url = "2.5"
 futures-lite = "2.3"
