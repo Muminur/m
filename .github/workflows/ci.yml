@@ -73,7 +73,6 @@ jobs:
 
       - name: Lint
         run: npx eslint . --max-warnings 0
-        continue-on-error: true  # Lint warnings don't block CI in M1
 
   build:
     name: Build macOS App
@@ -111,11 +110,12 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+  # Disabled: E2E requires a compiled Tauri binary. Re-enable when CI produces a runnable app bundle.
   e2e:
     name: E2E Tests
     runs-on: macos-latest
     needs: [build]
-    if: false  # Disabled until M2 produces a runnable binary
+    if: false
     steps:
       - uses: actions/checkout@v4
 
