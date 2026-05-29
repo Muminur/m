@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type { TranscriptionCompletePayload, BackendFallbackPayload } from "@/lib/types";
 
@@ -9,18 +9,17 @@ interface Stats {
   transcriptId: string;
 }
 
-// Module-level cache so stats survive navigation from DropZone to TranscriptDetail
-let _cachedStats: Stats | null = null;
-let _cachedFallback: string | null = null;
-
 export function PerformanceBar({ transcriptId }: { transcriptId?: string }) {
+  const cachedStatsRef = useRef<Stats | null>(null);
+  const cachedFallbackRef = useRef<string | null>(null);
+
   const [stats, setStats] = useState<Stats | null>(
     // Show cached stats if they match the current transcript (or no filter)
-    _cachedStats && (!transcriptId || _cachedStats.transcriptId === transcriptId)
-      ? _cachedStats
+    cachedStatsRef.current && (!transcriptId || cachedStatsRef.current.transcriptId === transcriptId)
+      ? cachedStatsRef.current
       : null
   );
-  const [fallbackMessage, setFallbackMessage] = useState<string | null>(_cachedFallback);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(cachedFallbackRef.current);
 
   useEffect(() => {
     let unlistenComplete: (() => void) | undefined;
@@ -36,8 +35,8 @@ export function PerformanceBar({ transcriptId }: { transcriptId?: string }) {
             wallTimeMs: event.payload.wallTimeMs,
             transcriptId: event.payload.transcriptId,
           };
-          _cachedStats = s;
-          _cachedFallback = null;
+          cachedStatsRef.current = s;
+          cachedFallbackRef.current = null;
           if (!transcriptId || s.transcriptId === transcriptId) {
             setStats(s);
             setFallbackMessage(null);
@@ -49,7 +48,7 @@ export function PerformanceBar({ transcriptId }: { transcriptId?: string }) {
         "transcription:backend_fallback",
         (event) => {
           const msg = `${formatBackend(event.payload.requestedBackend)} unavailable — using ${formatBackend(event.payload.actualBackend)}`;
-          _cachedFallback = msg;
+          cachedFallbackRef.current = msg;
           setFallbackMessage(msg);
         }
       );
