@@ -486,7 +486,9 @@ mod tests {
     fn test_abort_sets_flag() {
         let m = TranscriptionManager::new();
         let flag = Arc::new(AtomicBool::new(false));
-        *m.active_job.lock().unwrap() = Some(ActiveJob {
+        *m.active_job
+            .lock()
+            .expect("test: failed to lock active_job for setup") = Some(ActiveJob {
             job_id: "j1".into(),
             model_id: "tiny".into(),
             abort_flag: Arc::clone(&flag),
@@ -499,11 +501,77 @@ mod tests {
     fn test_active_model_id() {
         let m = TranscriptionManager::new();
         assert!(m.active_model_id().is_none());
-        *m.active_job.lock().unwrap() = Some(ActiveJob {
+        *m.active_job
+            .lock()
+            .expect("test: failed to lock active_job for setup") = Some(ActiveJob {
             job_id: "j1".into(),
             model_id: "base.en".into(),
             abort_flag: Arc::new(AtomicBool::new(false)),
         });
         assert_eq!(m.active_model_id(), Some("base.en".into()));
+    }
+
+    #[test]
+    fn test_is_running_reflects_active_job() {
+        let m = TranscriptionManager::new();
+        assert!(!m.is_running(), "should not be running initially");
+
+        *m.active_job
+            .lock()
+            .expect("test: failed to lock active_job for setup") = Some(ActiveJob {
+            job_id: "j2".into(),
+            model_id: "small".into(),
+            abort_flag: Arc::new(AtomicBool::new(false)),
+        });
+        assert!(m.is_running(), "should be running after setting active job");
+
+        *m.active_job
+            .lock()
+            .expect("test: failed to lock active_job for teardown") = None;
+        assert!(!m.is_running(), "should not be running after clearing job");
+    }
+
+    #[test]
+    fn test_abort_is_idempotent() {
+        let m = TranscriptionManager::new();
+        let flag = Arc::new(AtomicBool::new(false));
+        *m.active_job
+            .lock()
+            .expect("test: failed to lock active_job for setup") = Some(ActiveJob {
+            job_id: "j3".into(),
+            model_id: "tiny".into(),
+            abort_flag: Arc::clone(&flag),
+        });
+        m.abort();
+        m.abort(); // second call must not panic
+        assert!(flag.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_active_model_id_returns_none_after_clear() {
+        let m = TranscriptionManager::new();
+        *m.active_job
+            .lock()
+            .expect("test: failed to lock active_job for setup") = Some(ActiveJob {
+            job_id: "j4".into(),
+            model_id: "large-v3".into(),
+            abort_flag: Arc::new(AtomicBool::new(false)),
+        });
+        assert_eq!(m.active_model_id(), Some("large-v3".into()));
+
+        *m.active_job
+            .lock()
+            .expect("test: failed to lock active_job for teardown") = None;
+        assert!(
+            m.active_model_id().is_none(),
+            "should return None after job cleared"
+        );
+    }
+
+    #[test]
+    fn test_default_trait() {
+        let m = TranscriptionManager::default();
+        assert!(!m.is_running());
+        assert!(m.active_model_id().is_none());
     }
 }
