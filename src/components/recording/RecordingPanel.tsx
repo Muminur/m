@@ -5,6 +5,12 @@ import { DeviceSelector } from "./DeviceSelector";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 
+type RecordingStatus = "idle" | "recording" | "paused" | "stopping";
+
+function isValidStatus(s: string): s is RecordingStatus {
+  return ["idle", "recording", "paused", "stopping"].includes(s);
+}
+
 export function RecordingPanel() {
   const {
     status,
@@ -65,11 +71,10 @@ export function RecordingPanel() {
     const unlisten = listen<{ status: string; recording_id: string | null }>(
       "recording:status",
       (event) => {
-        const validStatuses = ["idle", "recording", "paused", "stopping"];
         const s = event.payload.status;
-        if (validStatuses.includes(s)) {
+        if (isValidStatus(s)) {
           useRecordingStore.setState({
-            status: s as typeof status,
+            status: s,
             recordingId: event.payload.recording_id,
           });
         }
