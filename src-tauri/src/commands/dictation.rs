@@ -31,7 +31,7 @@ pub async fn start_dictation(
     app: AppHandle,
     manager: State<'_, Arc<DictationManager>>,
 ) -> Result<(), AppError> {
-    let current = manager.state();
+    let current = manager.state()?;
     if current != DictationState::Idle {
         tracing::warn!(state = ?current, "Cannot start dictation: not idle");
         return Err(AppError::DictationError {
@@ -40,7 +40,7 @@ pub async fn start_dictation(
         });
     }
 
-    manager.transition(DictationState::Listening);
+    manager.transition(DictationState::Listening)?;
     let _ = app.emit("dictation:started", ());
     tracing::info!("Dictation started");
     Ok(())
@@ -53,13 +53,13 @@ pub async fn stop_dictation(
     db: State<'_, Arc<Database>>,
     raw_text: Option<String>,
 ) -> Result<Option<DictationTextResponse>, AppError> {
-    let current = manager.state();
+    let current = manager.state()?;
     if current == DictationState::Idle {
         tracing::warn!("Dictation already idle, nothing to stop");
         return Ok(None);
     }
 
-    manager.transition(DictationState::Processing);
+    manager.transition(DictationState::Processing)?;
 
     let result = if let Some(text) = raw_text {
         if text.is_empty() {
@@ -70,7 +70,7 @@ pub async fn stop_dictation(
             let processed = processor.process(&text);
 
             // Insert into target app
-            manager.transition(DictationState::Inserting);
+            manager.transition(DictationState::Inserting)?;
             let inserter = accessibility::create_text_inserter();
             let app_target: Option<String> = inserter.get_focused_app()?;
 
@@ -97,7 +97,7 @@ pub async fn stop_dictation(
         None
     };
 
-    manager.transition(DictationState::Idle);
+    manager.transition(DictationState::Idle)?;
     let _ = app.emit("dictation:stopped", ());
     tracing::info!("Dictation stopped");
     Ok(result)
@@ -109,7 +109,7 @@ pub async fn get_dictation_status(
 ) -> Result<DictationStatusResponse, AppError> {
     let accessibility_granted = accessibility::request_accessibility_permission()?;
     Ok(DictationStatusResponse {
-        state: manager.state(),
+        state: manager.state()?,
         accessibility_granted,
     })
 }
@@ -121,7 +121,7 @@ pub async fn toggle_dictation(
     db: State<'_, Arc<Database>>,
     raw_text: Option<String>,
 ) -> Result<Option<DictationTextResponse>, AppError> {
-    match manager.state() {
+    match manager.state()? {
         DictationState::Idle => {
             start_dictation(app, manager).await?;
             Ok(None)

@@ -155,7 +155,7 @@ impl ShortcutManager {
     pub fn register(&self, id: &str, accelerator: &str, description: &str) -> Result<(), AppError> {
         Self::validate_accelerator(accelerator)?;
 
-        let conflicts = self.detect_conflicts_internal(accelerator, Some(id));
+        let conflicts = self.detect_conflicts_internal(accelerator, Some(id))?;
         if !conflicts.is_empty() {
             return Err(AppError::IntegrationError {
                 code: IntegrationErrorCode::ApiError,
@@ -175,7 +175,10 @@ impl ShortcutManager {
 
         self.bindings
             .lock()
-            .expect("bindings lock poisoned")
+            .map_err(|_| AppError::IntegrationError {
+                code: IntegrationErrorCode::ApiError,
+                message: "mutex poisoned in ShortcutManager::register".into(),
+            })?
             .insert(id.to_string(), binding);
 
         tracing::info!(id, accelerator, "Shortcut registered");
@@ -184,7 +187,13 @@ impl ShortcutManager {
 
     /// Unregister a shortcut (logical state only).
     pub fn unregister(&self, id: &str) -> Result<(), AppError> {
-        let mut bindings = self.bindings.lock().expect("bindings lock poisoned");
+        let mut bindings =
+            self.bindings
+                .lock()
+                .map_err(|_| AppError::IntegrationError {
+                    code: IntegrationErrorCode::ApiError,
+                    message: "mutex poisoned in ShortcutManager::unregister".into(),
+                })?;
         match bindings.get_mut(id) {
             Some(binding) => {
                 binding.is_active = false;
@@ -199,15 +208,21 @@ impl ShortcutManager {
     }
 
     /// List all registered shortcut bindings.
-    pub fn list_registered(&self) -> Vec<ShortcutBinding> {
-        let bindings = self.bindings.lock().expect("bindings lock poisoned");
+    pub fn list_registered(&self) -> Result<Vec<ShortcutBinding>, AppError> {
+        let bindings =
+            self.bindings
+                .lock()
+                .map_err(|_| AppError::IntegrationError {
+                    code: IntegrationErrorCode::ApiError,
+                    message: "mutex poisoned in ShortcutManager::list_registered".into(),
+                })?;
         let mut list: Vec<ShortcutBinding> = bindings.values().cloned().collect();
         list.sort_by(|a, b| a.id.cmp(&b.id));
-        list
+        Ok(list)
     }
 
     /// Detect conflicts with an accelerator string against all registered shortcuts.
-    pub fn detect_conflicts(&self, accelerator: &str) -> Vec<ShortcutConflict> {
+    pub fn detect_conflicts(&self, accelerator: &str) -> Result<Vec<ShortcutConflict>, AppError> {
         self.detect_conflicts_internal(accelerator, None)
     }
 
@@ -216,9 +231,15 @@ impl ShortcutManager {
         &self,
         accelerator: &str,
         exclude_id: Option<&str>,
-    ) -> Vec<ShortcutConflict> {
+    ) -> Result<Vec<ShortcutConflict>, AppError> {
         let normalized = normalize_accelerator(accelerator);
-        let bindings = self.bindings.lock().expect("bindings lock poisoned");
+        let bindings =
+            self.bindings
+                .lock()
+                .map_err(|_| AppError::IntegrationError {
+                    code: IntegrationErrorCode::ApiError,
+                    message: "mutex poisoned in ShortcutManager::detect_conflicts".into(),
+                })?;
         let mut conflicts = Vec::new();
 
         for binding in bindings.values() {
@@ -236,14 +257,14 @@ impl ShortcutManager {
             }
         }
 
-        conflicts
+        Ok(conflicts)
     }
 
     /// Update an existing binding's accelerator.
     pub fn update_binding(&self, id: &str, new_accelerator: &str) -> Result<(), AppError> {
         Self::validate_accelerator(new_accelerator)?;
 
-        let conflicts = self.detect_conflicts_internal(new_accelerator, Some(id));
+        let conflicts = self.detect_conflicts_internal(new_accelerator, Some(id))?;
         if !conflicts.is_empty() {
             return Err(AppError::IntegrationError {
                 code: IntegrationErrorCode::ApiError,
@@ -254,7 +275,13 @@ impl ShortcutManager {
             });
         }
 
-        let mut bindings = self.bindings.lock().expect("bindings lock poisoned");
+        let mut bindings =
+            self.bindings
+                .lock()
+                .map_err(|_| AppError::IntegrationError {
+                    code: IntegrationErrorCode::ApiError,
+                    message: "mutex poisoned in ShortcutManager::update_binding".into(),
+                })?;
         match bindings.get_mut(id) {
             Some(binding) => {
                 let old = binding.accelerator.clone();
@@ -270,12 +297,16 @@ impl ShortcutManager {
     }
 
     /// Get a single binding by id.
-    pub fn get(&self, id: &str) -> Option<ShortcutBinding> {
-        self.bindings
+    pub fn get(&self, id: &str) -> Result<Option<ShortcutBinding>, AppError> {
+        Ok(self
+            .bindings
             .lock()
-            .expect("bindings lock poisoned")
+            .map_err(|_| AppError::IntegrationError {
+                code: IntegrationErrorCode::ApiError,
+                message: "mutex poisoned in ShortcutManager::get".into(),
+            })?
             .get(id)
-            .cloned()
+            .cloned())
     }
 }
 
@@ -398,7 +429,7 @@ mod tests {
         mgr.register("test_action", "Alt+Shift+T", "Test action")
             .unwrap();
 
-        let list = mgr.list_registered();
+        let list = mgr.list_registered().unwrap();
         let found = list.iter().find(|b| b.id == "test_action");
         assert!(found.is_some());
         let binding = found.unwrap();
@@ -411,10 +442,10 @@ mod tests {
         let mgr = ShortcutManager::new();
         mgr.register("test_unreg", "Alt+Shift+U", "Test unregister")
             .unwrap();
-        assert!(mgr.get("test_unreg").unwrap().is_active);
+        assert!(mgr.get("test_unreg").unwrap().unwrap().is_active);
 
         mgr.unregister("test_unreg").unwrap();
-        assert!(!mgr.get("test_unreg").unwrap().is_active);
+        assert!(!mgr.get("test_unreg").unwrap().unwrap().is_active);
     }
 
     #[test]
@@ -428,7 +459,7 @@ mod tests {
         let mgr = ShortcutManager::new();
         mgr.register("action_a", "Alt+Shift+X", "Action A").unwrap();
 
-        let conflicts = mgr.detect_conflicts("Alt+Shift+X");
+        let conflicts = mgr.detect_conflicts("Alt+Shift+X").unwrap();
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].conflicting_id, "action_a");
     }
@@ -440,7 +471,7 @@ mod tests {
             .unwrap();
 
         // CmdOrCtrl is an alias for CommandOrControl
-        let conflicts = mgr.detect_conflicts("CmdOrCtrl+Shift+K");
+        let conflicts = mgr.detect_conflicts("CmdOrCtrl+Shift+K").unwrap();
         assert_eq!(conflicts.len(), 1);
     }
 
@@ -449,7 +480,7 @@ mod tests {
         let mgr = ShortcutManager::new();
         mgr.register("action_c", "Alt+Shift+A", "Action C").unwrap();
 
-        let conflicts = mgr.detect_conflicts("Alt+Shift+B");
+        let conflicts = mgr.detect_conflicts("Alt+Shift+B").unwrap();
         assert!(conflicts.is_empty());
     }
 
@@ -459,7 +490,7 @@ mod tests {
         mgr.register("action_d", "Alt+Shift+Z", "Action D").unwrap();
         mgr.unregister("action_d").unwrap();
 
-        let conflicts = mgr.detect_conflicts("Alt+Shift+Z");
+        let conflicts = mgr.detect_conflicts("Alt+Shift+Z").unwrap();
         assert!(conflicts.is_empty());
     }
 
@@ -469,7 +500,7 @@ mod tests {
         mgr.register("action_e", "Alt+Shift+E", "Action E").unwrap();
 
         mgr.update_binding("action_e", "Alt+Shift+F").unwrap();
-        let binding = mgr.get("action_e").unwrap();
+        let binding = mgr.get("action_e").unwrap().unwrap();
         assert_eq!(binding.accelerator, "Alt+Shift+F");
     }
 
@@ -543,7 +574,7 @@ mod tests {
     #[test]
     fn test_list_registered_sorted() {
         let mgr = ShortcutManager::new();
-        let list = mgr.list_registered();
+        let list = mgr.list_registered().unwrap();
         let ids: Vec<&str> = list.iter().map(|b| b.id.as_str()).collect();
         let mut sorted = ids.clone();
         sorted.sort();
@@ -553,6 +584,6 @@ mod tests {
     #[test]
     fn test_get_nonexistent_returns_none() {
         let mgr = ShortcutManager::new();
-        assert!(mgr.get("nonexistent").is_none());
+        assert!(mgr.get("nonexistent").unwrap().is_none());
     }
 }
