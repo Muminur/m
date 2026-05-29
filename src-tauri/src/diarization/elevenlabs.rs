@@ -112,6 +112,7 @@ impl DiarizationProvider for ElevenLabsProvider {
             return Err(AppError::NetworkError {
                 code: NetworkErrorCode::HttpError {
                     status: status.as_u16(),
+                    response_body: None,
                 },
                 message: "ElevenLabs rate limit exceeded".into(),
             });

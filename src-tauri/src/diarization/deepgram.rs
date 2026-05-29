@@ -115,6 +115,7 @@ impl DiarizationProvider for DeepgramProvider {
             return Err(AppError::NetworkError {
                 code: NetworkErrorCode::HttpError {
                     status: status.as_u16(),
+                    response_body: None,
                 },
                 message: "Deepgram rate limit exceeded".into(),
             });
