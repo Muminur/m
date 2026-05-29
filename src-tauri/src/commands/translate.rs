@@ -29,7 +29,7 @@ pub async fn set_translation_config(
     config: TranslationConfig,
     manager: State<'_, Arc<TranslationManager>>,
 ) -> Result<(), AppError> {
-    manager.set_config(config);
+    manager.set_config(config)?;
     tracing::info!("Translation config updated");
     Ok(())
 }
@@ -38,12 +38,12 @@ pub async fn set_translation_config(
 pub async fn get_translation_config(
     manager: State<'_, Arc<TranslationManager>>,
 ) -> Result<TranslationConfig, AppError> {
-    Ok(manager.config())
+    manager.config()
 }
 
 #[tauri::command]
 pub async fn get_supported_languages(
     manager: State<'_, Arc<TranslationManager>>,
 ) -> Result<Vec<SupportedLanguage>, AppError> {
-    Ok(manager.supported_languages())
+    manager.supported_languages()
 }

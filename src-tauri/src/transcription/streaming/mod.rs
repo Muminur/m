@@ -4,154 +4,20 @@
 //! step every `step_size_ms`, and runs whisper inference on the current window.
 //! An optional VAD gate skips inference when no speech is detected.
 
+mod buffer;
+mod config;
+
+pub use config::{CaptionSegment, InferenceProvider, StreamingConfig, StreamingState};
+pub(crate) use config::ms_to_samples;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use crate::error::{AppError, TranscriptionErrorCode};
-use crate::transcription::engine::SegmentResult;
-use crate::transcription::vad::{SileroVad, VadConfig, VoiceActivityDetector};
+use crate::transcription::vad::{SileroVad, VoiceActivityDetector};
 
-// ─── Configuration ──────────────────────────────────────────────────────────
-
-/// Configuration for the streaming transcription pipeline.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StreamingConfig {
-    /// Step / advance size in milliseconds (default: 3000).
-    pub step_size_ms: u32,
-    /// Total context window in milliseconds (default: 10000).
-    pub window_size_ms: u32,
-    /// Overlap between consecutive windows in milliseconds (default: 200).
-    pub overlap_ms: u32,
-    /// Audio sample rate (default: 16000).
-    pub sample_rate: u32,
-    /// Whether VAD gating is enabled.
-    pub vad_enabled: bool,
-    /// VAD configuration (used only when `vad_enabled` is true).
-    pub vad_config: VadConfig,
-}
-
-impl Default for StreamingConfig {
-    fn default() -> Self {
-        Self {
-            step_size_ms: 3000,
-            window_size_ms: 10000,
-            overlap_ms: 200,
-            sample_rate: 16000,
-            vad_enabled: true,
-            vad_config: VadConfig::default(),
-        }
-    }
-}
-
-// ─── Event payloads ─────────────────────────────────────────────────────────
-
-/// A caption segment emitted during streaming transcription.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CaptionSegment {
-    /// The recognized text for this window.
-    pub text: String,
-    /// Start time in milliseconds (relative to stream start).
-    pub start_ms: u64,
-    /// End time in milliseconds (relative to stream start).
-    pub end_ms: u64,
-    /// Whether this is a final (committed) or interim segment.
-    pub is_final: bool,
-    /// Average confidence score.
-    pub confidence: f32,
-}
-
-// ─── Inference callback ─────────────────────────────────────────────────────
-
-/// Trait abstracting whisper inference so the streaming logic can be tested
-/// without loading a real model.
-pub trait InferenceProvider: Send {
-    /// Run whisper on the given PCM window and return segments.
-    fn infer(&self, pcm_window: &[f32]) -> Result<Vec<SegmentResult>, AppError>;
-}
-
-// ─── Ring buffer ────────────────────────────────────────────────────────────
-
-/// A fixed-capacity ring buffer for f32 audio samples.
-#[derive(Debug)]
-struct RingBuffer {
-    data: Vec<f32>,
-    capacity: usize,
-    write_pos: usize,
-    len: usize,
-}
-
-impl RingBuffer {
-    fn new(capacity: usize) -> Self {
-        Self {
-            data: vec![0.0; capacity],
-            capacity,
-            write_pos: 0,
-            len: 0,
-        }
-    }
-
-    /// Push samples into the buffer, overwriting oldest data when full.
-    fn push(&mut self, samples: &[f32]) {
-        for &s in samples {
-            self.data[self.write_pos] = s;
-            self.write_pos = (self.write_pos + 1) % self.capacity;
-            if self.len < self.capacity {
-                self.len += 1;
-            }
-        }
-    }
-
-    /// Read the last `count` samples in chronological order.
-    /// Returns fewer if the buffer has fewer than `count` samples.
-    fn read_last(&self, count: usize) -> Vec<f32> {
-        let n = count.min(self.len);
-        if n == 0 {
-            return vec![];
-        }
-        let start = if self.len < self.capacity {
-            // Buffer not yet wrapped.
-            self.len.saturating_sub(n)
-        } else {
-            // Buffer has wrapped; write_pos points to the oldest sample.
-            (self.write_pos + self.capacity - n) % self.capacity
-        };
-
-        let mut out = Vec::with_capacity(n);
-        for i in 0..n {
-            out.push(self.data[(start + i) % self.capacity]);
-        }
-        out
-    }
-
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    #[allow(dead_code)]
-    fn clear(&mut self) {
-        self.write_pos = 0;
-        self.len = 0;
-        // No need to zero-fill; push overwrites.
-    }
-}
-
-// ─── StreamingTranscriber ───────────────────────────────────────────────────
-
-/// State of the streaming transcription pipeline.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum StreamingState {
-    /// Ready to receive audio but not yet started.
-    Idle,
-    /// Actively receiving and processing audio.
-    Running,
-    /// Stopped; must create a new instance to restart.
-    Stopped,
-}
+use buffer::RingBuffer;
+use config::ms_to_samples as ms_to_samp;
 
 /// Real-time sliding-window transcription engine.
 ///
@@ -196,7 +62,7 @@ impl StreamingTranscriber {
             });
         }
 
-        let window_samples = ms_to_samples(config.window_size_ms, config.sample_rate);
+        let window_samples = ms_to_samp(config.window_size_ms, config.sample_rate);
 
         let vad = if config.vad_enabled {
             Some(SileroVad::new(config.vad_config.clone())?)
@@ -255,7 +121,7 @@ impl StreamingTranscriber {
         self.total_samples += samples.len() as u64;
         self.step_accumulator += samples.len();
 
-        let step_samples = ms_to_samples(self.config.step_size_ms, self.config.sample_rate);
+        let step_samples = ms_to_samp(self.config.step_size_ms, self.config.sample_rate);
         let mut new_segments = Vec::new();
 
         while self.step_accumulator >= step_samples {
@@ -271,7 +137,7 @@ impl StreamingTranscriber {
 
             // Extract the current window.
             let window_samples_count =
-                ms_to_samples(self.config.window_size_ms, self.config.sample_rate);
+                ms_to_samp(self.config.window_size_ms, self.config.sample_rate);
             let window = self.buffer.read_last(window_samples_count);
 
             // VAD gate: skip inference if no speech detected.
@@ -373,18 +239,12 @@ impl StreamingTranscriber {
     }
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/// Convert milliseconds to sample count at the given sample rate.
-fn ms_to_samples(ms: u32, sample_rate: u32) -> usize {
-    (sample_rate as usize * ms as usize) / 1000
-}
-
-// ─── Tests ──────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transcription::engine::SegmentResult;
+    use crate::transcription::vad::VadConfig;
+    use std::sync::atomic::Ordering;
 
     // ── Mock inference provider ─────────────────────────────────────────────
 
@@ -508,44 +368,6 @@ mod tests {
         let st = StreamingTranscriber::new(StreamingConfig::default());
         assert!(st.is_ok());
         assert_eq!(st.unwrap().state(), StreamingState::Idle);
-    }
-
-    // ── Ring buffer tests ───────────────────────────────────────────────────
-
-    #[test]
-    fn test_ring_buffer_basic() {
-        let mut rb = RingBuffer::new(10);
-        assert_eq!(rb.len(), 0);
-        rb.push(&[1.0, 2.0, 3.0]);
-        assert_eq!(rb.len(), 3);
-        assert_eq!(rb.read_last(3), vec![1.0, 2.0, 3.0]);
-    }
-
-    #[test]
-    fn test_ring_buffer_wraps() {
-        let mut rb = RingBuffer::new(4);
-        rb.push(&[1.0, 2.0, 3.0, 4.0]);
-        assert_eq!(rb.read_last(4), vec![1.0, 2.0, 3.0, 4.0]);
-        rb.push(&[5.0, 6.0]);
-        // Should now contain [3, 4, 5, 6]
-        assert_eq!(rb.read_last(4), vec![3.0, 4.0, 5.0, 6.0]);
-    }
-
-    #[test]
-    fn test_ring_buffer_read_more_than_available() {
-        let mut rb = RingBuffer::new(10);
-        rb.push(&[1.0, 2.0]);
-        let out = rb.read_last(5);
-        assert_eq!(out, vec![1.0, 2.0]);
-    }
-
-    #[test]
-    fn test_ring_buffer_clear() {
-        let mut rb = RingBuffer::new(10);
-        rb.push(&[1.0, 2.0, 3.0]);
-        rb.clear();
-        assert_eq!(rb.len(), 0);
-        assert_eq!(rb.read_last(10), Vec::<f32>::new());
     }
 
     // ── Streaming pipeline tests ────────────────────────────────────────────
