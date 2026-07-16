@@ -5,6 +5,7 @@ pub mod cloud_transcription;
 pub mod diarization;
 pub mod dictation;
 pub mod export;
+pub mod float;
 pub mod import;
 pub mod integrations;
 pub mod keychain;

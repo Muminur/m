@@ -1,6 +1,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { useRecordingStore, type StopRecordingResult } from "@/stores/recordingStore";
+import { handleRecordingStopped } from "./onRecordingStopped";
 import { startTranscriptionInBackground } from "./autoTranscribe";
 
 export type NavigateFn = (path: string) => void;
@@ -95,19 +96,17 @@ function handleStopped(event: { payload: StopRecordingResult }) {
     durationMs: 0,
   });
 
-  // 2. Navigate FIRST — the placeholder transcript row already exists in
-  // the DB (created by RecordingManager::stop), so /library/<id> can
-  // mount immediately. Without this, the page only changes after
-  // transcribe_file's IPC completes (1-2s of staleness).
+  // 2. Navigate FIRST, then fire-and-forget the transcription. Shared with
+  // the in-app Stop button (RecordingPanel) via handleRecordingStopped so
+  // both entry points behave identically. The placeholder transcript row
+  // already exists in the DB (created by RecordingManager::stop), so
+  // /library/<id> can mount immediately.
   if (navigateFn) {
-    navigateFn(`/library/${transcriptId}`);
+    handleRecordingStopped(navigateFn, event.payload);
   } else {
     console.error("[trayBridge] navigateFn not set — cannot navigate to new transcript");
+    // Still kick off transcription so the recording isn't lost, even
+    // though we couldn't navigate to it.
+    void startTranscriptionInBackground(audioPath, transcriptId);
   }
-
-  // 3. Fire-and-forget the transcription. startTranscriptionInBackground
-  // marks the transcript as pending in useTranscribingStore so the page's
-  // spinner shows up, then resolves when whisper has finished setup.
-  // We intentionally don't await — keeping this handler synchronous.
-  void startTranscriptionInBackground(audioPath, transcriptId);
 }

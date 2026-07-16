@@ -45,12 +45,13 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
     let resume = MenuItem::with_id(handle, "tray.resume", "Resume", false, None::<&str>)?;
     let stop = MenuItem::with_id(handle, "tray.stop", "Stop and Transcribe", false, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(handle)?;
+    let float = MenuItem::with_id(handle, "tray.float", "Floating Recorder", true, None::<&str>)?;
     let show = MenuItem::with_id(handle, "tray.show", "Show WhisperDesk", true, None::<&str>)?;
     let quit = MenuItem::with_id(handle, "tray.quit", "Quit WhisperDesk", true, Some("Cmd+Q"))?;
 
     let menu = Menu::with_items(
         handle,
-        &[&start, &pause, &resume, &stop, &sep, &show, &quit],
+        &[&start, &pause, &resume, &stop, &sep, &float, &show, &quit],
     )?;
 
     let idle_icon = load_tray_image(handle, TrayState::Idle)?;
@@ -100,6 +101,10 @@ fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
         }
         "tray.quit" => {
             app.exit(0);
+            return;
+        }
+        "tray.float" => {
+            crate::commands::float::show_or_toggle_floating_recorder(app);
             return;
         }
         "tray.stop" => {

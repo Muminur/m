@@ -29,7 +29,8 @@ pub fn run() {
     // Initialize logging first
     logging::init();
 
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -38,7 +39,15 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_deep_link::init());
+
+    // NSPanel support for the floating recorder (macOS-only crate).
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
+    builder
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -139,6 +148,10 @@ pub fn run() {
             // Initialize macOS menu bar tray
             tray::setup_tray(app)?;
 
+            // Create + show the floating recorder widget on launch, honoring
+            // the user's last-persisted visibility preference.
+            commands::float::init_float_on_startup(&app_handle);
+
             tracing::info!("WhisperDesk initialized");
             Ok(())
         })
@@ -218,6 +231,10 @@ pub fn run() {
             commands::recording::get_recording_level,
             commands::recording::get_recording_status,
             commands::recording::is_system_audio_available,
+            // Floating recorder
+            commands::float::toggle_floating_recorder,
+            commands::float::float_stop_recording,
+            commands::float::float_ready,
             // Dictation
             commands::dictation::start_dictation,
             commands::dictation::stop_dictation,

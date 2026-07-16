@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Mic, Square, Pause, Play, Radio } from "lucide-react";
 import { useRecordingStore } from "@/stores/recordingStore";
 import { DeviceSelector } from "./DeviceSelector";
+import { handleRecordingStopped } from "@/lib/onRecordingStopped";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -12,6 +14,7 @@ function isValidStatus(s: string): s is RecordingStatus {
 }
 
 export function RecordingPanel() {
+  const navigate = useNavigate();
   const {
     status,
     audioSource,
@@ -92,11 +95,13 @@ export function RecordingPanel() {
   const handleStop = useCallback(async () => {
     const result = await stopRecording();
     if (result?.audioPath) {
-      // Recording saved — auto-transcription is handled by the tray's
-      // "Stop and Transcribe" flow; the in-app Stop button just saves
-      // a placeholder transcript that the user can transcribe later.
+      // Redirect to the just-recorded transcript and auto-start
+      // transcription — same flow as the tray's "Stop and Transcribe".
+      // If stopRecording returned null, the store already set an error
+      // that the UI displays below; we simply do nothing here.
+      handleRecordingStopped(navigate, result);
     }
-  }, [stopRecording]);
+  }, [stopRecording, navigate]);
 
   const formatDuration = (ms: number) => {
     const totalSec = Math.floor(ms / 1000);
