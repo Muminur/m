@@ -17,6 +17,7 @@ pub mod network;
 pub mod settings;
 pub mod shortcuts;
 pub mod transcription;
+pub mod translation;
 pub mod tray;
 pub mod watch;
 
