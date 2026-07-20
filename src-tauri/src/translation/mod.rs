@@ -32,6 +32,8 @@
 //! by NLLB; only the target prefix is required.
 
 pub mod languages;
+pub mod model;
+pub mod engine;
 
 #[cfg(test)]
 mod smoke {
