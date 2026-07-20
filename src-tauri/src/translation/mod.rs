@@ -31,6 +31,8 @@
 //! (Bengali), arb_Arab (Modern Standard Arabic). Source language is auto-detected
 //! by NLLB; only the target prefix is required.
 
+pub mod languages;
+
 #[cfg(test)]
 mod smoke {
     use ct2rs::{Config, Translator};
