@@ -98,6 +98,10 @@ pub fn run() {
             let translation_manager = Arc::new(transcription::translate::TranslationManager::new());
             app.manage(Arc::clone(&translation_manager));
 
+            // Initialize offline (NLLB) translation engine manager
+            let nllb_manager = Arc::new(translation::manager::TranslationEngineManager::new());
+            app.manage(Arc::clone(&nllb_manager));
+
             // Initialize shortcut manager
             let shortcut_manager = Arc::new(shortcuts::ShortcutManager::new());
             app.manage(Arc::clone(&shortcut_manager));
@@ -249,6 +253,12 @@ pub fn run() {
             commands::translate::set_translation_config,
             commands::translate::get_translation_config,
             commands::translate::get_supported_languages,
+            // Offline translation (NLLB)
+            commands::translation::list_translation_models,
+            commands::translation::download_translation_model,
+            commands::translation::delete_translation_model,
+            commands::translation::translate_transcript,
+            commands::translation::get_translation,
             // Shortcuts
             commands::shortcuts::register_shortcut,
             commands::shortcuts::unregister_shortcut,

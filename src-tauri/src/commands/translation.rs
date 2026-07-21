@@ -17,7 +17,9 @@ use crate::database::Database;
 use crate::error::{AppError, ModelErrorCode, StorageErrorCode};
 use crate::models::manager::ModelManager;
 use crate::network::guard::NetworkGuard;
-use crate::translation::model;
+use crate::database::{segments, translations};
+use crate::translation::manager::TranslationEngineManager;
+use crate::translation::{languages, model};
 
 /// Files that make up a functioning NLLB CTranslate2 model directory. The
 /// download URL stored in the DB is the HuggingFace repo `resolve/main` base;
@@ -277,6 +279,92 @@ async fn run_translation_download(
 
     tracing::info!("Translation model downloaded to {:?}", dir);
     Ok(())
+}
+
+// ─── Offline translation commands ────────────────────────────────────────────
+
+/// Translate every segment of a transcript into `target_lang` (a FLORES-200
+/// code, e.g. "ben_Beng") using the offline NLLB engine, cache the results, and
+/// return them. Loads the model lazily on first use.
+#[command]
+pub async fn translate_transcript(
+    transcript_id: String,
+    target_lang: String, // FLORES code e.g. "ben_Beng"
+    app_handle: AppHandle,
+    db: State<'_, Arc<Database>>,
+    model_manager: State<'_, Arc<ModelManager>>,
+    translation_manager: State<'_, Arc<TranslationEngineManager>>,
+) -> Result<Vec<translations::TranslationRow>, AppError> {
+    let models_root = model_manager.models_dir.clone();
+    if !model::is_downloaded(&models_root) {
+        let _ = app_handle.emit("translation:model-missing", model::NLLB_MODEL_ID);
+        return Err(AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: "translation model not downloaded".into(),
+        });
+    }
+
+    // Load source segments + detected source language (mapped to FLORES-200).
+    let (segs, source_flores) = {
+        let conn = db.get()?;
+        let segs = segments::get_by_transcript(&conn, &transcript_id)?;
+        let lang: Option<String> = conn
+            .query_row(
+                "SELECT language FROM transcripts WHERE id = ?1",
+                rusqlite::params![transcript_id],
+                |row| row.get(0),
+            )
+            .ok()
+            .flatten();
+        let src = languages::to_flores(lang.as_deref().unwrap_or("en"))
+            .unwrap_or("eng_Latn")
+            .to_string();
+        (segs, src)
+    };
+
+    // Skip if source == target (no-op).
+    if source_flores == target_lang {
+        return Ok(Vec::new());
+    }
+
+    translation_manager.ensure_loaded(&models_root)?;
+    let texts: Vec<String> = segs.iter().map(|s| s.text.clone()).collect();
+    let translated = translation_manager.translate(&texts, &source_flores, &target_lang)?;
+
+    let rows: Vec<(String, String)> = segs
+        .iter()
+        .zip(translated.iter())
+        .map(|(s, t)| (s.id.clone(), t.clone()))
+        .collect();
+
+    {
+        let conn = db.get()?;
+        translations::insert_batch(
+            &conn,
+            &transcript_id,
+            &target_lang,
+            Some(&source_flores),
+            &rows,
+        )?;
+    }
+
+    let result = {
+        let conn = db.get()?;
+        translations::get_by_transcript_lang(&conn, &transcript_id, &target_lang)?
+    };
+    let _ = app_handle.emit("translation:complete", &transcript_id);
+    Ok(result)
+}
+
+/// Return cached translations for a transcript in `target_lang`, if any.
+#[command]
+pub async fn get_translation(
+    transcript_id: String,
+    target_lang: String,
+    db: State<'_, Arc<Database>>,
+) -> Result<Vec<translations::TranslationRow>, AppError> {
+    let conn = db.get()?;
+    translations::get_by_transcript_lang(&conn, &transcript_id, &target_lang)
 }
 
 #[cfg(test)]

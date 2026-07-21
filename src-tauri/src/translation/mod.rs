@@ -34,6 +34,7 @@
 pub mod languages;
 pub mod model;
 pub mod engine;
+pub mod manager;
 
 #[cfg(test)]
 mod smoke {
