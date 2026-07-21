@@ -40,6 +40,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         globalShortcutTranscribe: "global_shortcut_transcribe",
         globalShortcutDictate: "global_shortcut_dictate",
         accelerationBackend: "acceleration_backend",
+        autoTranslate: "auto_translate",
+        autoTranslateTargetLang: "auto_translate_target_lang",
       };
       const snakeUpdates = Object.fromEntries(
         Object.entries(updates)
