@@ -71,6 +71,10 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
             "V017",
             include_str!("../../migrations/V017__translations.sql"),
         ),
+        (
+            "V018",
+            include_str!("../../migrations/V018__translation_models.sql"),
+        ),
     ];
 
     conn.execute_batch(
