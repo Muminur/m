@@ -12,6 +12,7 @@ import { PerformanceBar } from "@/components/transcription/PerformanceBar";
 import { FindReplace } from "@/components/editor/FindReplace";
 import { Waveform } from "@/components/editor/Waveform";
 import { TranscriptView } from "@/components/editor/TranscriptView";
+import { DualSubtitles } from "@/components/editor";
 
 interface SegmentEvent {
   jobId: string;
@@ -59,6 +60,7 @@ export function TranscriptDetail() {
   const [showFindReplace, setShowFindReplace] = useState(false);
   const [_editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  const [viewMode, setViewMode] = useState<"original" | "translated">("original");
 
   // Load transcript from DB when ID changes
   useEffect(() => {
@@ -272,6 +274,28 @@ export function TranscriptDetail() {
             ? ` · ${current.transcript.wordCount} words`
             : null}
         </p>
+        <div className="mt-2 flex items-center gap-1">
+          <button
+            onClick={() => setViewMode("original")}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewMode === "original"
+                ? "bg-primary text-primary-foreground"
+                : "border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            {t("transcription.view_original", "Original")}
+          </button>
+          <button
+            onClick={() => setViewMode("translated")}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewMode === "translated"
+                ? "bg-primary text-primary-foreground"
+                : "border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            {t("transcription.view_translated", "Translated")}
+          </button>
+        </div>
         <PerformanceBar transcriptId={id} />
       </div>
 
@@ -318,6 +342,8 @@ export function TranscriptDetail() {
           ))}
           <div ref={bottomRef} />
         </div>
+      ) : viewMode === "translated" ? (
+        <DualSubtitles transcriptId={id!} segments={displaySegments} currentTimeMs={currentTimeMs} />
       ) : (
         <TranscriptView
           segments={displaySegments}

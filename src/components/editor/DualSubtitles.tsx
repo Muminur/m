@@ -1,16 +1,9 @@
 import { useState, useMemo, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Copy, AlertCircle, Languages } from "lucide-react";
 import { toast } from "sonner";
-import { DEEPL_LANGUAGES } from "../../constants/languages";
-
-interface Segment {
-  id: string;
-  start_ms: number;
-  end_ms: number;
-  text: string;
-  speaker_id?: string;
-}
+import type { Segment } from "@/lib/types";
+import { TRANSLATION_LANGUAGES } from "../../constants/translationLanguages";
+import { useTranslationStore } from "../../stores";
 
 interface DualSubtitlesProps {
   transcriptId: string;
@@ -31,54 +24,40 @@ export function DualSubtitles({
   segments,
   currentTimeMs,
 }: DualSubtitlesProps) {
-  const [targetLang, setTargetLang] = useState("EN");
-  const [translations, setTranslations] = useState<string[]>([]);
-  const [isTranslating, setIsTranslating] = useState(false);
+  const [targetLang, setTargetLang] = useState("ben_Beng");
+  const { translations, isTranslating, translate } = useTranslationStore();
   const [error, setError] = useState<string | null>(null);
 
   const activeIndex = useMemo(() => {
     if (currentTimeMs == null) return -1;
     return segments.findIndex(
-      (seg) => currentTimeMs >= seg.start_ms && currentTimeMs < seg.end_ms
+      (seg) => currentTimeMs >= seg.startMs && currentTimeMs < seg.endMs
     );
   }, [segments, currentTimeMs]);
 
   const handleTranslate = useCallback(async () => {
-    setIsTranslating(true);
     setError(null);
-    setTranslations([]);
     try {
-      const result = await invoke<string[]>("translate_segments_deepl", {
-        transcriptId,
-        targetLang,
-      });
-      setTranslations(result);
+      await translate(transcriptId, targetLang);
     } catch (err) {
-      const message = String(err);
-      if (
-        message.includes("API key not found") ||
-        message.includes("ConfigurationMissing")
-      ) {
-        setError("DeepL API key required. Configure it in Integration Settings.");
-      } else {
-        setError(`Translation failed: ${message}`);
-      }
-    } finally {
-      setIsTranslating(false);
+      setError(`Translation failed: ${String(err)}`);
     }
-  }, [transcriptId, targetLang]);
+  }, [transcriptId, targetLang, translate]);
+
+  const hasTranslations = Object.keys(translations).length > 0;
 
   const handleCopyTranslated = useCallback(async () => {
-    if (translations.length === 0) return;
+    if (!hasTranslations) return;
     try {
-      await navigator.clipboard.writeText(translations.join("\n"));
+      const text = segments
+        .map((seg) => translations[seg.id] ?? "")
+        .join("\n");
+      await navigator.clipboard.writeText(text);
       toast.success("Translated text copied to clipboard");
     } catch {
       toast.error("Failed to copy to clipboard");
     }
-  }, [translations]);
-
-  const hasTranslations = translations.length > 0;
+  }, [segments, translations, hasTranslations]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -90,9 +69,9 @@ export function DualSubtitles({
           onChange={(e) => setTargetLang(e.target.value)}
           className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
         >
-          {DEEPL_LANGUAGES.map((lang) => (
+          {TRANSLATION_LANGUAGES.map((lang) => (
             <option key={lang.value} value={lang.value}>
-              {lang.label} ({lang.value})
+              {lang.label}
             </option>
           ))}
         </select>
@@ -169,17 +148,17 @@ export function DualSubtitles({
                     }`}
                   >
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground align-top">
-                      <div>{formatTimestamp(segment.start_ms)}</div>
-                      {segment.speaker_id && (
+                      <div>{formatTimestamp(segment.startMs)}</div>
+                      {segment.speakerId && (
                         <div className="mt-0.5 text-[10px] font-medium text-primary/70">
-                          {segment.speaker_id}
+                          {segment.speakerId}
                         </div>
                       )}
                     </td>
                     <td className="px-3 py-2 align-top">{segment.text}</td>
                     {hasTranslations && (
                       <td className="px-3 py-2 align-top text-muted-foreground">
-                        {translations[index] ?? ""}
+                        {translations[segment.id] ?? ""}
                       </td>
                     )}
                   </tr>
