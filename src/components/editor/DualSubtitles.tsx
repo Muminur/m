@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Loader2, Copy, AlertCircle, Languages } from "lucide-react";
 import { toast } from "sonner";
 import type { Segment } from "@/lib/types";
@@ -25,8 +25,15 @@ export function DualSubtitles({
   currentTimeMs,
 }: DualSubtitlesProps) {
   const [targetLang, setTargetLang] = useState("ben_Beng");
-  const { translations, isTranslating, translate } = useTranslationStore();
-  const [error, setError] = useState<string | null>(null);
+  const { translations, isTranslating, error, translate, loadCached } =
+    useTranslationStore();
+
+  // Load any persisted translations for the current target language so the
+  // Translated view shows cached results immediately, without waiting for the
+  // user to click Translate. Re-runs when the target language changes.
+  useEffect(() => {
+    void loadCached(transcriptId, targetLang);
+  }, [transcriptId, targetLang, loadCached]);
 
   const activeIndex = useMemo(() => {
     if (currentTimeMs == null) return -1;
@@ -36,12 +43,9 @@ export function DualSubtitles({
   }, [segments, currentTimeMs]);
 
   const handleTranslate = useCallback(async () => {
-    setError(null);
-    try {
-      await translate(transcriptId, targetLang);
-    } catch (err) {
-      setError(`Translation failed: ${String(err)}`);
-    }
+    // The store swallows errors into store.error (it never throws), so no
+    // local try/catch is needed here — the error banner below reads store.error.
+    await translate(transcriptId, targetLang);
   }, [transcriptId, targetLang, translate]);
 
   const hasTranslations = Object.keys(translations).length > 0;

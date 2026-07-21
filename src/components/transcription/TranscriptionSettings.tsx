@@ -36,6 +36,8 @@ const LANGUAGES = [
   { value: "ja", label: "Japanese" },
   { value: "zh", label: "Chinese" },
   { value: "ko", label: "Korean" },
+  { value: "bn", label: "Bengali (Bangla)" },
+  { value: "ar", label: "Arabic" },
 ];
 
 interface TranscriptionSettingsProps {

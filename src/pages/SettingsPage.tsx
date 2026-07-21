@@ -2,6 +2,7 @@ import { AccelerationSettings } from "@/components/settings/AccelerationSettings
 import { DefaultModelSettings } from "@/components/settings/DefaultModelSettings";
 import { WatchFolderSettings } from "@/components/settings/WatchFolderSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
+import { TranslationSettings } from "@/components/settings/TranslationSettings";
 import { UpdateSettings } from "@/components/settings/UpdateSettings";
 
 export function SettingsPage() {
@@ -26,6 +27,12 @@ export function SettingsPage() {
 
         <section>
           <ApiKeySettings />
+        </section>
+
+        <div className="h-px bg-border" />
+
+        <section>
+          <TranslationSettings />
         </section>
 
         <div className="h-px bg-border" />

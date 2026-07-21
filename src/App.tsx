@@ -10,6 +10,7 @@ import { useUpdateStore } from "./stores/updateStore";
 import { lazy, Suspense, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { initTrayBridge } from "./lib/trayBridge";
+import { initAutoTranslate } from "./lib/autoTranslate";
 
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
@@ -102,6 +103,19 @@ function AppInner() {
       unmount?.();
     };
   }, [navigate]);
+
+  // Mount the auto-translate listener once. Fires after each
+  // `transcription:complete` and, when enabled in Settings, translates the new
+  // transcript into the fixed target language. Never blocks transcription.
+  useEffect(() => {
+    let unmount: (() => void) | null = null;
+    initAutoTranslate().then((u) => {
+      unmount = u;
+    });
+    return () => {
+      unmount?.();
+    };
+  }, []);
 
   return (
     <Routes>
