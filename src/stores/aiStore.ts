@@ -162,7 +162,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     try {
       const ollamaModels = await invoke<string[]>("list_ollama_models");
       set({ ollamaModels });
-    } catch (err) {
+    } catch {
       // Ollama might not be running; not an error for the user
       set({ ollamaModels: [] });
     }

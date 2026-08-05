@@ -17,6 +17,7 @@ pub mod network;
 pub mod settings;
 pub mod shortcuts;
 pub mod transcription;
+pub mod translation;
 pub mod tray;
 pub mod watch;
 
@@ -29,7 +30,8 @@ pub fn run() {
     // Initialize logging first
     logging::init();
 
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -38,7 +40,15 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_deep_link::init());
+
+    // NSPanel support for the floating recorder (macOS-only crate).
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
+    builder
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -87,6 +97,10 @@ pub fn run() {
             // Initialize translation manager
             let translation_manager = Arc::new(transcription::translate::TranslationManager::new());
             app.manage(Arc::clone(&translation_manager));
+
+            // Initialize offline (NLLB) translation engine manager
+            let nllb_manager = Arc::new(translation::manager::TranslationEngineManager::new());
+            app.manage(Arc::clone(&nllb_manager));
 
             // Initialize shortcut manager
             let shortcut_manager = Arc::new(shortcuts::ShortcutManager::new());
@@ -138,6 +152,10 @@ pub fn run() {
 
             // Initialize macOS menu bar tray
             tray::setup_tray(app)?;
+
+            // Create + show the floating recorder widget on launch, honoring
+            // the user's last-persisted visibility preference.
+            commands::float::init_float_on_startup(&app_handle);
 
             tracing::info!("WhisperDesk initialized");
             Ok(())
@@ -218,6 +236,10 @@ pub fn run() {
             commands::recording::get_recording_level,
             commands::recording::get_recording_status,
             commands::recording::is_system_audio_available,
+            // Floating recorder
+            commands::float::toggle_floating_recorder,
+            commands::float::float_stop_recording,
+            commands::float::float_ready,
             // Dictation
             commands::dictation::start_dictation,
             commands::dictation::stop_dictation,
@@ -231,6 +253,12 @@ pub fn run() {
             commands::translate::set_translation_config,
             commands::translate::get_translation_config,
             commands::translate::get_supported_languages,
+            // Offline translation (NLLB)
+            commands::translation::list_translation_models,
+            commands::translation::download_translation_model,
+            commands::translation::delete_translation_model,
+            commands::translation::translate_transcript,
+            commands::translation::get_translation,
             // Shortcuts
             commands::shortcuts::register_shortcut,
             commands::shortcuts::unregister_shortcut,

@@ -34,17 +34,6 @@ export function SpotlightBar() {
     };
   }, [addSegment]);
 
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
   const handleClose = useCallback(async () => {
     setSpotlightVisible(false);
     try {
@@ -61,6 +50,17 @@ export function SpotlightBar() {
       // Window may not exist in non-Tauri context
     }
   }, [isListening, setSpotlightVisible, setStatus]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        void handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleClose]);
 
   const handleCopy = useCallback(async () => {
     try {

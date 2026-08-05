@@ -1,6 +1,66 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings } from "@/lib/types";
+import type { AppSettings, WatchFolderConfig } from "@/lib/types";
+
+interface BackendWatchFolderConfig {
+  path: string;
+  model_id?: string | null;
+  language?: string | null;
+  enabled: boolean;
+}
+
+interface BackendAppSettings {
+  theme: AppSettings["theme"];
+  language: string;
+  default_model_id?: string | null;
+  network_policy: AppSettings["networkPolicy"];
+  logs_enabled: boolean;
+  watch_folders: BackendWatchFolderConfig[];
+  show_onboarding: boolean;
+  global_shortcut_transcribe?: string | null;
+  global_shortcut_dictate?: string | null;
+  acceleration_backend?: AppSettings["accelerationBackend"];
+  auto_translate?: boolean;
+  auto_translate_target_lang?: string | null;
+}
+
+function fromBackendWatchFolder(folder: BackendWatchFolderConfig): WatchFolderConfig {
+  return {
+    path: folder.path,
+    modelId: folder.model_id ?? undefined,
+    language: folder.language ?? undefined,
+    enabled: folder.enabled,
+  };
+}
+
+function toBackendWatchFolder(folder: WatchFolderConfig): BackendWatchFolderConfig {
+  return {
+    path: folder.path,
+    model_id: folder.modelId,
+    language: folder.language,
+    enabled: folder.enabled,
+  };
+}
+
+/** Normalize Rust's persisted snake_case settings into the frontend contract. */
+function fromBackendSettings(raw: BackendAppSettings | AppSettings): AppSettings {
+  if (!("network_policy" in raw)) return raw;
+
+  return {
+    theme: raw.theme,
+    language: raw.language,
+    defaultModelId: raw.default_model_id ?? undefined,
+    networkPolicy: raw.network_policy,
+    logsEnabled: raw.logs_enabled,
+    watchFolders: raw.watch_folders.map(fromBackendWatchFolder),
+    showOnboarding: raw.show_onboarding,
+    globalShortcutTranscribe: raw.global_shortcut_transcribe ?? undefined,
+    globalShortcutDictate: raw.global_shortcut_dictate ?? undefined,
+    accelerationBackend: raw.acceleration_backend,
+    autoTranslate: raw.auto_translate,
+    autoTranslateTargetLang: raw.auto_translate_target_lang ?? undefined,
+  };
+}
 
 interface SettingsState {
   settings: AppSettings | null;
@@ -19,8 +79,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   loadSettings: async () => {
     set({ isLoading: true, error: null });
     try {
-      const settings = await invoke<AppSettings>("get_settings");
-      set({ settings, isLoading: false });
+      const settings = await invoke<BackendAppSettings | AppSettings>("get_settings");
+      set({ settings: fromBackendSettings(settings), isLoading: false });
     } catch (err) {
       set({ error: String(err), isLoading: false });
     }
@@ -40,16 +100,21 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         globalShortcutTranscribe: "global_shortcut_transcribe",
         globalShortcutDictate: "global_shortcut_dictate",
         accelerationBackend: "acceleration_backend",
+        autoTranslate: "auto_translate",
+        autoTranslateTargetLang: "auto_translate_target_lang",
       };
       const snakeUpdates = Object.fromEntries(
         Object.entries(updates)
           .filter(([k]) => k in keyMap)
-          .map(([k, v]) => [keyMap[k], v])
+          .map(([k, v]) => [
+            keyMap[k],
+            k === "watchFolders" && Array.isArray(v) ? v.map(toBackendWatchFolder) : v,
+          ])
       );
-      const newSettings = await invoke<AppSettings>("update_settings", {
+      const newSettings = await invoke<BackendAppSettings | AppSettings>("update_settings", {
         updates: snakeUpdates,
       });
-      set({ settings: newSettings });
+      set({ settings: fromBackendSettings(newSettings) });
     } catch (err) {
       set({ error: String(err) });
     }

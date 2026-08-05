@@ -104,9 +104,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Link Clang runtime
+        run: |
+          CLANG_RT_DIR=$(xcrun clang -print-runtime-dir)
+          echo "RUSTFLAGS=-C link-arg=-L${CLANG_RT_DIR} -C link-arg=-lclang_rt.osx" >> "$GITHUB_ENV"
+
       - name: Build Tauri app
-        run: npx tauri build --bundles none
+        run: npx tauri build --no-bundle
         env:
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 

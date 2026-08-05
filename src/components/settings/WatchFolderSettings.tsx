@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Plus, Trash2, Eye, EyeOff } from "lucide-react";
@@ -7,7 +7,10 @@ import type { WatchFolderConfig } from "@/lib/types";
 
 export function WatchFolderSettings() {
   const { settings, updateSettings } = useSettingsStore();
-  const watchFolders = settings?.watchFolders ?? [];
+  const watchFolders = useMemo(
+    () => settings?.watchFolders ?? [],
+    [settings?.watchFolders]
+  );
 
   const addFolder = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false });

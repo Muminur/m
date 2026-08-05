@@ -1,16 +1,11 @@
-import { useState, useMemo, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Loader2, Copy, AlertCircle, Languages } from "lucide-react";
 import { toast } from "sonner";
-import { DEEPL_LANGUAGES } from "../../constants/languages";
-
-interface Segment {
-  id: string;
-  start_ms: number;
-  end_ms: number;
-  text: string;
-  speaker_id?: string;
-}
+import { listen } from "@tauri-apps/api/event";
+import type { Segment } from "@/lib/types";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { TRANSLATION_LANGUAGES } from "../../constants/translationLanguages";
+import { useTranslationStore } from "../../stores";
 
 interface DualSubtitlesProps {
   transcriptId: string;
@@ -26,59 +21,65 @@ function formatTimestamp(ms: number): string {
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
-export function DualSubtitles({
-  transcriptId,
-  segments,
-  currentTimeMs,
-}: DualSubtitlesProps) {
-  const [targetLang, setTargetLang] = useState("EN");
-  const [translations, setTranslations] = useState<string[]>([]);
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function DualSubtitles({ transcriptId, segments, currentTimeMs }: DualSubtitlesProps) {
+  const configuredTarget = useSettingsStore((state) => state.settings?.autoTranslateTargetLang);
+  const [targetLang, setTargetLang] = useState(configuredTarget ?? TRANSLATION_LANGUAGES[0].value);
+  const { translations, isTranslating, error, translate, loadCached } = useTranslationStore();
+
+  // Load any persisted translations for the current target language so the
+  // Translated view shows cached results immediately, without waiting for the
+  // user to click Translate. Re-runs when the target language changes.
+  useEffect(() => {
+    void loadCached(transcriptId, targetLang);
+  }, [transcriptId, targetLang, loadCached]);
+
+  useEffect(() => {
+    if (configuredTarget) setTargetLang(configuredTarget);
+  }, [configuredTarget]);
+
+  // Auto-translation runs outside the view store. Refresh this transcript's
+  // cache when the backend finishes so an already-open Translated view updates.
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    void listen<string>("translation:complete", (event) => {
+      if (event.payload === transcriptId) {
+        void loadCached(transcriptId, targetLang);
+      }
+    }).then((remove) => {
+      if (cancelled) remove();
+      else unlisten = remove;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [transcriptId, targetLang, loadCached]);
 
   const activeIndex = useMemo(() => {
     if (currentTimeMs == null) return -1;
-    return segments.findIndex(
-      (seg) => currentTimeMs >= seg.start_ms && currentTimeMs < seg.end_ms
-    );
+    return segments.findIndex((seg) => currentTimeMs >= seg.startMs && currentTimeMs < seg.endMs);
   }, [segments, currentTimeMs]);
 
   const handleTranslate = useCallback(async () => {
-    setIsTranslating(true);
-    setError(null);
-    setTranslations([]);
-    try {
-      const result = await invoke<string[]>("translate_segments_deepl", {
-        transcriptId,
-        targetLang,
-      });
-      setTranslations(result);
-    } catch (err) {
-      const message = String(err);
-      if (
-        message.includes("API key not found") ||
-        message.includes("ConfigurationMissing")
-      ) {
-        setError("DeepL API key required. Configure it in Integration Settings.");
-      } else {
-        setError(`Translation failed: ${message}`);
-      }
-    } finally {
-      setIsTranslating(false);
-    }
-  }, [transcriptId, targetLang]);
+    // The store swallows errors into store.error (it never throws), so no
+    // local try/catch is needed here — the error banner below reads store.error.
+    await translate(transcriptId, targetLang);
+  }, [transcriptId, targetLang, translate]);
+
+  const hasTranslations = Object.keys(translations).length > 0;
 
   const handleCopyTranslated = useCallback(async () => {
-    if (translations.length === 0) return;
+    if (!hasTranslations) return;
     try {
-      await navigator.clipboard.writeText(translations.join("\n"));
+      const text = segments.map((seg) => translations[seg.id] ?? "").join("\n");
+      await navigator.clipboard.writeText(text);
       toast.success("Translated text copied to clipboard");
     } catch {
       toast.error("Failed to copy to clipboard");
     }
-  }, [translations]);
-
-  const hasTranslations = translations.length > 0;
+  }, [segments, translations, hasTranslations]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -90,9 +91,9 @@ export function DualSubtitles({
           onChange={(e) => setTargetLang(e.target.value)}
           className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
         >
-          {DEEPL_LANGUAGES.map((lang) => (
+          {TRANSLATION_LANGUAGES.map((lang) => (
             <option key={lang.value} value={lang.value}>
-              {lang.label} ({lang.value})
+              {lang.label}
             </option>
           ))}
         </select>
@@ -163,23 +164,21 @@ export function DualSubtitles({
                   <tr
                     key={segment.id}
                     className={`border-b border-border last:border-b-0 transition-colors ${
-                      isActive
-                        ? "bg-primary/10 dark:bg-primary/20"
-                        : "hover:bg-muted/30"
+                      isActive ? "bg-primary/10 dark:bg-primary/20" : "hover:bg-muted/30"
                     }`}
                   >
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground align-top">
-                      <div>{formatTimestamp(segment.start_ms)}</div>
-                      {segment.speaker_id && (
+                      <div>{formatTimestamp(segment.startMs)}</div>
+                      {segment.speakerId && (
                         <div className="mt-0.5 text-[10px] font-medium text-primary/70">
-                          {segment.speaker_id}
+                          {segment.speakerId}
                         </div>
                       )}
                     </td>
                     <td className="px-3 py-2 align-top">{segment.text}</td>
                     {hasTranslations && (
                       <td className="px-3 py-2 align-top text-muted-foreground">
-                        {translations[index] ?? ""}
+                        {translations[segment.id] ?? ""}
                       </td>
                     )}
                   </tr>
@@ -192,9 +191,7 @@ export function DualSubtitles({
 
       {/* Empty state */}
       {segments.length === 0 && (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No segments available.
-        </div>
+        <div className="py-8 text-center text-sm text-muted-foreground">No segments available.</div>
       )}
     </div>
   );

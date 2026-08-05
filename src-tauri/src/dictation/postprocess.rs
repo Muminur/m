@@ -116,12 +116,9 @@ impl PostProcessor {
 
         // Sort commands by phrase length descending so longer phrases match first
         let mut sorted_commands: Vec<&PunctuationCommand> = self.commands.iter().collect();
-        sorted_commands.sort_by(|a, b| b.phrase.len().cmp(&a.phrase.len()));
+        sorted_commands.sort_by_key(|command| std::cmp::Reverse(command.phrase.len()));
 
-        // Replace punctuation commands (case-insensitive)
-        // We track which positions need capitalize-next
-        let mut capitalize_positions: Vec<usize> = Vec::new();
-
+        // Replace punctuation commands (case-insensitive).
         for cmd in &sorted_commands {
             let lower = result.to_lowercase();
             let mut search_from = 0;
@@ -156,16 +153,14 @@ impl PostProcessor {
                             end_pos
                         };
 
-                        let replacement = if cmd.capitalize_next {
+                        // Sentence-ending commands need a separator only when
+                        // more dictated text follows. Adding one at EOF left
+                        // every completed sentence with a trailing space.
+                        let replacement = if cmd.capitalize_next && replace_end < result.len() {
                             format!("{} ", cmd.replacement)
                         } else {
                             cmd.replacement.to_string()
                         };
-
-                        if cmd.capitalize_next {
-                            // The character right after the replacement (including the space) should be capitalized
-                            capitalize_positions.push(replace_start + replacement.len());
-                        }
 
                         result.replace_range(replace_start..replace_end, &replacement);
 
@@ -193,7 +188,7 @@ impl PostProcessor {
         let mut result = String::with_capacity(text.len());
         let mut capitalize_next = false;
         for ch in text.chars() {
-            if matches!(ch, '.' | '?' | '!') {
+            if matches!(ch, '.' | '?' | '!' | '\n') {
                 capitalize_next = true;
                 result.push(ch);
             } else if capitalize_next && ch.is_ascii_lowercase() {

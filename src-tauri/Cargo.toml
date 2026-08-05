@@ -8,7 +8,11 @@ rust-version = "1.77"
 
 [lib]
 name = "whisper_desk_app_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Desktop builds and the binary entrypoint link this crate as an rlib. The
+# staticlib/cdylib outputs are only needed for Tauri mobile targets and cause
+# Cargo to duplicate the bundled oneDNN archive by several gigabytes in every
+# test build.
+crate-type = ["rlib"]
 
 [[bin]]
 name = "whisper-desk-app"
@@ -82,6 +86,18 @@ security-framework = "3.0"
 core-foundation = "0.10"
 # Whisper inference (requires Metal + libclang — macOS only)
 whisper-rs = { version = "0.16.0", features = ["metal"] }
+# Offline neural machine translation (CTranslate2). CPU int8 on Intel Mac.
+# NOTE: ct2rs-platform hardcodes the `mkl` feature for macOS x86_64, but its
+# `intel-onemkl-prebuild` dep panics "MacOS is not supported" (no macOS binaries).
+# So we depend on ct2rs directly with default-features off and select macOS-safe
+# CPU backends: `dnnl` (oneDNN, built from source) + `ruy` (int8). Do not remove
+# `dnnl`: live-model benchmarks showed the ruy-only and Accelerate+ruy variants
+# taking minutes for a single sentence, versus seconds with oneDNN.
+# NEVER enable Metal/GPU/cuda here — Intel x86_64 aborts on Metal.
+ct2rs = { version = "0.9", default-features = false, features = ["dnnl", "ruy", "tokenizers"] }
+# Floating recorder NSPanel support (macOS-only; pulls in cocoa/objc).
+# git-only crate; v2 branch targets tauri ^2.0.6 (unifies with tauri 2.10.3).
+tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2" }
 
 [[bench]]
 name = "transcription_bench"

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 const mockInvoke = vi.fn();
@@ -30,6 +31,19 @@ vi.mock("@/stores/settingsStore", () => ({
   })),
 }));
 
+vi.mock("@/stores/modelStore", () => {
+  const state = {
+    models: [],
+    loadModels: vi.fn(),
+    setDefaultModel: vi.fn(),
+  };
+  return {
+    useModelStore: Object.assign(vi.fn(() => state), {
+      getState: () => state,
+    }),
+  };
+});
+
 // Mock updateStore
 vi.mock("@/stores/updateStore", () => ({
   useUpdateStore: vi.fn(() => ({
@@ -42,6 +56,25 @@ vi.mock("@/stores/updateStore", () => ({
   })),
 }));
 
+vi.mock("@/stores/translationModelStore", () => ({
+  useTranslationModelStore: vi.fn(() => ({
+    models: [],
+    downloadProgress: {},
+    error: null,
+    loadModels: vi.fn(),
+    downloadModel: vi.fn(),
+    deleteModel: vi.fn(),
+  })),
+}));
+
+function renderSettings() {
+  return render(
+    <MemoryRouter>
+      <SettingsPage />
+    </MemoryRouter>
+  );
+}
+
 describe("SettingsPage", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
@@ -50,7 +83,7 @@ describe("SettingsPage", () => {
 
   it("renders the Settings heading", async () => {
     await act(async () => {
-      render(<SettingsPage />);
+      renderSettings();
     });
 
     expect(screen.getByText("Settings")).toBeInTheDocument();
@@ -58,7 +91,7 @@ describe("SettingsPage", () => {
 
   it("renders Acceleration Backend section", async () => {
     await act(async () => {
-      render(<SettingsPage />);
+      renderSettings();
     });
 
     expect(screen.getByText("Acceleration Backend")).toBeInTheDocument();
@@ -70,7 +103,7 @@ describe("SettingsPage", () => {
 
   it("renders API Keys section", async () => {
     await act(async () => {
-      render(<SettingsPage />);
+      renderSettings();
     });
 
     expect(screen.getByText("API Keys")).toBeInTheDocument();
@@ -81,7 +114,7 @@ describe("SettingsPage", () => {
 
   it("renders Watch Folders section", async () => {
     await act(async () => {
-      render(<SettingsPage />);
+      renderSettings();
     });
 
     expect(screen.getByText("Watch Folders")).toBeInTheDocument();
@@ -90,7 +123,7 @@ describe("SettingsPage", () => {
 
   it("renders the Auto option as checked by default", async () => {
     await act(async () => {
-      render(<SettingsPage />);
+      renderSettings();
     });
 
     const autoRadio = screen.getByDisplayValue("auto");
@@ -99,7 +132,7 @@ describe("SettingsPage", () => {
 
   it("renders CoreML option as disabled", async () => {
     await act(async () => {
-      render(<SettingsPage />);
+      renderSettings();
     });
 
     const coremlRadio = screen.getByDisplayValue("core_ml");

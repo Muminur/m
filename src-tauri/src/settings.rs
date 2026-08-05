@@ -73,6 +73,10 @@ pub struct AppSettings {
     pub global_shortcut_dictate: Option<String>,
     #[serde(default)]
     pub acceleration_backend: AccelerationBackend,
+    #[serde(default)]
+    pub auto_translate: bool,
+    #[serde(default)]
+    pub auto_translate_target_lang: Option<String>,
 }
 
 fn default_language() -> String {
@@ -96,6 +100,8 @@ impl Default for AppSettings {
             global_shortcut_transcribe: None,
             global_shortcut_dictate: None,
             acceleration_backend: AccelerationBackend::Auto,
+            auto_translate: false,
+            auto_translate_target_lang: None,
         }
     }
 }
@@ -206,6 +212,14 @@ mod tests {
             let back: AccelerationBackend = serde_json::from_str(&json).unwrap();
             assert_eq!(&back, variant);
         }
+    }
+
+    #[test]
+    fn settings_backward_compat_without_translate_fields() {
+        let json = r#"{"theme":"system","language":"en"}"#;
+        let s: AppSettings = serde_json::from_str(json).unwrap();
+        assert!(!s.auto_translate);
+        assert!(s.auto_translate_target_lang.is_none());
     }
 
     #[test]

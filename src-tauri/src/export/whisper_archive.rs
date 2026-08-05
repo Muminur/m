@@ -34,7 +34,7 @@ pub fn export_archive(
     let manifest = ArchiveManifest {
         version: 1,
         created_at: chrono::Utc::now().timestamp(),
-        app_version: "1.0.0".into(),
+        app_version: env!("CARGO_PKG_VERSION").into(),
     };
     zip.start_file("manifest.json", options)
         .map_err(|e| AppError::ExportError {

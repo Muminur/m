@@ -5,6 +5,7 @@ pub mod segments;
 pub mod smart_folders;
 pub mod transcript_queries;
 pub mod transcripts;
+pub mod translations;
 pub mod undo;
 
 use crate::error::{AppError, StorageErrorCode};

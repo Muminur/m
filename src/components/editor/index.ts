@@ -4,3 +4,4 @@ export { SegmentEditor } from "./SegmentEditor";
 export { FindReplace } from "./FindReplace";
 export { VideoPlayer } from "./VideoPlayer";
 export { SpeakerLabels } from "./SpeakerLabels";
+export { DualSubtitles } from "./DualSubtitles";

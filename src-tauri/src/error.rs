@@ -113,6 +113,7 @@ pub enum ModelErrorCode {
     CorruptedFile,
     NotFound,
     InsufficientDisk,
+    UnsupportedPlatform,
 }
 
 #[derive(Debug, Serialize, Clone)]

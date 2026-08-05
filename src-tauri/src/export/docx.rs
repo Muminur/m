@@ -75,6 +75,10 @@ pub fn export_docx(
 
     // Render document.xml from Handlebars template
     let mut hbs = Handlebars::new();
+    // Context fields are escaped explicitly with xml_escape above. The
+    // default Handlebars HTML escaper would encode the ampersands a second
+    // time (`&lt;` -> `&amp;lt;`) and produce literal entities in Word.
+    hbs.register_escape_fn(handlebars::no_escape);
     hbs.register_template_string("document", DOCUMENT_XML_HBS)
         .map_err(|e| AppError::ExportError {
             code: ExportErrorCode::TemplateError,

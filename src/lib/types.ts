@@ -79,6 +79,8 @@ export interface AppSettings {
   globalShortcutTranscribe?: string;
   globalShortcutDictate?: string;
   accelerationBackend?: AccelerationBackend;
+  autoTranslate?: boolean;
+  autoTranslateTargetLang?: string;
 }
 
 export interface TranscriptionCompletePayload {

@@ -37,7 +37,7 @@ impl FillerWordRemover {
     pub fn new(word_list: Vec<String>) -> Self {
         let mut list: Vec<String> = word_list.into_iter().map(|w| w.to_lowercase()).collect();
         // Sort by descending length so multi-word phrases take priority.
-        list.sort_by(|a, b| b.len().cmp(&a.len()));
+        list.sort_by_key(|item| std::cmp::Reverse(item.len()));
         Self { word_list: list }
     }
 
@@ -279,7 +279,7 @@ mod tests {
         let r = FillerWordRemover::new(vec!["foo".into(), "bar".into()]);
         assert_eq!(r.remove("foo bar baz"), "Baz");
         // Words not in custom list are preserved.
-        assert!(r.remove("um hello").contains("um"));
+        assert!(r.remove("um hello").to_lowercase().contains("um"));
     }
 
     #[test]

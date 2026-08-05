@@ -1,10 +1,14 @@
 # WhisperDesk
 
-A local-first desktop transcription app built with Tauri 2, React 19, and whisper-rs. Transcribes audio files using OpenAI Whisper models — entirely on-device, no cloud required.
+A local-first desktop transcription and translation app built with Tauri 2, React 19, whisper-rs, and CTranslate2. Transcribe audio with Whisper and translate transcripts with NLLB — entirely on-device when local providers are selected.
 
 ## Project Status
 
-**v1.0.1 released.** Fully functional transcription, editing, processing, integrations, export suite, auto-update, deep-link protocol, and about dialog.
+**Latest stable release: v1.0.1.** It includes transcription, editing, processing, integrations, exports, auto-update, and deep-link support.
+
+### Latest development update
+
+The current development branch adds offline transcript translation with NLLB-200 Distilled 600M int8, automatic translation after transcription, cached dual subtitles, Bengali (Bangla) and Arabic speech-language selection, and reliable detected-language persistence. These changes will reach the one-line installer after the next tagged release.
 
 ## Install
 
@@ -16,19 +20,31 @@ curl -fsSL https://raw.githubusercontent.com/Muminur/m/master/scripts/install.sh
 
 Downloads the latest release DMG, mounts it, and copies WhisperDesk to `/Applications`. On first launch, macOS may show a security prompt — go to **System Settings → Privacy & Security → Open Anyway**.
 
+The installer prefers the native build for your Mac. On Apple Silicon, it can fall back to the Intel build through Rosetta when a release does not include an `aarch64` DMG. It never sends or stores GitHub credentials.
+
 ### Manual download
 
 Visit [Releases](https://github.com/Muminur/m/releases) and download the DMG for your architecture:
 
-| File | Architecture |
-|------|-------------|
-| `WhisperDesk_*_aarch64.dmg` | Apple Silicon (M1/M2/M3/M4) |
-| `WhisperDesk_*_x64.dmg` | Intel Mac |
-| `WhisperDesk_*_x64-setup.exe` | Windows 10+ |
+| File                          | Architecture                                           |
+| ----------------------------- | ------------------------------------------------------ |
+| `WhisperDesk_*_aarch64.dmg`   | Apple Silicon (M1/M2/M3/M4/M5), when available         |
+| `WhisperDesk_*_x64.dmg`       | Intel Mac; also works on Apple Silicon through Rosetta |
+| `WhisperDesk_*_x64-setup.exe` | Windows 10+                                            |
 
 ### Windows
 
 Run `WhisperDesk_*_x64-setup.exe` from the [latest release](https://github.com/Muminur/m/releases/latest).
+
+For Gatekeeper help, model setup, source builds, and upgrades, see the [installation guide](docs/INSTALLATION.md).
+
+### Models after installation
+
+Models are downloaded separately and are not bundled with the app:
+
+- Download a Whisper model from **Models** before local transcription.
+- On macOS, for offline translation, open **Settings → Translation**, download **NLLB-200 Distilled 600M (int8)** (about 650 MB), choose a target language, and optionally enable auto-translate.
+- Model downloads require network access. Once downloaded, local transcription and NLLB translation run without an API key and without uploading transcript content.
 
 ## Features
 
@@ -76,6 +92,9 @@ Run `WhisperDesk_*_x64-setup.exe` from the [latest release](https://github.com/M
 - **AI-enhanced dictation** — optional grammar/spelling correction via configurable AI provider
 - **Dictation history** — last 50 dictated snippets in menubar; click to re-insert
 - **Spotlight bar** — Cmd+Shift+Space global input bar: speak, see text, copy or insert
+- **Offline transcript translation (macOS)** — NLLB-200 Distilled 600M int8 translates on-device on CPU, with Bengali (Bangla), Arabic, and English targets
+- **Auto-translate after transcription** — optionally translate every completed transcript into a fixed target language; translations are cached per segment
+- **Bangla and Arabic transcription** — select Bengali or Arabic as the Whisper speech language, with detected/forced language saved for correct downstream translation
 - **Live translation** — real-time caption translation via Whisper translate mode or DeepL API
 - **Global shortcuts** — configurable hotkeys with collision detection and conflict resolution
 - **Speaker diarization** — local tinydiarize speaker turn detection; cloud diarization via ElevenLabs Scribe and Deepgram Nova; "Run Diarization" button in the transcript editor triggers on demand
@@ -98,7 +117,7 @@ Run `WhisperDesk_*_x64-setup.exe` from the [latest release](https://github.com/M
 - **Obsidian integration** — write transcripts as `.md` files to any Obsidian vault folder with YAML frontmatter (date, duration, language, speakers)
 - **Webhook system** — POST transcript JSON to any Zapier, Make, n8n, or custom endpoint on transcription complete; HMAC-SHA256 request signing; SSRF-protected URL validation
 - **DeepL translation** — translate full transcripts or individual subtitle segments to 30+ languages; auto-detects free vs Pro API endpoint; preserves SRT/VTT structure
-- **Dual subtitles** — display original and DeepL-translated subtitles side-by-side with active segment highlighting synchronized to video playback
+- **Dual subtitles** — display original and cached offline-translated subtitles side-by-side with active segment highlighting synchronized to video playback
 - **Integration wizard** — step-by-step setup UI for all integrations: API key entry, vault/database configuration, connection testing
 - **Auto-update** — check for updates, download and install in-app via tauri-plugin-updater
 - **Deep-link protocol** — `whisperdesk://` URL scheme for external automation (transcribe file, get transcript, start/stop recording)
@@ -114,19 +133,29 @@ Run `WhisperDesk_*_x64-setup.exe` from the [latest release](https://github.com/M
 - **Backend:** Tauri 2, Rust, SQLite (rusqlite), whisper-rs 0.16.0
 - **Audio:** Symphonia (decode), Rubato (resample), cpal (recording), hound (WAV writing)
 - **Inference:** whisper-rs with Metal feature flag (macOS only)
+- **Offline translation (macOS):** NLLB-200 Distilled 600M int8 through ct2rs/CTranslate2 with oneDNN + ruy on CPU
 - **Export:** SRT, VTT, TXT, PDF (printpdf), DOCX (zip+handlebars OOXML), HTML, CSV, JSON, Markdown, ZIP-based .whisper archive
 - **Integrations:** Notion API, Obsidian vault, webhooks (HMAC-SHA256 signed), DeepL translation API
 
 ## Requirements
 
-- macOS 14+ (Apple Silicon recommended for Metal acceleration) or Windows 10+
-- Rust 1.77+, Node.js 22+
+For release installation:
+
+- macOS 13+ or Windows 10+
+- Apple Silicon is recommended for Metal-accelerated Whisper transcription; Intel Macs use CPU inference
+- About 650 MB of additional disk space if the optional offline translation model is downloaded
+
+For source builds:
+
+- Rust 1.77+ and Node.js 22+
+- macOS: Xcode Command Line Tools and CMake
+- Several gigabytes of free build space; oneDNN is compiled from source on the first translation-enabled build
 
 ## Development
 
 ```bash
-# Install frontend dependencies
-npm install
+# Install the locked frontend dependencies
+npm ci
 
 # Run in development mode (hot reload)
 npm run tauri dev
@@ -139,55 +168,57 @@ npm run tauri build
 
 Migrations live in `src-tauri/migrations/` and run automatically on startup:
 
-| Version | Description |
-|---------|-------------|
-| V001 | Initial schema (transcripts, segments, speakers, models) |
-| V002 | FTS5 full-text search |
-| V003 | AI prompt templates |
-| V004 | Integrations |
-| V005 | Export presets |
-| V006 | Whisper job tracking |
-| V007 | Acceleration stats (backend, realtime factor, wall time) |
-| V008 | Smart folders (id, name, filter_json) |
-| V009 | FTS index population for existing segments |
-| V010 | Recordings and watch folder events |
-| V011 | System audio path for recordings |
-| V012 | Dictation history (text, app target, timestamps) |
-| V013 | Batch jobs and batch job items |
-| V014 | Batch job timestamps (started_at, completed_at, processing_ms) |
-| V015 | Batch job model and language settings |
-| V016 | API keys service registry (actual keys stored in system Keychain) |
+| Version | Description                                                       |
+| ------- | ----------------------------------------------------------------- |
+| V001    | Initial schema (transcripts, segments, speakers, models)          |
+| V002    | FTS5 full-text search                                             |
+| V003    | AI prompt templates                                               |
+| V004    | Integrations                                                      |
+| V005    | Export presets                                                    |
+| V006    | Whisper job tracking                                              |
+| V007    | Acceleration stats (backend, realtime factor, wall time)          |
+| V008    | Smart folders (id, name, filter_json)                             |
+| V009    | FTS index population for existing segments                        |
+| V010    | Recordings and watch folder events                                |
+| V011    | System audio path for recordings                                  |
+| V012    | Dictation history (text, app target, timestamps)                  |
+| V013    | Batch jobs and batch job items                                    |
+| V014    | Batch job timestamps (started_at, completed_at, processing_ms)    |
+| V015    | Batch job model and language settings                             |
+| V016    | API keys service registry (actual keys stored in system Keychain) |
+| V017    | Cached per-segment transcript translations                        |
+| V018    | Offline translation model registry                                |
 
 ## Acceleration Backends
 
-| Backend | Description | Status |
-|---------|-------------|--------|
-| Auto | Use fastest available (default) | Supported |
-| CPU | Force software inference | Supported |
-| Metal | Apple GPU via Metal | Supported (Apple Silicon only — Intel Macs always use CPU) |
-| CoreML + ANE | Apple Neural Engine | Coming soon |
+| Backend      | Description                     | Status                                                     |
+| ------------ | ------------------------------- | ---------------------------------------------------------- |
+| Auto         | Use fastest available (default) | Supported                                                  |
+| CPU          | Force software inference        | Supported                                                  |
+| Metal        | Apple GPU via Metal             | Supported (Apple Silicon only — Intel Macs always use CPU) |
+| CoreML + ANE | Apple Neural Engine             | Coming soon                                                |
 
 ## Audio Recording
 
-| Source | Description | Platform |
-|--------|-------------|----------|
-| Microphone | Input device capture via cpal | Cross-platform |
-| System Audio | WASAPI loopback capture | Windows only |
-| Combined | Mic + system audio simultaneously | Windows only |
+| Source       | Description                       | Platform       |
+| ------------ | --------------------------------- | -------------- |
+| Microphone   | Input device capture via cpal     | Cross-platform |
+| System Audio | WASAPI loopback capture           | Windows only   |
+| Combined     | Mic + system audio simultaneously | Windows only   |
 
 ## Export Formats
 
-| Format | Description | Features |
-|--------|-------------|----------|
-| TXT | Plain text | Timestamps, speaker labels |
-| SRT | SubRip subtitle | Millisecond timestamps, speaker tags |
-| VTT | WebVTT subtitle | Millisecond timestamps, speaker tags |
-| PDF | Formatted document | A4/Letter, metadata, page breaks |
-| DOCX | Word document | Styles, speaker headings (OOXML) |
-| HTML | Web page | Interactive timestamps, speaker colors |
-| CSV | Spreadsheet | RFC 4180, per-segment rows |
-| JSON | Structured data | Metadata, segments, confidence scores |
-| Markdown | Note format | Speaker sections, Obsidian/Notion compatible |
+| Format   | Description         | Features                                                      |
+| -------- | ------------------- | ------------------------------------------------------------- |
+| TXT      | Plain text          | Timestamps, speaker labels                                    |
+| SRT      | SubRip subtitle     | Millisecond timestamps, speaker tags                          |
+| VTT      | WebVTT subtitle     | Millisecond timestamps, speaker tags                          |
+| PDF      | Formatted document  | A4/Letter, metadata, page breaks                              |
+| DOCX     | Word document       | Styles, speaker headings (OOXML)                              |
+| HTML     | Web page            | Interactive timestamps, speaker colors                        |
+| CSV      | Spreadsheet         | RFC 4180, per-segment rows                                    |
+| JSON     | Structured data     | Metadata, segments, confidence scores                         |
+| Markdown | Note format         | Speaker sections, Obsidian/Notion compatible                  |
 | .whisper | WhisperDesk archive | ZIP containing manifest.json, transcript.json, optional audio |
 
 ## Project Structure
@@ -203,12 +234,12 @@ src/                    # React frontend
     batch/              # BatchDashboard
     captions/           # CaptionOverlay, CaptionControls, SpotlightBar
     recording/          # RecordingPanel, DeviceSelector, SpeakerCountHint, CloudTranscription
-    settings/           # AccelerationSettings, WatchFolderSettings, ApiKeySettings
+    settings/           # AccelerationSettings, WatchFolderSettings, ApiKeySettings, TranslationSettings
     transcription/      # DropZone, ModelManager, PerformanceBar, TranscriptionSettings
   hooks/                # usePlayer (wavesurfer.js audio player hook)
   i18n/                 # Localization (en.json, nl.json, de.json)
   pages/                # SettingsPage
-  stores/               # Zustand stores (settings, transcript, model, recording, library, caption, batch, ai, transcribing)
+  stores/               # Zustand stores, including translation and translation-model state
   lib/                  # types.ts, batchTypes.ts, captionTypes.ts, diarizationTypes.ts, aiTypes.ts, trayBridge.ts (tray event ↔ store wiring)
   styles/               # Global CSS (Tailwind)
   test/                 # Component and store tests
@@ -219,7 +250,7 @@ src-tauri/              # Rust backend
     batch/              # Batch processing queue and export
     ai/                 # LLM abstraction: AiProvider trait, ProviderRegistry, 5 providers + OpenAI-compat adapter, actions, templates, cost estimation
     cloud_transcription/ # Cloud transcription: OpenAI Whisper, Deepgram, Groq Whisper, ElevenLabs
-    commands/           # Tauri command handlers (settings, transcription, library, export, recording, watch, dictation, translate, shortcuts, batch, diarization, import, ai, keychain, cloud_transcription)
+    commands/           # Tauri command handlers (settings, transcription, offline/cloud translation, library, export, recording, watch, dictation, shortcuts, batch, diarization, import, AI, keychain)
     database/           # SQLite + migrations, search, smart_folders, recordings, undo
     dictation/          # Dictation pipeline: accessibility, postprocessing, AI correction, history
     diarization/        # Speaker diarization: tinydiarize, ElevenLabs, Deepgram providers
@@ -229,6 +260,7 @@ src-tauri/              # Rust backend
     models/             # Model manager (download, verify, manage)
     shortcuts/          # Global shortcut manager with collision detection
     transcription/      # WhisperEngine + pipeline + streaming + VAD + translation + filler word removal + hybrid cloud refinement
+    translation/        # Offline NLLB engine, language mapping, model paths, and engine lifecycle
     watch/              # Watch folder manager + audio file handler
     network/            # NetworkGuard module (HTTP policy enforcement)
     settings.rs         # AppSettings with AccelerationBackend and NetworkPolicy
@@ -236,7 +268,7 @@ src-tauri/              # Rust backend
     error.rs            # Typed error enum (14 error categories with codes)
     keychain.rs         # macOS Keychain integration for API key storage
     logging.rs          # Tracing/logging infrastructure with file rotation
-  migrations/           # SQL migration files (V001-V016)
+  migrations/           # SQL migration files (V001-V018)
   benches/              # Criterion benchmark suite
 
 scripts/
@@ -250,18 +282,19 @@ workers/
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/install.sh` | Download latest release and install to `/Applications` |
-| `scripts/reinstall.sh` | Build from source and reinstall (accepts `--keep-data`, `--skip-build`, `--launch`) |
-| `scripts/clean-build-verify.sh` | Full clean build with TypeScript, Clippy, and feature verification |
-| `scripts/generate-updater-keys.sh` | Generate Tauri updater signing key pair |
+| Script                             | Purpose                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `scripts/install.sh`               | Detect Mac architecture, download the latest compatible DMG, and install to `/Applications` |
+| `scripts/reinstall.sh`             | Build from source and reinstall (accepts `--keep-data`, `--skip-build`, `--launch`)         |
+| `scripts/clean-build-verify.sh`    | Full clean build with TypeScript, Clippy, and feature verification                          |
+| `scripts/generate-updater-keys.sh` | Generate Tauri updater signing key pair                                                     |
 
 ## CI / CD
 
 - **CI** (`.github/workflows/ci.yml`): Rust checks (fmt, clippy, tests) + frontend checks (tsc, vitest, eslint) on every push/PR
 - **Release** (`.github/workflows/release.yml`): Builds and publishes a GitHub Release on every `v*` tag push
   - macOS Apple Silicon: `WhisperDesk_*_aarch64.dmg`
+  - macOS Intel: `WhisperDesk_*_x64.dmg`
   - Windows x64: `WhisperDesk_*_x64-setup.exe` + `WhisperDesk_*_x64_en-US.msi`
 - **Auto-update**: Cloudflare Worker at `whisperdesk-updater.whisperdesk.workers.dev` proxies GitHub Releases to serve Tauri-compatible update manifests
 

@@ -49,9 +49,7 @@ describe("ModelManager", () => {
     });
 
     expect(screen.getByText("Models")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Download and manage Whisper models/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Download and manage Whisper models/)).toBeInTheDocument();
   });
 
   it("shows loading state when loading with no models", async () => {
@@ -130,7 +128,7 @@ describe("ModelManager", () => {
     await act(async () => {
       useModelStore.setState({
         downloadProgress: {
-          base: { modelId: "base", bytesDownloaded: 50, totalBytes: 100, percentage: 50 },
+          base: { modelId: "base", bytesDownloaded: 50, totalBytes: 100, percentage: 0.5 },
         },
       });
     });

@@ -7,8 +7,9 @@
 mod buffer;
 mod config;
 
-pub use config::{CaptionSegment, InferenceProvider, StreamingConfig, StreamingState};
+#[cfg(test)]
 pub(crate) use config::ms_to_samples;
+pub use config::{CaptionSegment, InferenceProvider, StreamingConfig, StreamingState};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

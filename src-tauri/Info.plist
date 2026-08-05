@@ -8,10 +8,9 @@
   <string>WhisperDesk</string>
   <key>CFBundleIdentifier</key>
   <string>com.whisperdesk.app</string>
-  <key>CFBundleVersion</key>
-  <string>1.0.0</string>
-  <key>CFBundleShortVersionString</key>
-  <string>1.0.0</string>
+  <!-- CFBundleVersion / CFBundleShortVersionString intentionally omitted:
+       Tauri injects them from the `version` field in tauri.conf.json so there
+       is a single source of truth for the app version. Do not hardcode here. -->
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleSignature</key>

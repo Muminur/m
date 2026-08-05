@@ -57,7 +57,7 @@ impl DiarizationProvider for TinydiarizeProvider {
                 // Then advance to the next speaker.
                 let before = seg
                     .text
-                    .splitn(2, SPEAKER_TURN_TOKEN)
+                    .split(SPEAKER_TURN_TOKEN)
                     .next()
                     .unwrap_or("")
                     .trim()
@@ -85,8 +85,8 @@ impl DiarizationProvider for TinydiarizeProvider {
                 // Text after the turn token (same segment, new speaker).
                 let after = seg
                     .text
-                    .splitn(2, SPEAKER_TURN_TOKEN)
-                    .nth(1)
+                    .split_once(SPEAKER_TURN_TOKEN)
+                    .map(|(_, after)| after)
                     .unwrap_or("")
                     .trim()
                     .to_string();

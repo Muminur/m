@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { RecordingPanel } from "@/components/recording/RecordingPanel";
 import { useRecordingStore } from "@/stores/recordingStore";
+import { startTranscriptionInBackground } from "@/lib/autoTranscribe";
 
 const mockInvoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({
@@ -12,9 +14,28 @@ vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(() => Promise.resolve()),
 }));
 
+// Capture the navigate call the Stop handler makes. Keep the real
+// MemoryRouter (so useNavigate resolves) but override the hook itself.
+const mockNavigate = vi.fn();
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router-dom")>();
+  return { ...actual, useNavigate: () => mockNavigate };
+});
+
+// Stub out the fire-and-forget transcription so tests don't invoke whisper.
+vi.mock("@/lib/autoTranscribe", () => ({
+  startTranscriptionInBackground: vi.fn(() => Promise.resolve()),
+}));
+
+// RecordingPanel now uses useNavigate() (redirect to the new transcript on
+// stop), so it must be rendered inside a Router in tests.
+const renderPanel = () => render(<RecordingPanel />, { wrapper: MemoryRouter });
+
 describe("RecordingPanel", () => {
   beforeEach(async () => {
     mockInvoke.mockReset();
+    mockNavigate.mockReset();
+    vi.mocked(startTranscriptionInBackground).mockClear();
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "get_audio_devices") return Promise.resolve([]);
       return Promise.resolve();
@@ -36,7 +57,7 @@ describe("RecordingPanel", () => {
 
   it("renders the Recording heading and description", async () => {
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("Recording")).toBeInTheDocument();
@@ -47,7 +68,7 @@ describe("RecordingPanel", () => {
 
   it("renders audio source buttons", async () => {
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("Microphone")).toBeInTheDocument();
@@ -57,7 +78,7 @@ describe("RecordingPanel", () => {
 
   it("shows Start Recording button in idle state", async () => {
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("Start Recording")).toBeInTheDocument();
@@ -67,7 +88,7 @@ describe("RecordingPanel", () => {
     useRecordingStore.setState({ status: "recording" });
 
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("Pause")).toBeInTheDocument();
@@ -79,7 +100,7 @@ describe("RecordingPanel", () => {
     useRecordingStore.setState({ status: "paused" });
 
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("Resume")).toBeInTheDocument();
@@ -91,7 +112,7 @@ describe("RecordingPanel", () => {
     useRecordingStore.setState({ durationMs: 65000 }); // 1:05
 
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("01:05")).toBeInTheDocument();
@@ -101,7 +122,7 @@ describe("RecordingPanel", () => {
     useRecordingStore.setState({ audioLevel: -25.3 });
 
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("-25.3 dB")).toBeInTheDocument();
@@ -115,7 +136,7 @@ describe("RecordingPanel", () => {
     });
 
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("Microphone access denied")).toBeInTheDocument();
@@ -123,9 +144,62 @@ describe("RecordingPanel", () => {
 
   it("renders VU meter level indicator", async () => {
     await act(async () => {
-      render(<RecordingPanel />);
+      renderPanel();
     });
 
     expect(screen.getByText("Level")).toBeInTheDocument();
+  });
+
+  it("navigates to the new transcript and auto-transcribes on Stop", async () => {
+    // stop_recording resolves with the placeholder transcript created by the
+    // backend. The Stop handler must navigate there, then fire transcription.
+    const stopResult = {
+      audioPath: "/tmp/rec-42.wav",
+      transcriptId: "transcript-42",
+      recordingId: "rec-42",
+    };
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_audio_devices") return Promise.resolve([]);
+      if (cmd === "stop_recording") return Promise.resolve(stopResult);
+      return Promise.resolve();
+    });
+    useRecordingStore.setState({ status: "recording" });
+
+    await act(async () => {
+      renderPanel();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Stop"));
+    });
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith("/library/transcript-42");
+    });
+    expect(startTranscriptionInBackground).toHaveBeenCalledWith(
+      "/tmp/rec-42.wav",
+      "transcript-42"
+    );
+  });
+
+  it("does not navigate when Stop fails (null result)", async () => {
+    // stop_recording rejects → store returns null → no navigation, no transcribe.
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_audio_devices") return Promise.resolve([]);
+      if (cmd === "stop_recording") return Promise.reject("device gone");
+      return Promise.resolve();
+    });
+    useRecordingStore.setState({ status: "recording" });
+
+    await act(async () => {
+      renderPanel();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Stop"));
+    });
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(startTranscriptionInBackground).not.toHaveBeenCalled();
   });
 });

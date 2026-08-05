@@ -185,23 +185,8 @@ impl YouTubeImporter {
     }
 
     /// Map yt-dlp stderr output to an appropriate error code.
-    fn classify_error(stderr: &str) -> ImportErrorCode {
-        let lower = stderr.to_lowercase();
-        if lower.contains("unable to download") || lower.contains("http error") {
-            ImportErrorCode::DownloadFailed
-        } else if lower.contains("network")
-            || lower.contains("connection")
-            || lower.contains("timeout")
-        {
-            ImportErrorCode::DownloadFailed
-        } else if lower.contains("unavailable")
-            || lower.contains("private")
-            || lower.contains("removed")
-        {
-            ImportErrorCode::DownloadFailed
-        } else {
-            ImportErrorCode::DownloadFailed
-        }
+    fn classify_error(_stderr: &str) -> ImportErrorCode {
+        ImportErrorCode::DownloadFailed
     }
 
     /// Determine the final WAV file path from yt-dlp metadata or by scanning

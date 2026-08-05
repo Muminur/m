@@ -18,6 +18,7 @@ pub struct RecordingRow {
     pub created_at: i64,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn insert(
     conn: &Connection,
     id: &str,
@@ -315,6 +316,20 @@ mod tests {
         let id = insert_watch_event(&conn, "/watch", "/watch/test.mp3", "test.mp3").unwrap();
         assert!(!id.is_empty());
 
-        update_watch_event_status(&conn, &id, "transcribed", Some("tid-123"), None).unwrap();
+        let transcript_id = crate::database::transcripts::insert(
+            &conn,
+            &crate::database::transcripts::NewTranscript {
+                title: "Watched file".into(),
+                duration_ms: None,
+                language: None,
+                model_id: None,
+                source_type: Some("file".into()),
+                source_url: None,
+                audio_path: Some("/watch/test.mp3".into()),
+            },
+        )
+        .unwrap();
+
+        update_watch_event_status(&conn, &id, "transcribed", Some(&transcript_id), None).unwrap();
     }
 }

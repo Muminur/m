@@ -18,7 +18,7 @@ export function ModelManager() {
   useEffect(() => {
     initEventListeners();
     loadModels();
-  }, []);
+  }, [initEventListeners, loadModels]);
 
   const handleDownload = useCallback((id: string) => downloadModel(id), [downloadModel]);
   const handleCancel = useCallback((id: string) => cancelDownload(id), [cancelDownload]);
@@ -89,6 +89,7 @@ function ModelCard({
   onSetDefault,
 }: ModelCardProps) {
   const isDownloading = progress !== undefined;
+  const percentage = progress ? Math.min(progress.percentage * 100, 100) : 0;
   const handleDownload = useCallback(() => onDownload(model.id), [onDownload, model.id]);
   const handleCancel = useCallback(() => onCancel(model.id), [onCancel, model.id]);
   const handleDelete = useCallback(() => onDelete(model.id), [onDelete, model.id]);
@@ -141,13 +142,13 @@ function ModelCard({
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Downloading…</span>
               <span className="text-xs text-muted-foreground">
-                {progress.percentage.toFixed(0)}%
+                {percentage.toFixed(0)}%
               </span>
             </div>
             <div className="bg-primary/20 rounded-full h-1">
               <div
                 className="bg-primary h-1 rounded-full transition-all"
-                style={{ width: `${progress.percentage}%` }}
+                style={{ width: `${percentage}%` }}
               />
             </div>
             <p className="text-[10px] text-muted-foreground">

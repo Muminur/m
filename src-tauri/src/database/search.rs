@@ -11,28 +11,29 @@ pub struct SearchResult {
 }
 
 pub fn search(conn: &Connection, query: &str, limit: u32) -> Result<Vec<SearchResult>, AppError> {
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+
     let mut stmt = conn.prepare(
-        "SELECT s.transcript_id, t.title, snippet(transcripts_fts, 0, '<mark>', '</mark>', '...', 32) as excerpt, COUNT(*) as match_count
+        "SELECT s.transcript_id, t.title, snippet(transcripts_fts, 0, '<mark>', '</mark>', '...', 32) as excerpt
          FROM transcripts_fts f
          JOIN segments s ON s.rowid = f.rowid
          JOIN transcripts t ON t.id = s.transcript_id
          WHERE transcripts_fts MATCH ?1 AND t.is_deleted = 0 AND s.is_deleted = 0
-         GROUP BY s.transcript_id
-         ORDER BY rank
-         LIMIT ?2"
+         ORDER BY rank"
     ).map_err(|e| AppError::StorageError {
         code: StorageErrorCode::DatabaseError,
         message: format!("Failed to prepare search: {}", e),
     })?;
 
     let rows = stmt
-        .query_map(params![query, limit], |row| {
-            Ok(SearchResult {
-                transcript_id: row.get(0)?,
-                title: row.get(1)?,
-                excerpt: row.get(2)?,
-                match_count: row.get(3)?,
-            })
+        .query_map(params![query], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
         })
         .map_err(|e| AppError::StorageError {
             code: StorageErrorCode::DatabaseError,
@@ -44,7 +45,27 @@ pub fn search(conn: &Connection, query: &str, limit: u32) -> Result<Vec<SearchRe
             message: format!("Failed to collect search results: {}", e),
         })?;
 
-    Ok(rows)
+    // FTS5 auxiliary functions such as snippet() cannot be evaluated in a
+    // GROUP BY query. Aggregate matching segments in Rust while preserving
+    // the FTS rank order and first (best-ranked) excerpt per transcript.
+    let mut results: Vec<SearchResult> = Vec::new();
+    for (transcript_id, title, excerpt) in rows {
+        if let Some(existing) = results
+            .iter_mut()
+            .find(|result| result.transcript_id == transcript_id)
+        {
+            existing.match_count += 1;
+        } else if results.len() < limit as usize {
+            results.push(SearchResult {
+                transcript_id,
+                title,
+                excerpt,
+                match_count: 1,
+            });
+        }
+    }
+
+    Ok(results)
 }
 
 #[cfg(test)]
