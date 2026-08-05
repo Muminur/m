@@ -116,7 +116,7 @@ impl PostProcessor {
 
         // Sort commands by phrase length descending so longer phrases match first
         let mut sorted_commands: Vec<&PunctuationCommand> = self.commands.iter().collect();
-        sorted_commands.sort_by(|a, b| b.phrase.len().cmp(&a.phrase.len()));
+        sorted_commands.sort_by_key(|command| std::cmp::Reverse(command.phrase.len()));
 
         // Replace punctuation commands (case-insensitive).
         for cmd in &sorted_commands {
