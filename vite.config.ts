@@ -41,13 +41,12 @@ export default defineConfig(async () => ({
     environment: "jsdom",
     globals: true,
     setupFiles: [path.resolve(__dirname, "./src/test/setup.ts")],
-    // Only discover tests in the real source tree. Locked git worktrees
-    // under .claude/worktrees/ contain stale copies of these test files
-    // and must never be picked up by the runner.
+    // Only discover tests in the real source tree. Nested git worktrees can
+    // contain stale copies of these test files and must not be discovered.
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
-      "**/.claude/worktrees/**",
+      "**/worktrees/**",
       "**/e2e/**",
     ],
     coverage: {
