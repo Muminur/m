@@ -117,7 +117,11 @@ pub async fn download_translation_model(
     app_handle: AppHandle,
     db: State<'_, Arc<Database>>,
     model_manager: State<'_, Arc<ModelManager>>,
+    translation_manager: State<'_, Arc<TranslationEngineManager>>,
 ) -> Result<(), AppError> {
+    // Do not download a large model that this platform cannot execute.
+    translation_manager.ensure_supported()?;
+
     // Fetch the download base URL + estimated size from the registry.
     let (base_url, file_size_mb) = {
         let conn = db.get()?;
@@ -299,6 +303,10 @@ pub async fn translate_transcript(
     model_manager: State<'_, Arc<ModelManager>>,
     translation_manager: State<'_, Arc<TranslationEngineManager>>,
 ) -> Result<Vec<translations::TranslationRow>, AppError> {
+    // Keep this command registered on every desktop target, but fail before
+    // touching the model or database when the native NLLB runtime is absent.
+    translation_manager.ensure_supported()?;
+
     if !languages::is_supported(&target_lang) {
         return Err(AppError::StorageError {
             code: StorageErrorCode::DatabaseError,

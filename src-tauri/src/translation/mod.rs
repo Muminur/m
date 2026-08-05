@@ -16,12 +16,17 @@
 //!
 //! [`NllbEngine`]: engine::NllbEngine
 
+#[cfg(target_os = "macos")]
 pub mod engine;
 pub mod languages;
+#[cfg(target_os = "macos")]
+pub mod manager;
+#[cfg(not(target_os = "macos"))]
+#[path = "manager_stub.rs"]
 pub mod manager;
 pub mod model;
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod smoke {
     use super::engine::NllbEngine;
     use std::path::Path;

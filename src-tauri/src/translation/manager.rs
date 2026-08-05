@@ -16,6 +16,11 @@ impl TranslationEngineManager {
         }
     }
 
+    /// The NLLB runtime is currently available on macOS only.
+    pub fn ensure_supported(&self) -> Result<(), AppError> {
+        Ok(())
+    }
+
     /// Load the engine once. Errors if the model isn't downloaded.
     pub fn ensure_loaded(&self, models_root: &Path) -> Result<(), AppError> {
         let mut guard = self.engine.lock().map_err(|_| AppError::StorageError {

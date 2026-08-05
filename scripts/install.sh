@@ -8,6 +8,7 @@
 #   bash scripts/install.sh
 
 set -euo pipefail
+umask 077
 
 REPO="Muminur/m"
 APP_NAME="WhisperDesk"
@@ -34,9 +35,11 @@ fi
 ARCH="$(uname -m)"
 if [[ "$ARCH" == "arm64" ]]; then
   DMG_PATTERN="aarch64.dmg"
+  FALLBACK_PATTERN="x64.dmg"
   ARCH_LABEL="Apple Silicon"
 elif [[ "$ARCH" == "x86_64" ]]; then
   DMG_PATTERN="x64.dmg"
+  FALLBACK_PATTERN=""
   ARCH_LABEL="Intel"
 else
   die "Unsupported architecture: $ARCH"
@@ -47,7 +50,7 @@ info "Installing ${APP_NAME} for macOS ${ARCH_LABEL} (${ARCH})"
 # ─── Fetch latest release ─────────────────────────────────────────────────────
 info "Fetching latest release from GitHub..."
 RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")"
-VERSION="$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')"
+VERSION="$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/' || true)"
 
 if [[ -z "$VERSION" ]]; then
   die "Could not determine latest release version."
@@ -56,22 +59,44 @@ fi
 ok "Latest release: ${VERSION}"
 
 # ─── Find the DMG URL ─────────────────────────────────────────────────────────
-DMG_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep "${DMG_PATTERN}" | head -1 | sed 's/.*"browser_download_url": "\(.*\)".*/\1/')"
+DMG_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep "${DMG_PATTERN}" | head -1 | sed 's/.*"browser_download_url": "\(.*\)".*/\1/' || true)"
+
+if [[ -z "$DMG_URL" && -n "$FALLBACK_PATTERN" ]]; then
+  warn "No Apple Silicon DMG found in ${VERSION}. Trying the Intel build through Rosetta..."
+  DMG_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep "${FALLBACK_PATTERN}" | head -1 | sed 's/.*"browser_download_url": "\(.*\)".*/\1/' || true)"
+fi
 
 if [[ -z "$DMG_URL" ]]; then
-  # Fallback: try aarch64 if x64 isn't in this release yet
-  if [[ "$ARCH" == "x86_64" ]]; then
-    warn "No Intel DMG found in ${VERSION}. Trying Apple Silicon build (requires Rosetta 2)..."
-    DMG_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep "aarch64.dmg" | head -1 | sed 's/.*"browser_download_url": "\(.*\)".*/\1/')"
-  fi
-  if [[ -z "$DMG_URL" ]]; then
-    die "No macOS DMG found for ${VERSION}. Visit: https://github.com/${REPO}/releases/tag/${VERSION}"
-  fi
+  die "No compatible macOS DMG found for ${VERSION}. Visit: https://github.com/${REPO}/releases/tag/${VERSION}"
+fi
+
+case "$DMG_URL" in
+  "https://github.com/${REPO}/releases/download/"*) ;;
+  *) die "GitHub returned an unexpected download URL." ;;
+esac
+
+if [[ "$ARCH" == "arm64" && "$DMG_URL" == *"x64.dmg" ]]; then
+  warn "This release will run under Rosetta. macOS may prompt to install it on first launch."
 fi
 
 DMG_FILE="$(basename "$DMG_URL")"
 TMP_DIR="$(mktemp -d)"
 TMP_DMG="${TMP_DIR}/${DMG_FILE}"
+MOUNT_POINT=""
+MOUNTED=false
+
+cleanup() {
+  if [[ "$MOUNTED" == true && -n "$MOUNT_POINT" ]]; then
+    hdiutil detach -quiet "$MOUNT_POINT" 2>/dev/null || true
+  fi
+  if [[ -n "$MOUNT_POINT" && -d "$MOUNT_POINT" ]]; then
+    rmdir "$MOUNT_POINT" 2>/dev/null || true
+  fi
+  if [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]]; then
+    rm -rf -- "$TMP_DIR"
+  fi
+}
+trap cleanup EXIT INT TERM
 
 ok "Found: ${DMG_FILE}"
 
@@ -83,14 +108,14 @@ ok "Downloaded to ${TMP_DMG}"
 # ─── Mount DMG ────────────────────────────────────────────────────────────────
 info "Mounting disk image..."
 MOUNT_POINT="$(mktemp -d)"
-hdiutil attach -quiet -mountpoint "$MOUNT_POINT" "$TMP_DMG"
+hdiutil attach -quiet -nobrowse -mountpoint "$MOUNT_POINT" "$TMP_DMG"
+MOUNTED=true
 
 # ─── Copy to /Applications ────────────────────────────────────────────────────
 info "Installing ${APP_NAME}.app to ${INSTALL_DIR}..."
 
 APP_SOURCE="$(find "$MOUNT_POINT" -maxdepth 1 -name "*.app" | head -1)"
 if [[ -z "$APP_SOURCE" ]]; then
-  hdiutil detach -quiet "$MOUNT_POINT" || true
   die "Could not find .app bundle in DMG."
 fi
 
@@ -100,11 +125,16 @@ if [[ -d "${INSTALL_DIR}/${APP_NAME}.app" ]]; then
   rm -rf "${INSTALL_DIR:?}/${APP_NAME}.app"
 fi
 
-cp -r "$APP_SOURCE" "${INSTALL_DIR}/${APP_NAME}.app"
+ditto "$APP_SOURCE" "${INSTALL_DIR}/${APP_NAME}.app"
 
 # ─── Cleanup ──────────────────────────────────────────────────────────────────
-hdiutil detach -quiet "$MOUNT_POINT" || true
-rm -rf "$TMP_DIR"
+if hdiutil detach -quiet "$MOUNT_POINT"; then
+  MOUNTED=false
+  rmdir "$MOUNT_POINT" 2>/dev/null || true
+  MOUNT_POINT=""
+fi
+rm -rf -- "$TMP_DIR"
+TMP_DIR=""
 
 # ─── Register with Launch Services ───────────────────────────────────────────
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
