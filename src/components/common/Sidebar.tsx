@@ -7,6 +7,7 @@ import {
   Star,
   Trash2,
   Download,
+  Upload,
   Sun,
   Moon,
   Monitor,
@@ -15,6 +16,7 @@ import {
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useTranslation } from "react-i18next";
 import { AboutDialog } from "./AboutDialog";
+import { formatError } from "@/lib/formatError";
 
 export function Sidebar() {
   const { t } = useTranslation();
@@ -26,17 +28,19 @@ export function Sidebar() {
     const themes = ["light", "dark", "system"] as const;
     const current = settings?.theme ?? "system";
     const next = themes[(themes.indexOf(current) + 1) % themes.length];
-    updateSettings({ theme: next });
+    void updateSettings({ theme: next }).catch((error) => {
+      console.error("Failed to update theme:", formatError(error));
+    });
   };
 
-  const ThemeIcon =
-    settings?.theme === "dark" ? Moon : settings?.theme === "light" ? Sun : Monitor;
+  const ThemeIcon = settings?.theme === "dark" ? Moon : settings?.theme === "light" ? Sun : Monitor;
 
   // Determine which library sub-view is active by combining the pathname
   // with the ?filter query param. NavLink's built-in isActive matches by
   // pathname only, so all three /library?filter=* links highlighted at
   // once on first open. We compute the active flag explicitly below.
-  const onLibraryPath = location.pathname === "/library" || location.pathname.startsWith("/library/");
+  const onLibraryPath =
+    location.pathname === "/library" || location.pathname.startsWith("/library/");
   const filterParam = new URLSearchParams(location.search).get("filter");
   const libraryActive = onLibraryPath && !filterParam;
   const starredActive = onLibraryPath && filterParam === "starred";
@@ -45,14 +49,30 @@ export function Sidebar() {
   return (
     <nav className="flex flex-col h-full pt-8 pb-3 px-2 gap-1 no-drag">
       {/* Navigation items */}
-      <NavItem to="/library" icon={<FileText size={16} />} label={t("nav.library")} active={libraryActive} />
-      <NavItem to="/library?filter=starred" icon={<Star size={16} />} label={t("nav.starred")} active={starredActive} />
+      <NavItem
+        to="/library"
+        icon={<FileText size={16} />}
+        label={t("nav.library")}
+        active={libraryActive}
+      />
+      <NavItem
+        to="/library?filter=starred"
+        icon={<Star size={16} />}
+        label={t("nav.starred")}
+        active={starredActive}
+      />
       <NavItem to="/recording" icon={<Mic size={16} />} label={t("nav.recording")} />
+      <NavItem to="/transcribe" icon={<Upload size={16} />} label={t("nav.transcribe")} />
       <NavItem to="/models" icon={<Download size={16} />} label={t("nav.models")} />
 
       <div className="h-px bg-border my-2 mx-1" />
 
-      <NavItem to="/library?filter=trash" icon={<Trash2 size={16} />} label={t("nav.trash")} active={trashActive} />
+      <NavItem
+        to="/library?filter=trash"
+        icon={<Trash2 size={16} />}
+        label={t("nav.trash")}
+        active={trashActive}
+      />
 
       <div className="flex-1" />
 

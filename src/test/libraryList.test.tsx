@@ -42,10 +42,16 @@ function renderWithRouter(ui: React.ReactElement) {
 describe("LibraryList", () => {
   const mockLoadTranscripts = vi.fn();
   const mockSetSort = vi.fn();
+  const mockStarTranscript = vi.fn().mockResolvedValue(undefined);
+  const mockDeleteTranscript = vi.fn().mockResolvedValue(undefined);
+  const mockRestoreTranscript = vi.fn().mockResolvedValue(undefined);
 
   beforeEach(() => {
     mockLoadTranscripts.mockReset();
     mockSetSort.mockReset();
+    mockStarTranscript.mockClear();
+    mockDeleteTranscript.mockClear();
+    mockRestoreTranscript.mockClear();
   });
 
   function setStoreState(overrides: Partial<ReturnType<typeof useLibraryStore.getState>>) {
@@ -57,6 +63,9 @@ describe("LibraryList", () => {
       sort: { field: "created_at", direction: "desc" },
       loadTranscripts: mockLoadTranscripts,
       setSort: mockSetSort,
+      starTranscript: mockStarTranscript,
+      deleteTranscript: mockDeleteTranscript,
+      restoreTranscript: mockRestoreTranscript,
       ...overrides,
     });
   }
@@ -147,5 +156,32 @@ describe("LibraryList", () => {
     renderWithRouter(<LibraryList />);
 
     expect(mockLoadTranscripts).toHaveBeenCalled();
+  });
+
+  it("stars and trashes a transcript from its row actions", () => {
+    setStoreState({ transcripts: [makeTranscript("1")] });
+    renderWithRouter(<LibraryList />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Star Transcript 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move Transcript 1 to Trash" }));
+
+    expect(mockStarTranscript).toHaveBeenCalledWith("1");
+    expect(mockDeleteTranscript).toHaveBeenCalledWith("1");
+  });
+
+  it("restores or permanently deletes a trashed transcript", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    setStoreState({
+      transcripts: [makeTranscript("1", { isDeleted: true })],
+    });
+    renderWithRouter(<LibraryList />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore Transcript 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Permanently delete Transcript 1" }));
+
+    expect(mockRestoreTranscript).toHaveBeenCalledWith("1");
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(mockDeleteTranscript).toHaveBeenCalledWith("1", true);
+    confirm.mockRestore();
   });
 });

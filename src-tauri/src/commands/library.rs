@@ -1,10 +1,12 @@
+use crate::audio::storage as recording_storage;
 use crate::database::undo::{UndoManager, UndoOperation};
 use crate::database::{search, segments, smart_folders, transcripts, Database};
 use crate::error::{AppError, StorageErrorCode};
+use crate::import::storage as import_storage;
 use chrono::Utc;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use std::sync::Arc;
-use tauri::{command, State};
+use tauri::{command, AppHandle, Manager, State};
 use uuid::Uuid;
 
 // ─── Folder commands ─────────────────────────────────────────────────────────
@@ -335,17 +337,114 @@ pub async fn list_trash(
 #[command]
 pub async fn permanently_delete_transcript(
     transcript_id: String,
+    app: AppHandle,
     db: State<'_, Arc<Database>>,
 ) -> Result<(), AppError> {
-    let conn = db.get()?;
-    transcripts::hard_delete(&conn, &transcript_id)
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::StorageError {
+            code: StorageErrorCode::IoError,
+            message: "Failed to resolve app data directory while deleting transcript".into(),
+        })?;
+    let mut conn = db.get()?;
+    let audio_path = conn
+        .query_row(
+            "SELECT audio_path FROM transcripts WHERE id = ?1",
+            params![transcript_id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .optional()
+        .map_err(|error| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to inspect transcript audio: {error}"),
+        })?
+        .flatten();
+    let recording_audio_paths = recording_paths_for_transcript(&conn, &transcript_id)?;
+
+    let tx = conn.transaction().map_err(|error| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to begin transcript deletion: {error}"),
+    })?;
+    tx.execute(
+        "DELETE FROM recordings WHERE transcript_id = ?1",
+        [&transcript_id],
+    )
+    .map_err(|error| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to delete linked recording: {error}"),
+    })?;
+    transcripts::hard_delete(&tx, &transcript_id)?;
+    tx.commit().map_err(|error| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to commit transcript deletion: {error}"),
+    })?;
+    if let Some(audio_path) = audio_path {
+        if let Err(error) =
+            import_storage::remove_owned_import_if_unreferenced(&app_data_dir, &conn, &audio_path)
+        {
+            // The database deletion has already succeeded. Do not report the
+            // whole operation as failed; retain a precise log for recovery.
+            tracing::warn!(%error, %audio_path, "failed to clean permanently deleted import audio");
+        }
+    }
+    cleanup_recording_audio(&app_data_dir, &conn, recording_audio_paths);
+    Ok(())
 }
 
 #[command]
-pub async fn purge_old_trash(db: State<'_, Arc<Database>>) -> Result<u64, AppError> {
-    let conn = db.get()?;
+pub async fn purge_old_trash(
+    app: AppHandle,
+    db: State<'_, Arc<Database>>,
+) -> Result<u64, AppError> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::StorageError {
+            code: StorageErrorCode::IoError,
+            message: "Failed to resolve app data directory while purging trash".into(),
+        })?;
+    let mut conn = db.get()?;
     let thirty_days_ago = Utc::now().timestamp() - (30 * 24 * 3600);
-    let count = conn
+    let audio_paths = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT audio_path FROM transcripts
+                 WHERE is_deleted = 1 AND deleted_at < ?1 AND audio_path IS NOT NULL",
+            )
+            .map_err(|error| AppError::StorageError {
+                code: StorageErrorCode::DatabaseError,
+                message: format!("Failed to inspect trashed transcript audio: {error}"),
+            })?;
+        let rows = stmt
+            .query_map(params![thirty_days_ago], |row| row.get::<_, String>(0))
+            .map_err(|error| AppError::StorageError {
+                code: StorageErrorCode::DatabaseError,
+                message: format!("Failed to inspect trashed transcript audio: {error}"),
+            })?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| AppError::StorageError {
+                code: StorageErrorCode::DatabaseError,
+                message: format!("Failed to inspect trashed transcript audio: {error}"),
+            })?
+    };
+    let recording_audio_paths = recording_paths_for_old_trash(&conn, thirty_days_ago)?;
+    let tx = conn.transaction().map_err(|error| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to begin trash purge: {error}"),
+    })?;
+    tx.execute(
+        "DELETE FROM recordings
+         WHERE transcript_id IN (
+           SELECT id FROM transcripts WHERE is_deleted = 1 AND deleted_at < ?1
+         )",
+        params![thirty_days_ago],
+    )
+    .map_err(|error| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to delete recordings linked to old trash: {error}"),
+    })?;
+    let count = tx
         .execute(
             "DELETE FROM transcripts WHERE is_deleted = 1 AND deleted_at < ?1",
             params![thirty_days_ago],
@@ -354,7 +453,104 @@ pub async fn purge_old_trash(db: State<'_, Arc<Database>>) -> Result<u64, AppErr
             code: StorageErrorCode::DatabaseError,
             message: format!("{}", e),
         })?;
+    tx.commit().map_err(|error| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("Failed to commit trash purge: {error}"),
+    })?;
+
+    for audio_path in audio_paths {
+        if let Err(error) =
+            import_storage::remove_owned_import_if_unreferenced(&app_data_dir, &conn, &audio_path)
+        {
+            tracing::warn!(%error, %audio_path, "failed to clean auto-purged import audio");
+        }
+    }
+    cleanup_recording_audio(&app_data_dir, &conn, recording_audio_paths);
+
     Ok(count as u64)
+}
+
+fn recording_paths_for_transcript(
+    conn: &rusqlite::Connection,
+    transcript_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let mut stmt = conn
+        .prepare("SELECT audio_path, system_audio_path FROM recordings WHERE transcript_id = ?1")
+        .map_err(|error| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to inspect linked recording audio: {error}"),
+        })?;
+    let rows = stmt
+        .query_map([transcript_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })
+        .map_err(|error| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to inspect linked recording audio: {error}"),
+        })?;
+
+    collect_recording_paths(rows)
+}
+
+fn recording_paths_for_old_trash(
+    conn: &rusqlite::Connection,
+    cutoff: i64,
+) -> Result<Vec<String>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT r.audio_path, r.system_audio_path
+             FROM recordings r
+             JOIN transcripts t ON t.id = r.transcript_id
+             WHERE t.is_deleted = 1 AND t.deleted_at < ?1",
+        )
+        .map_err(|error| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to inspect old recording audio: {error}"),
+        })?;
+    let rows = stmt
+        .query_map(params![cutoff], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })
+        .map_err(|error| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to inspect old recording audio: {error}"),
+        })?;
+
+    collect_recording_paths(rows)
+}
+
+fn collect_recording_paths(
+    rows: rusqlite::MappedRows<
+        '_,
+        impl FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<(String, Option<String>)>,
+    >,
+) -> Result<Vec<String>, AppError> {
+    let mut paths = std::collections::HashSet::new();
+    for row in rows {
+        let (primary, system) = row.map_err(|error| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to read linked recording audio: {error}"),
+        })?;
+        paths.insert(primary);
+        if let Some(system) = system {
+            paths.insert(system);
+        }
+    }
+    Ok(paths.into_iter().collect())
+}
+
+fn cleanup_recording_audio(
+    app_data_dir: &std::path::Path,
+    conn: &rusqlite::Connection,
+    paths: Vec<String>,
+) {
+    for path in paths {
+        if let Err(error) =
+            recording_storage::remove_owned_recording_if_unreferenced(app_data_dir, conn, &path)
+        {
+            tracing::warn!(%error, %path, "failed to clean permanently deleted recording audio");
+        }
+    }
 }
 
 // ─── Search ──────────────────────────────────────────────────────────────────

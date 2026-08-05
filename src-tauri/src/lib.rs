@@ -26,12 +26,54 @@ use tauri::Manager;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tokio::sync::Mutex as TokioMutex;
 
+trait WindowActivation {
+    fn unminimize(&self) -> Result<(), String>;
+    fn show(&self) -> Result<(), String>;
+    fn focus(&self) -> Result<(), String>;
+}
+
+impl<R: tauri::Runtime> WindowActivation for tauri::WebviewWindow<R> {
+    fn unminimize(&self) -> Result<(), String> {
+        tauri::WebviewWindow::unminimize(self).map_err(|error| error.to_string())
+    }
+
+    fn show(&self) -> Result<(), String> {
+        tauri::WebviewWindow::show(self).map_err(|error| error.to_string())
+    }
+
+    fn focus(&self) -> Result<(), String> {
+        tauri::WebviewWindow::set_focus(self).map_err(|error| error.to_string())
+    }
+}
+
+fn activate_window(window: &impl WindowActivation) {
+    if let Err(error) = window.unminimize() {
+        tracing::warn!(%error, "failed to unminimize main window after second launch");
+    }
+    if let Err(error) = window.show() {
+        tracing::warn!(%error, "failed to show main window after second launch");
+    }
+    if let Err(error) = window.focus() {
+        tracing::warn!(%error, "failed to focus main window after second launch");
+    }
+}
+
 pub fn run() {
     // Initialize logging first
     logging::init();
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
+        // This must remain the first plugin: it prevents a second process from
+        // owning independent recording/tray state before other plugins start.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tracing::info!("Second launch detected; activating the existing main window");
+            if let Some(window) = app.get_webview_window("main") {
+                activate_window(&window);
+            } else {
+                tracing::warn!("main window was unavailable after second launch");
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -176,6 +218,7 @@ pub fn run() {
             commands::settings::update_settings,
             // Models
             commands::transcription::list_models,
+            commands::transcription::is_metal_available,
             commands::transcription::download_model,
             commands::transcription::cancel_model_download,
             commands::transcription::delete_model,
@@ -183,6 +226,7 @@ pub fn run() {
             // Transcription
             commands::transcription::transcribe_file,
             commands::transcription::cancel_transcription,
+            commands::transcription::get_transcription_performance,
             // Transcripts
             commands::transcription::get_transcript,
             commands::transcription::list_transcripts,
@@ -269,9 +313,11 @@ pub fn run() {
             commands::watch::add_watch_folder,
             commands::watch::remove_watch_folder,
             commands::watch::list_watch_folders,
+            commands::watch::update_watch_folder_event_status,
             // Import
             commands::import::import_youtube,
             commands::import::check_ytdlp_status,
+            commands::import::check_youtube_import_status,
             commands::import::remove_filler_words,
             commands::import::get_filler_config,
             commands::import::set_filler_config,
@@ -323,4 +369,60 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{activate_window, WindowActivation};
+    use std::cell::RefCell;
+
+    struct RecordingWindow {
+        actions: RefCell<Vec<&'static str>>,
+        fail_unminimize: bool,
+    }
+
+    impl WindowActivation for RecordingWindow {
+        fn unminimize(&self) -> Result<(), String> {
+            self.actions.borrow_mut().push("unminimize");
+            if self.fail_unminimize {
+                Err("not minimized".into())
+            } else {
+                Ok(())
+            }
+        }
+
+        fn show(&self) -> Result<(), String> {
+            self.actions.borrow_mut().push("show");
+            Ok(())
+        }
+
+        fn focus(&self) -> Result<(), String> {
+            self.actions.borrow_mut().push("focus");
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn activation_runs_all_window_actions_in_order() {
+        let window = RecordingWindow {
+            actions: RefCell::new(Vec::new()),
+            fail_unminimize: true,
+        };
+
+        activate_window(&window);
+
+        assert_eq!(*window.actions.borrow(), ["unminimize", "show", "focus"]);
+    }
+
+    #[test]
+    fn floating_recorder_has_an_ipc_capability() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/floating-recorder.json"))
+                .expect("floating recorder capability must be valid JSON");
+        assert!(capability["windows"]
+            .as_array()
+            .expect("capability windows must be an array")
+            .iter()
+            .any(|window| window == "float"));
+    }
 }

@@ -95,6 +95,7 @@ export interface TranscriptionCompletePayload {
 
 export interface BackendFallbackPayload {
   jobId: string;
+  transcriptId: string;
   requestedBackend: string;
   actualBackend: string;
   reason: string;

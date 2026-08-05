@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { TabSharedProps } from "./types";
+import { formatError } from "@/lib/formatError";
 
 const LS_KEY_URL = "wd_webhook_url";
 
@@ -46,7 +47,7 @@ export function WebhookTab({
       setStatus({ type: "success", message: "Webhook secret saved to keychain." });
       toast.success("Webhook secret saved");
     } catch (err) {
-      setStatus({ type: "error", message: `Failed to save secret: ${String(err)}` });
+      setStatus({ type: "error", message: `Failed to save secret: ${formatError(err)}` });
     } finally {
       setSaving(false);
     }
@@ -72,7 +73,7 @@ export function WebhookTab({
       setStatus({ type: "success", message: "Webhook fired successfully." });
       toast.success("Webhook fired");
     } catch (err) {
-      setStatus({ type: "error", message: `Webhook failed: ${String(err)}` });
+      setStatus({ type: "error", message: `Webhook failed: ${formatError(err)}` });
     } finally {
       setTesting(false);
     }
@@ -119,11 +120,7 @@ export function WebhookTab({
           disabled={isLoading || !webhookUrl.trim()}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >
-          {testing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Check className="h-4 w-4" />
-          )}
+          {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           {transcriptId ? "Fire Webhook" : "Test Webhook (open a transcript first)"}
         </button>
       </div>

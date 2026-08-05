@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type { BatchJob } from "@/lib/batchTypes";
+import { formatError } from "@/lib/formatError";
 
 interface BatchState {
   jobs: BatchJob[];
@@ -33,7 +34,7 @@ export const useBatchStore = create<BatchState>((set, get) => ({
       await get().refreshJobs();
       return job.id;
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
       throw err;
     }
   },
@@ -44,7 +45,7 @@ export const useBatchStore = create<BatchState>((set, get) => ({
       await invoke("start_batch_job", { jobId });
       await get().refreshJobs();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -54,7 +55,7 @@ export const useBatchStore = create<BatchState>((set, get) => ({
       await invoke("pause_batch_job", { jobId });
       await get().refreshJobs();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -64,7 +65,7 @@ export const useBatchStore = create<BatchState>((set, get) => ({
       await invoke("resume_batch_job", { jobId });
       await get().refreshJobs();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -74,7 +75,7 @@ export const useBatchStore = create<BatchState>((set, get) => ({
       await invoke("cancel_batch_job", { jobId });
       await get().refreshJobs();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -83,16 +84,13 @@ export const useBatchStore = create<BatchState>((set, get) => ({
       const rawJobs = await invoke<BatchJob[]>("list_batch_jobs");
       const jobs = await Promise.all(
         rawJobs.map(async (job) => {
-          const items = await invoke<BatchJob["items"]>(
-            "get_batch_job_items",
-            { jobId: job.id }
-          );
+          const items = await invoke<BatchJob["items"]>("get_batch_job_items", { jobId: job.id });
           return { ...job, items: items ?? [] };
         })
       );
       set({ jobs });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 

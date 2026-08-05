@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type { AudioDevice } from "@/lib/types";
+import { formatError } from "@/lib/formatError";
 
 type RecordingStatus = "idle" | "recording" | "paused" | "stopping";
 type AudioSource = "Microphone" | "System" | "Both";
@@ -49,7 +50,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       const devices = await invoke<AudioDevice[]>("get_audio_devices");
       set({ devices, isLoadingDevices: false });
     } catch (err) {
-      set({ error: String(err), isLoadingDevices: false });
+      set({ error: formatError(err), isLoadingDevices: false });
     }
   },
 
@@ -63,7 +64,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       });
       set({ status: "recording", recordingId, durationMs: 0 });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -74,7 +75,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       set({ status: "idle", recordingId: null, durationMs: 0 });
       return result;
     } catch (err) {
-      set({ error: String(err), status: "idle" });
+      set({ error: formatError(err), status: "idle" });
       return null;
     }
   },
@@ -84,7 +85,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       await invoke("pause_recording");
       set({ status: "paused" });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -93,7 +94,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       await invoke("resume_recording");
       set({ status: "recording" });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 

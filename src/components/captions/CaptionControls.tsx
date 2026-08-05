@@ -3,6 +3,7 @@ import { Mic, Radio, Combine, Play, Square } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useCaptionStore } from "@/stores/captionStore";
 import type { CaptionSource } from "@/lib/captionTypes";
+import { formatError } from "@/lib/formatError";
 
 const SOURCE_OPTIONS: { value: CaptionSource; label: string; icon: typeof Mic }[] = [
   { value: "Mic", label: "Mic", icon: Mic },
@@ -24,7 +25,7 @@ export function CaptionControls() {
       await invoke("start_captions", { source });
       setStatus("listening");
     } catch (err) {
-      setError(String(err));
+      setError(formatError(err));
       setStatus("error");
     }
   }, [source, setError, clearSegments, setStatus]);
@@ -34,7 +35,7 @@ export function CaptionControls() {
       await invoke("stop_captions");
       setStatus("idle");
     } catch (err) {
-      setError(String(err));
+      setError(formatError(err));
     }
   }, [setStatus, setError]);
 
@@ -93,9 +94,7 @@ export function CaptionControls() {
 
       {/* Error display */}
       {error && (
-        <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
+        <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
       )}
     </div>
   );

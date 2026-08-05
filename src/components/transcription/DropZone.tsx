@@ -2,20 +2,46 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Upload, FileAudio, AlertCircle, Loader2, Youtube } from "lucide-react";
 import { useModelStore } from "@/stores/modelStore";
 import { TranscriptionSettings } from "./TranscriptionSettings";
-import {
-  DEFAULT_PARAMS,
-  type TranscriptionParams,
-} from "./transcriptionParams";
+import { DEFAULT_PARAMS, type TranscriptionParams } from "./transcriptionParams";
+import { formatError } from "@/lib/formatError";
 
 interface DropZoneProps {
   onTranscriptionStart?: (jobId: string, transcriptId: string) => void;
 }
 
-const ACCEPTED_EXTENSIONS = ["mp3", "wav", "m4a", "flac", "ogg"];
+const ACCEPTED_EXTENSIONS = ["mp3", "wav", "m4a", "flac", "ogg", "oga"];
+const MAX_BUFFERED_TERMINAL_EVENTS = 32;
+
+interface YouTubeImportStatus {
+  available: boolean;
+  ytDlp: {
+    status: "available" | "notFound" | "outdated";
+    version?: string;
+    minimum?: string;
+  };
+  ffmpegAvailable: boolean;
+}
+
+type TerminalEvent =
+  | {
+      kind: "complete";
+      jobId: string;
+      transcriptId: string;
+    }
+  | {
+      kind: "error";
+      jobId: string;
+      error: string;
+    }
+  | {
+      kind: "cancelled";
+      jobId: string;
+    };
 
 function getExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() ?? "";
@@ -27,6 +53,26 @@ function isAccepted(filename: string): boolean {
 
 function isWma(filename: string): boolean {
   return getExtension(filename) === "wma";
+}
+
+function youtubeDependencyMessage(
+  status: YouTubeImportStatus | null,
+  checkFailed: boolean
+): string | null {
+  if (checkFailed) return "Could not check YouTube import dependencies.";
+  if (status === null) return "Checking yt-dlp and ffmpeg…";
+  if (status.available) return null;
+
+  if (status.ytDlp.status === "outdated") {
+    const ffmpeg = status.ffmpegAvailable ? "" : " and install ffmpeg";
+    return `Update yt-dlp to ${status.ytDlp.minimum ?? "a current version"} or newer${ffmpeg}. On macOS: brew install yt-dlp ffmpeg`;
+  }
+
+  const missing = [
+    ...(status.ytDlp.status === "notFound" ? ["yt-dlp"] : []),
+    ...(!status.ffmpegAvailable ? ["ffmpeg"] : []),
+  ];
+  return `YouTube import requires ${missing.join(" and ")}. Install the missing tools and make them available on PATH. On macOS: brew install yt-dlp ffmpeg`;
 }
 
 export function DropZone({ onTranscriptionStart }: DropZoneProps) {
@@ -52,12 +98,19 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImportingYt, setIsImportingYt] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
+  const [youtubeStatus, setYoutubeStatus] = useState<YouTubeImportStatus | null>(null);
+  const [youtubeStatusError, setYoutubeStatusError] = useState(false);
 
   const dragCounter = useRef(0);
+  const activeJobIdRef = useRef<string | null>(null);
+  const bufferedTerminalEventsRef = useRef(new Map<string, TerminalEvent>());
 
   useEffect(() => {
     initEventListeners();
     loadModels();
+    invoke<YouTubeImportStatus>("check_youtube_import_status")
+      .then(setYoutubeStatus)
+      .catch(() => setYoutubeStatusError(true));
   }, [initEventListeners, loadModels]);
 
   // Keep selectedModelId in sync if models load after mount
@@ -70,35 +123,99 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
     }
   }, [models, selectedModelId]);
 
-  // Listen for transcription completion events
+  const finishJob = useCallback(
+    (terminal: TerminalEvent) => {
+      if (terminal.jobId !== activeJobIdRef.current) return;
+      activeJobIdRef.current = null;
+      setIsTranscribing(false);
+      setProgress(null);
+
+      if (terminal.kind === "complete") {
+        navigate(`/library/${terminal.transcriptId}`);
+      } else if (terminal.kind === "error") {
+        setTranscribeError(terminal.error);
+      } else {
+        setTranscribeError("Transcription was cancelled.");
+      }
+    },
+    [navigate]
+  );
+
+  const consumeOrBufferTerminal = useCallback(
+    (terminal: TerminalEvent) => {
+      if (terminal.jobId === activeJobIdRef.current) {
+        finishJob(terminal);
+        return;
+      }
+
+      const pending = bufferedTerminalEventsRef.current;
+      pending.set(terminal.jobId, terminal);
+      while (pending.size > MAX_BUFFERED_TERMINAL_EVENTS) {
+        const oldest = pending.keys().next().value as string | undefined;
+        if (oldest === undefined) break;
+        pending.delete(oldest);
+      }
+    },
+    [finishJob]
+  );
+
+  // Transcription events are app-global, so correlate every update to the job
+  // started by this view. Terminal events can beat the invoke response for very
+  // short/invalid files; buffer them until the returned job id is known.
   useEffect(() => {
-    const unlisten = listen<{ transcriptId: string }>(
+    const bufferedTerminalEvents = bufferedTerminalEventsRef.current;
+    const unlisten = listen<{ jobId: string; transcriptId: string }>(
       "transcription:complete",
       (event) => {
-        setIsTranscribing(false);
-        setProgress(null);
-        navigate(`/library/${event.payload.transcriptId}`);
+        consumeOrBufferTerminal({
+          kind: "complete",
+          jobId: event.payload.jobId,
+          transcriptId: event.payload.transcriptId,
+        });
       }
     );
 
-    const unlistenProgress = listen<{ progress: number }>(
+    const unlistenError = listen<{ jobId: string; error: string }>(
+      "transcription:error",
+      (event) => {
+        consumeOrBufferTerminal({
+          kind: "error",
+          jobId: event.payload.jobId,
+          error: event.payload.error,
+        });
+      }
+    );
+
+    const unlistenCancelled = listen<{ jobId: string }>("transcription:cancelled", (event) => {
+      consumeOrBufferTerminal({
+        kind: "cancelled",
+        jobId: event.payload.jobId,
+      });
+    });
+
+    const unlistenProgress = listen<{ jobId: string; progress: number }>(
       "transcription:progress",
       (event) => {
-        setProgress(event.payload.progress);
+        if (event.payload.jobId === activeJobIdRef.current) {
+          setProgress(event.payload.progress);
+        }
       }
     );
 
     return () => {
       unlisten.then((fn) => fn());
+      unlistenError.then((fn) => fn());
+      unlistenCancelled.then((fn) => fn());
       unlistenProgress.then((fn) => fn());
+      bufferedTerminalEvents.clear();
     };
-  }, [navigate]);
+  }, [consumeOrBufferTerminal]);
 
-  function applyFile(path: string, name: string) {
+  const applyFile = useCallback((path: string, name: string) => {
     setFileError(null);
     if (isWma(name)) {
       setFileError(
-        "WMA files are not supported. Please convert to MP3, WAV, M4A, FLAC, or OGG."
+        "WMA files are not supported. Please convert to MP3, WAV, M4A, FLAC, OGG, or OGA."
       );
       return;
     }
@@ -111,7 +228,40 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
     setSelectedFile(path);
     setSelectedFileName(name);
     setTranscribeError(null);
-  }
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "enter") {
+          setIsDragging(true);
+        } else if (event.payload.type === "leave") {
+          setIsDragging(false);
+        } else if (event.payload.type === "drop") {
+          setIsDragging(false);
+          dragCounter.current = 0;
+          const path = event.payload.paths[0];
+          if (path) {
+            const name = path.split(/[\\/]/).pop() ?? path;
+            applyFile(path, name);
+          }
+        }
+      })
+      .then((dispose) => {
+        if (disposed) dispose();
+        else unlisten = dispose;
+      })
+      .catch(() => {
+        // Browser-only development/test environments use the React fallback.
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [applyFile]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -132,18 +282,20 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current = 0;
-    setIsDragging(false);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current = 0;
+      setIsDragging(false);
 
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    // Tauri drag-and-drop gives us the path via the file object's path property
-    const path = (file as unknown as { path?: string }).path ?? file.name;
-    applyFile(path, file.name);
-  }, []);
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      const path = (file as unknown as { path?: string }).path;
+      if (path) applyFile(path, file.name);
+    },
+    [applyFile]
+  );
 
   async function handleClick() {
     const result = await open({
@@ -168,26 +320,29 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
     setProgress(0);
 
     try {
-      const result = await invoke<{ jobId: string; transcriptId: string }>(
-        "transcribe_file",
-        {
-          audioPath: selectedFile,
-          modelId: selectedModelId,
-          params,
-        }
-      );
+      const result = await invoke<{ jobId: string; transcriptId: string }>("transcribe_file", {
+        audioPath: selectedFile,
+        modelId: selectedModelId,
+        params,
+      });
+      activeJobIdRef.current = result.jobId;
       onTranscriptionStart?.(result.jobId, result.transcriptId);
-      // Navigation happens via the transcription:complete event listener
+      const earlyTerminal = bufferedTerminalEventsRef.current.get(result.jobId);
+      if (earlyTerminal) {
+        bufferedTerminalEventsRef.current.delete(result.jobId);
+        finishJob(earlyTerminal);
+      }
     } catch (err) {
+      activeJobIdRef.current = null;
       setIsTranscribing(false);
       setProgress(null);
-      setTranscribeError(String(err));
+      setTranscribeError(formatError(err));
     }
   }
 
   async function handleYoutubeImport() {
     const trimmed = youtubeUrl.trim();
-    if (!trimmed) return;
+    if (!trimmed || youtubeStatus?.available !== true) return;
     setIsImportingYt(true);
     setYtError(null);
     try {
@@ -201,11 +356,11 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
       // Feed the downloaded audio into the file selection flow
       const name = result.title
         ? `${result.title}.wav`
-        : trimmed.split("/").pop() ?? "youtube-audio.wav";
+        : (trimmed.split("/").pop() ?? "youtube-audio.wav");
       applyFile(result.audioPath, name);
       setYoutubeUrl("");
     } catch (err) {
-      setYtError(String(err));
+      setYtError(formatError(err));
     } finally {
       setIsImportingYt(false);
     }
@@ -213,6 +368,7 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
 
   const downloadedModels = useMemo(() => models.filter((m) => m.isDownloaded), [models]);
   const noModels = downloadedModels.length === 0;
+  const youtubeUnavailableMessage = youtubeDependencyMessage(youtubeStatus, youtubeStatusError);
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -247,9 +403,7 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
               <FileAudio size={36} strokeWidth={1} className="text-primary" />
               <div className="text-center">
                 <p className="text-sm font-medium text-foreground">{selectedFileName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Click to change file
-                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Click to change file</p>
               </div>
             </>
           ) : (
@@ -257,12 +411,9 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
               <Upload size={36} strokeWidth={1} className="text-muted-foreground" />
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
-                  Drop audio file here or{" "}
-                  <span className="text-primary font-medium">browse</span>
+                  Drop audio file here or <span className="text-primary font-medium">browse</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  MP3, WAV, M4A, FLAC, OGG
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">MP3, WAV, M4A, FLAC, OGG, OGA</p>
               </div>
             </>
           )}
@@ -289,12 +440,12 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
               onChange={(e) => setYoutubeUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleYoutubeImport()}
               placeholder="https://youtube.com/watch?v=..."
-              disabled={isImportingYt}
+              disabled={isImportingYt || youtubeStatus?.available !== true}
               className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             />
             <button
               type="button"
-              disabled={!youtubeUrl.trim() || isImportingYt}
+              disabled={!youtubeUrl.trim() || isImportingYt || youtubeStatus?.available !== true}
               onClick={handleYoutubeImport}
               className="rounded-md px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
             >
@@ -308,6 +459,9 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
               )}
             </button>
           </div>
+          {youtubeUnavailableMessage && (
+            <p className="text-xs text-muted-foreground">{youtubeUnavailableMessage}</p>
+          )}
           {ytError && (
             <div className="flex items-start gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-1.5 text-xs text-destructive">
               <AlertCircle size={12} className="mt-0.5 flex-none" />
@@ -319,9 +473,7 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
         {/* Settings */}
         {!noModels && (
           <div className="rounded-lg border border-border p-4 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground mb-3">
-              Settings
-            </p>
+            <p className="text-xs font-medium text-muted-foreground mb-3">Settings</p>
             <TranscriptionSettings
               params={params}
               onChange={setParams}

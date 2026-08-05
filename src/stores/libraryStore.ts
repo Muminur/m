@@ -9,6 +9,7 @@ import type {
   Folder,
   Tag,
 } from "@/lib/types";
+import { formatError } from "@/lib/formatError";
 
 interface LibraryState {
   transcripts: Transcript[];
@@ -73,7 +74,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       });
       set({ transcripts: result.items, total: result.total, isLoading: false });
     } catch (err) {
-      set({ error: String(err), isLoading: false });
+      set({ error: formatError(err), isLoading: false });
     }
   },
 
@@ -87,14 +88,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const results = await invoke<SearchResult[]>("search_transcripts", { query });
       set({ searchResults: results });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
   clearSearch: () => set({ searchQuery: "", searchResults: [] }),
 
-  setFilter: (partial) =>
-    set((s) => ({ filter: { ...s.filter, ...partial }, page: 0 })),
+  setFilter: (partial) => set((s) => ({ filter: { ...s.filter, ...partial }, page: 0 })),
 
   setSort: (sort) => set({ sort, page: 0 }),
 
@@ -109,7 +109,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
       await get().loadTranscripts();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -118,7 +118,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await invoke("restore_transcript", { transcriptId: id });
       await get().loadTranscripts();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -126,12 +126,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       const newVal = await invoke<boolean>("toggle_star", { transcriptId: id });
       set((s) => ({
-        transcripts: s.transcripts.map((t) =>
-          t.id === id ? { ...t, isStarred: newVal } : t
-        ),
+        transcripts: s.transcripts.map((t) => (t.id === id ? { ...t, isStarred: newVal } : t)),
       }));
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -140,7 +138,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const folders = await invoke<Folder[]>("list_folders");
       set({ folders });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -149,7 +147,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await invoke("create_folder", { name, parentId: parentId ?? null, color: color ?? null });
       await get().loadFolders();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -158,7 +156,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await invoke("rename_folder", { id, name });
       await get().loadFolders();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -167,7 +165,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await invoke("delete_folder", { id });
       await get().loadFolders();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -180,7 +178,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         ),
       }));
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -189,7 +187,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const tags = await invoke<Tag[]>("list_tags");
       set({ tags });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -199,7 +197,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await invoke("tag_transcript", { transcriptId, tagId });
       await get().loadTags();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -208,7 +206,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await invoke("untag_transcript", { transcriptId, tagId });
       await get().loadTags();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 }));

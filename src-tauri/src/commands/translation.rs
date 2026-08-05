@@ -337,8 +337,12 @@ pub async fn translate_transcript(
                 code: StorageErrorCode::DatabaseError,
                 message: format!("load transcript language: {e}"),
             })?;
-        let src = languages::to_flores(lang.as_deref().unwrap_or("en"))
-            .unwrap_or("eng_Latn")
+        let source_code = lang.as_deref().unwrap_or("en");
+        let src = languages::to_flores(source_code)
+            .ok_or_else(|| AppError::StorageError {
+                code: StorageErrorCode::DatabaseError,
+                message: format!("unsupported translation source language: {source_code}"),
+            })?
             .to_string();
         (segs, src)
     };

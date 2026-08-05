@@ -1,10 +1,14 @@
 //! Auto-update commands using tauri-plugin-updater.
 
 use crate::error::{AppError, NetworkErrorCode};
+use crate::network::guard::NetworkGuard;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{command, AppHandle};
+use std::time::Duration;
+use tauri::{command, AppHandle, State};
 use tauri_plugin_updater::UpdaterExt;
+
+const UPDATER_ENDPOINT: &str = "https://whisperdesk-updater.whisperdesk.workers.dev";
 
 /// Guard against concurrent update installs.
 static INSTALLING: AtomicBool = AtomicBool::new(false);
@@ -24,11 +28,76 @@ pub async fn get_app_version(app: AppHandle) -> Result<String, AppError> {
     Ok(app.package_info().version.to_string())
 }
 
+fn updater_probe_url(version: &str) -> Option<String> {
+    let target = if cfg!(target_os = "macos") {
+        "darwin"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        return None;
+    };
+
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "aarch64",
+        "x86_64" => "x86_64",
+        _ => return None,
+    };
+
+    Some(format!("{UPDATER_ENDPOINT}/{target}/{arch}/{version}"))
+}
+
+fn updater_status_has_payload(status: reqwest::StatusCode) -> Option<bool> {
+    if status == reqwest::StatusCode::NO_CONTENT || status == reqwest::StatusCode::NOT_FOUND {
+        Some(false)
+    } else if status.is_success() {
+        Some(true)
+    } else {
+        None
+    }
+}
+
+/// Probe the dynamic endpoint before invoking the updater plugin.
+///
+/// The deployed endpoint historically returned 404 when a release did not
+/// contain a compatible signed bundle. That means "no update" rather than an
+/// application error. The probe keeps those expected responses out of the
+/// updater's error logs while the Worker fix rolls out.
+async fn updater_payload_available(
+    app: &AppHandle,
+    network: &NetworkGuard,
+) -> Result<bool, AppError> {
+    let version = app.package_info().version.to_string();
+    let Some(url) = updater_probe_url(&version) else {
+        return Ok(false);
+    };
+
+    let request = network.client().get(url).timeout(Duration::from_secs(15));
+    let response = network.request(request).await?;
+
+    updater_status_has_payload(response.status()).ok_or_else(|| AppError::NetworkError {
+        code: NetworkErrorCode::HttpError {
+            status: response.status().as_u16(),
+            response_body: None,
+        },
+        message: format!(
+            "Update endpoint returned unexpected status {}",
+            response.status()
+        ),
+    })
+}
+
 /// Check whether an update is available.
 ///
 /// Returns `Some(UpdateInfo)` when a newer version exists, `None` when up to date.
 #[command]
-pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, AppError> {
+pub async fn check_for_update(
+    app: AppHandle,
+    network: State<'_, NetworkGuard>,
+) -> Result<Option<UpdateInfo>, AppError> {
+    if !updater_payload_available(&app, network.inner()).await? {
+        return Ok(None);
+    }
+
     let updater = app
         .updater_builder()
         .build()
@@ -57,7 +126,10 @@ pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, AppE
 /// Guards against concurrent invocations with an atomic flag — a second call
 /// while an install is in progress returns an error immediately.
 #[command]
-pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError> {
+pub async fn download_and_install_update(
+    app: AppHandle,
+    network: State<'_, NetworkGuard>,
+) -> Result<(), AppError> {
     if INSTALLING
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
@@ -68,7 +140,7 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
         });
     }
 
-    let result = do_install(&app).await;
+    let result = do_install(&app, network.inner()).await;
     // Reset flag on error; on success app.restart() diverges so this is unreachable.
     if result.is_err() {
         INSTALLING.store(false, Ordering::SeqCst);
@@ -76,7 +148,14 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), AppError>
     result
 }
 
-async fn do_install(app: &AppHandle) -> Result<(), AppError> {
+async fn do_install(app: &AppHandle, network: &NetworkGuard) -> Result<(), AppError> {
+    if !updater_payload_available(app, network).await? {
+        return Err(AppError::NetworkError {
+            code: NetworkErrorCode::ConnectionFailed,
+            message: "No update available to install".into(),
+        });
+    }
+
     let updater = app
         .updater_builder()
         .build()
@@ -134,5 +213,44 @@ mod tests {
         assert_eq!(json["version"], "1.0.0");
         assert!(json["body"].is_null());
         assert!(json["date"].is_null());
+    }
+
+    #[test]
+    fn updater_probe_accepts_no_update_responses() {
+        assert_eq!(
+            updater_status_has_payload(reqwest::StatusCode::NO_CONTENT),
+            Some(false)
+        );
+        assert_eq!(
+            updater_status_has_payload(reqwest::StatusCode::NOT_FOUND),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn updater_probe_requires_a_successful_payload() {
+        assert_eq!(
+            updater_status_has_payload(reqwest::StatusCode::OK),
+            Some(true)
+        );
+        assert_eq!(
+            updater_status_has_payload(reqwest::StatusCode::BAD_GATEWAY),
+            None
+        );
+    }
+
+    #[test]
+    fn updater_probe_url_matches_supported_build_target() {
+        let url = updater_probe_url("1.2.3");
+
+        if cfg!(any(target_os = "macos", target_os = "windows"))
+            && matches!(std::env::consts::ARCH, "aarch64" | "x86_64")
+        {
+            let url = url.expect("supported desktop target should have an updater URL");
+            assert!(url.ends_with("/1.2.3"));
+            assert!(url.contains(std::env::consts::ARCH));
+        } else {
+            assert!(url.is_none());
+        }
     }
 }

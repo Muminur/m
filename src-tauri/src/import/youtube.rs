@@ -57,6 +57,8 @@ impl YouTubeImporter {
 
         // 2. Locate yt-dlp
         let binary = YtDlpManager::get_binary_path()?;
+        let ffmpeg = YtDlpManager::get_ffmpeg_path()?;
+        let ffmpeg_path = ffmpeg.to_string_lossy().into_owned();
 
         // 3. Build output template — yt-dlp will substitute %(title)s etc.
         std::fs::create_dir_all(output_dir).map_err(|e| AppError::ImportError {
@@ -88,6 +90,8 @@ impl YouTubeImporter {
         let output = Command::new(&binary)
             .args([
                 "-x",
+                "--ffmpeg-location",
+                &ffmpeg_path,
                 "--audio-format",
                 "wav",
                 "--audio-quality",

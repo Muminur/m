@@ -553,8 +553,10 @@ mod tests {
     #[test]
     fn test_translation_manager_supported_languages_deepl() {
         let manager = TranslationManager::new();
-        let mut cfg = TranslationConfig::default();
-        cfg.provider = TranslationProviderKind::DeepL;
+        let cfg = TranslationConfig {
+            provider: TranslationProviderKind::DeepL,
+            ..TranslationConfig::default()
+        };
         manager.set_config(cfg).unwrap();
         let langs = manager.supported_languages().unwrap();
         assert!(!langs.is_empty());

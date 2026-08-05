@@ -1,55 +1,120 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { X, ChevronDown, ChevronUp, Replace, CaseSensitive } from "lucide-react";
+import { formatError } from "@/lib/formatError";
+
+export interface FindMatch {
+  segmentId: string;
+  index: number;
+  length: number;
+}
 
 interface FindReplaceProps {
   segments: { id: string; text: string }[];
-  onHighlight: (matches: { segmentId: string; indices: number[] }[]) => void;
-  onReplace: (segmentId: string, oldText: string, newText: string) => void;
-  onReplaceAll: (oldText: string, newText: string) => void;
+  onActiveMatchChange: (match: FindMatch | null) => void;
+  onReplace: (
+    match: FindMatch,
+    oldText: string,
+    newText: string,
+    caseSensitive: boolean
+  ) => Promise<void>;
+  onReplaceAll: (oldText: string, newText: string, caseSensitive: boolean) => Promise<void>;
   onClose: () => void;
 }
 
-export function FindReplace({ segments, onHighlight, onReplace, onReplaceAll, onClose }: FindReplaceProps) {
+export function FindReplace({
+  segments,
+  onActiveMatchChange,
+  onReplace,
+  onReplaceAll,
+  onClose,
+}: FindReplaceProps) {
   const { t } = useTranslation();
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
-  const [matchCount, setMatchCount] = useState(0);
-  const [currentMatch, setCurrentMatch] = useState(0);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [isReplacing, setIsReplacing] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const doSearch = useCallback(() => {
-    if (!findText) {
-      onHighlight([]);
-      setMatchCount(0);
-      return;
-    }
+  const matches = useMemo(() => {
+    if (!findText) return [];
+
     const flags = caseSensitive ? "g" : "gi";
     const regex = new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), flags);
-    const results: { segmentId: string; indices: number[] }[] = [];
-    let total = 0;
+    const results: FindMatch[] = [];
+
     for (const seg of segments) {
-      const indices: number[] = [];
-      let match;
+      regex.lastIndex = 0;
+      let match: RegExpExecArray | null;
       while ((match = regex.exec(seg.text)) !== null) {
-        indices.push(match.index);
-        total++;
+        results.push({
+          segmentId: seg.id,
+          index: match.index,
+          length: match[0].length,
+        });
       }
-      if (indices.length > 0) results.push({ segmentId: seg.id, indices });
     }
-    onHighlight(results);
-    setMatchCount(total);
-    setCurrentMatch(total > 0 ? 1 : 0);
-  }, [findText, caseSensitive, segments, onHighlight]);
+
+    return results;
+  }, [findText, caseSensitive, segments]);
+
+  const normalizedMatchIndex =
+    matches.length === 0 || currentMatchIndex >= matches.length ? 0 : currentMatchIndex;
+  const activeMatch = matches[normalizedMatchIndex] ?? null;
 
   useEffect(() => {
-    doSearch();
-  }, [doSearch]);
+    onActiveMatchChange(activeMatch);
+  }, [activeMatch, onActiveMatchChange]);
+
+  useEffect(
+    () => () => {
+      onActiveMatchChange(null);
+    },
+    [onActiveMatchChange]
+  );
+
+  const moveMatch = useCallback(
+    (delta: number) => {
+      if (matches.length === 0) return;
+      setCurrentMatchIndex((current) => {
+        const normalized = current >= matches.length ? 0 : current;
+        return (normalized + delta + matches.length) % matches.length;
+      });
+    },
+    [matches.length]
+  );
+
+  const replaceCurrent = useCallback(async () => {
+    if (!activeMatch || !findText || isReplacing) return;
+    setOperationError(null);
+    setIsReplacing(true);
+    try {
+      await onReplace(activeMatch, findText, replaceText, caseSensitive);
+    } catch (error) {
+      setOperationError(formatError(error));
+    } finally {
+      setIsReplacing(false);
+    }
+  }, [activeMatch, caseSensitive, findText, isReplacing, onReplace, replaceText]);
+
+  const replaceEveryMatch = useCallback(async () => {
+    if (matches.length === 0 || !findText || isReplacing) return;
+    setOperationError(null);
+    setIsReplacing(true);
+    try {
+      await onReplaceAll(findText, replaceText, caseSensitive);
+    } catch (error) {
+      setOperationError(formatError(error));
+    } finally {
+      setIsReplacing(false);
+    }
+  }, [caseSensitive, findText, isReplacing, matches.length, onReplaceAll, replaceText]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -59,46 +124,71 @@ export function FindReplace({ segments, onHighlight, onReplace, onReplaceAll, on
       }
       if (e.key === "Enter") {
         e.preventDefault();
-        setCurrentMatch((prev) => (prev < matchCount ? prev + 1 : 1));
+        moveMatch(e.shiftKey ? -1 : 1);
       }
     },
-    [onClose, matchCount]
+    [moveMatch, onClose]
   );
 
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 bg-muted/50 border-b border-border" onKeyDown={handleKeyDown}>
+    <div
+      className="flex flex-col gap-2 px-4 py-3 bg-muted/50 border-b border-border"
+      onKeyDown={handleKeyDown}
+    >
       <div className="flex items-center gap-2">
         <input
           ref={inputRef}
           type="text"
           value={findText}
-          onChange={(e) => setFindText(e.target.value)}
+          onChange={(e) => {
+            setFindText(e.target.value);
+            setCurrentMatchIndex(0);
+            setOperationError(null);
+          }}
           placeholder={t("editor.find_placeholder", "Find...")}
           className="flex-1 px-2 py-1 text-sm border border-border rounded bg-background"
         />
         <button
-          onClick={() => setCaseSensitive(!caseSensitive)}
+          type="button"
+          onClick={() => {
+            setCaseSensitive((current) => !current);
+            setCurrentMatchIndex(0);
+            setOperationError(null);
+          }}
+          aria-pressed={caseSensitive}
+          aria-label="Case sensitive"
           className={`p-1 rounded ${caseSensitive ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
           title="Case sensitive"
         >
           <CaseSensitive size={14} />
         </button>
         <span className="text-xs text-muted-foreground min-w-[60px] text-center">
-          {matchCount > 0 ? `${currentMatch}/${matchCount}` : "No results"}
+          {matches.length > 0 ? `${normalizedMatchIndex + 1}/${matches.length}` : "No results"}
         </span>
         <button
-          onClick={() => setCurrentMatch((prev) => (prev > 1 ? prev - 1 : matchCount))}
-          className="p-1 rounded hover:bg-accent"
+          type="button"
+          onClick={() => moveMatch(-1)}
+          disabled={matches.length === 0}
+          aria-label="Previous match"
+          className="p-1 rounded hover:bg-accent disabled:opacity-40"
         >
           <ChevronUp size={14} />
         </button>
         <button
-          onClick={() => setCurrentMatch((prev) => (prev < matchCount ? prev + 1 : 1))}
-          className="p-1 rounded hover:bg-accent"
+          type="button"
+          onClick={() => moveMatch(1)}
+          disabled={matches.length === 0}
+          aria-label="Next match"
+          className="p-1 rounded hover:bg-accent disabled:opacity-40"
         >
           <ChevronDown size={14} />
         </button>
-        <button onClick={onClose} className="p-1 rounded hover:bg-accent">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close find and replace"
+          className="p-1 rounded hover:bg-accent"
+        >
           <X size={14} />
         </button>
       </div>
@@ -111,24 +201,27 @@ export function FindReplace({ segments, onHighlight, onReplace, onReplaceAll, on
           className="flex-1 px-2 py-1 text-sm border border-border rounded bg-background"
         />
         <button
-          onClick={() => {
-            const match = segments.find((s) => {
-              const flags = caseSensitive ? "" : "i";
-              return new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), flags).test(s.text);
-            });
-            if (match) onReplace(match.id, findText, replaceText);
-          }}
-          className="px-2 py-1 text-xs rounded hover:bg-accent flex items-center gap-1"
+          type="button"
+          onClick={replaceCurrent}
+          disabled={!activeMatch || isReplacing}
+          className="px-2 py-1 text-xs rounded hover:bg-accent flex items-center gap-1 disabled:opacity-40"
         >
           <Replace size={12} /> {t("editor.replace_next", "Replace")}
         </button>
         <button
-          onClick={() => onReplaceAll(findText, replaceText)}
-          className="px-2 py-1 text-xs rounded hover:bg-accent"
+          type="button"
+          onClick={replaceEveryMatch}
+          disabled={matches.length === 0 || isReplacing}
+          className="px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
         >
           {t("editor.replace_all", "Replace All")}
         </button>
       </div>
+      {operationError && (
+        <p role="alert" className="text-xs text-destructive">
+          {operationError}
+        </p>
+      )}
     </div>
   );
 }

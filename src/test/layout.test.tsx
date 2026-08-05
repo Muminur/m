@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
 
@@ -28,6 +28,13 @@ vi.mock("@/stores/settingsStore", () => ({
   useSettingsStore: vi.fn(() => ({
     settings: { theme: "system" },
     updateSettings: vi.fn(),
+  })),
+}));
+
+vi.mock("@/stores/updateStore", () => ({
+  useUpdateStore: vi.fn(() => ({
+    appVersion: null,
+    loadVersion: vi.fn(),
   })),
 }));
 
@@ -98,7 +105,22 @@ describe("Layout", () => {
     // Nav links from Sidebar
     expect(screen.getByText("nav.library")).toBeInTheDocument();
     expect(screen.getByText("nav.recording")).toBeInTheDocument();
+    expect(screen.getByText("nav.transcribe")).toBeInTheDocument();
     expect(screen.getByText("nav.models")).toBeInTheDocument();
     expect(screen.getByText("nav.settings")).toBeInTheDocument();
+  });
+
+  it("links the About dialog to the project repository", () => {
+    render(
+      <MemoryRouter initialEntries={["/library"]}>
+        <Layout />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
+    expect(screen.getByRole("link", { name: "View on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/Muminur/m"
+    );
   });
 });

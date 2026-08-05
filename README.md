@@ -1,14 +1,14 @@
 # WhisperDesk
 
-A local-first desktop transcription and translation app built with Tauri 2, React 19, whisper-rs, and CTranslate2. Transcribe audio with Whisper and translate transcripts with NLLB — entirely on-device when local providers are selected.
+A local-first macOS transcription and translation app built with Tauri 2, React 19, whisper-rs, and CTranslate2. On macOS, Whisper transcription and NLLB translation run entirely on-device when local providers are selected. A Windows desktop build is distributed, but its current binary does not include local Whisper inference; see the platform note below.
 
 ## Project Status
 
-**Latest stable release: v1.0.1.** It includes transcription, editing, processing, integrations, exports, auto-update, and deep-link support.
+**Latest stable release: v1.0.1.** It includes transcription, editing, processing, integrations, exports, and deep-link support. The one-line installer always installs the latest published release, so it remains on v1.0.1 until a newer tag is published.
 
 ### Latest development update
 
-The current development branch adds offline transcript translation with NLLB-200 Distilled 600M int8, automatic translation after transcription, cached dual subtitles, Bengali (Bangla) and Arabic speech-language selection, and reliable detected-language persistence. These changes will reach the one-line installer after the next tagged release.
+Current `master` adds offline transcript translation with NLLB-200 Distilled 600M int8, automatic translation after transcription, cached dual subtitles, Bengali (Bangla) and Arabic speech-language selection, and reliable detected-language persistence. It also adds a draggable macOS floating recorder that stays above fullscreen apps and across Spaces, a direct **Transcribe File** sidebar destination, single-instance launch handling, hardware-aware Metal and system-audio choices, corrected model checksums, safer update checks, stable watch-folder jobs, durable YouTube imports, and working waveform/find/replace/inline editing controls. These changes will reach the one-line installer after the next tagged release.
 
 ## Install
 
@@ -18,7 +18,7 @@ The current development branch adds offline transcript translation with NLLB-200
 curl -fsSL https://raw.githubusercontent.com/Muminur/m/master/scripts/install.sh | bash
 ```
 
-Downloads the latest release DMG, mounts it, and copies WhisperDesk to `/Applications`. On first launch, macOS may show a security prompt — go to **System Settings → Privacy & Security → Open Anyway**.
+Downloads the latest release DMG, mounts it, validates and stages `WhisperDesk.app`, and safely replaces the copy in `/Applications`. On first launch, macOS may show a security prompt — go to **System Settings → Privacy & Security → Open Anyway**.
 
 The installer prefers the native build for your Mac. On Apple Silicon, it can fall back to the Intel build through Rosetta when a release does not include an `aarch64` DMG. It never sends or stores GitHub credentials.
 
@@ -36,96 +36,37 @@ Visit [Releases](https://github.com/Muminur/m/releases) and download the DMG for
 
 Run `WhisperDesk_*_x64-setup.exe` from the [latest release](https://github.com/Muminur/m/releases/latest).
 
+The current Windows build supports the desktop shell and Windows audio capture, but it does **not** include local Whisper inference or offline NLLB translation. Local file/recording transcription is currently supported on macOS only.
+
 For Gatekeeper help, model setup, source builds, and upgrades, see the [installation guide](docs/INSTALLATION.md).
 
 ### Models after installation
 
 Models are downloaded separately and are not bundled with the app:
 
-- Download a Whisper model from **Models** before local transcription.
+- On macOS, download a Whisper model from **Models** before local transcription.
 - On macOS, for offline translation, open **Settings → Translation**, download **NLLB-200 Distilled 600M (int8)** (about 650 MB), choose a target language, and optionally enable auto-translate.
 - Model downloads require network access. Once downloaded, local transcription and NLLB translation run without an API key and without uploading transcript content.
 
 ## Features
 
-- **Local transcription** — all processing happens on your machine; nothing is sent to the cloud
-- **Metal GPU acceleration** — Apple Silicon M1/M2/M3 Metal backend for fast inference
-- **Acceleration control** — choose Auto / CPU / Metal per transcription; graceful CPU fallback with notification
-- **Performance tracking** — realtime factor display after each transcription (e.g. "3.4x realtime · Metal · 12.1s")
-- **Model manager** — download and manage Whisper model files (tiny, base, small, medium, large-v3)
-- **Waveform editor** — wavesurfer.js powered waveform display with play/pause/seek and 0.5x-3x speed control
-- **Click-to-seek** — click any word in the transcript to jump to that audio position; active segment highlighted
-- **Segment editing** — inline edit, merge (Cmd+J), split at cursor, and delete segments with undo support
-- **Undo/redo** — 50-operation undo stack for all edit operations (Cmd+Z / Cmd+Shift+Z)
-- **Find and replace** — Cmd+F search within transcript with case-sensitive toggle and replace all
-- **Compact mode** — toggle timestamps on/off for dense text-only view (Cmd+Shift+C)
-- **FTS5 search** — full-text search across all transcripts with highlighted match excerpts
-- **Library** — browse, search, sort, and filter transcripts; starred items and trash with 30-day recovery (items older than 30 days are auto-purged on startup)
-- **Menu bar tray (macOS)** — state-aware tray icon (gray idle, red recording, amber paused) with Start / Pause / Resume / Stop / Stop and Transcribe controls; closing the main window keeps the app alive in the tray
-- **Default transcription model** — pick which downloaded model the tray "Stop and Transcribe" action and auto-transcribe flow should use, from Settings
-- **Folders and tags** — organize transcripts into folders and assign tags; filter by folder/tag
-- **Smart folders** — auto-populating folders based on filter criteria
-- **Export** — TXT, SRT, VTT, PDF, DOCX, HTML, CSV, JSON, and Markdown formats with speaker labels and timestamps
-- **PDF export** — formatted A4/Letter PDF with header, metadata, speaker-labeled segments, and automatic page breaks
-- **DOCX export** — Word document generated via OOXML templates (zip+handlebars); opens correctly in Word/Pages with styles and speaker headings
-- **HTML export** — styled HTML with interactive timestamp anchors and speaker color coding
-- **CSV export** — RFC 4180 compliant with columns: start_ms, end_ms, timestamps, speaker, text
-- **JSON export** — structured JSON with metadata and per-segment data including confidence scores
-- **Markdown export** — speaker-grouped sections with timestamps for Obsidian, Notion, and note-taking apps
-- **Custom export templates** — write Handlebars templates with `{{segments}}`, `{{title}}`, `{{duration}}` variables for fully custom output formats
-- **WhisperDesk archive** — `.whisper` ZIP+JSON format for lossless transcript export/import with audio
-- **Copy to clipboard** — copy full transcript or selected segments
-- **Video player** — inline video playback with synced subtitle overlay for video source files
-- **Audio recording** — microphone capture via cpal with real-time VU meter and pause/resume
-- **System audio capture** — WASAPI loopback recording on Windows for system audio
-- **Combined recording** — simultaneous mic + system audio capture with mixed output
-- **Device selector** — choose input device from available audio hardware
-- **Watch folders** — auto-transcribe new audio files dropped into configured folders
-- **Real-time streaming** — segments appear as they are transcribed
-- **Export dialog** — format picker, option toggles, destination picker with preview
-- **Streaming transcription** — sliding window real-time transcription (3s step, 10s context, 200ms overlap)
-- **Voice activity detection** — Silero VAD integration; silence produces no hallucinated text
-- **Floating captions** — always-on-top translucent overlay with 1-3 rolling lines, configurable font/color/opacity
-- **System audio captions** — real-time captioning of system audio playback
-- **Dictation mode** — double-tap Right Command to dictate; text inserted into active app via Accessibility API
-- **Punctuation commands** — say "period", "comma", "new line" etc. with auto-capitalization
-- **AI-enhanced dictation** — optional grammar/spelling correction via configurable AI provider
-- **Dictation history** — last 50 dictated snippets in menubar; click to re-insert
-- **Spotlight bar** — Cmd+Shift+Space global input bar: speak, see text, copy or insert
-- **Offline transcript translation (macOS)** — NLLB-200 Distilled 600M int8 translates on-device on CPU, with Bengali (Bangla), Arabic, and English targets
-- **Auto-translate after transcription** — optionally translate every completed transcript into a fixed target language; translations are cached per segment
-- **Bangla and Arabic transcription** — select Bengali or Arabic as the Whisper speech language, with detected/forced language saved for correct downstream translation
-- **Live translation** — real-time caption translation via Whisper translate mode or DeepL API
-- **Global shortcuts** — configurable hotkeys with collision detection and conflict resolution
-- **Speaker diarization** — local tinydiarize speaker turn detection; cloud diarization via ElevenLabs Scribe and Deepgram Nova; "Run Diarization" button in the transcript editor triggers on demand
-- **Speaker labels** — per-speaker colors, inline rename; speaker count hint before transcription
-- **Batch processing** — queue multiple files with configurable concurrency (1-4); per-file progress, pause/resume/cancel
-- **Batch export** — export all completed batch items to TXT/SRT/VTT in one operation
-- **YouTube import** — paste a YouTube URL directly in the drop zone; audio extracted via yt-dlp and queued for transcription automatically
-- **yt-dlp detection** — auto-detect yt-dlp in PATH, Homebrew, or local app data
-- **Filler word removal** — configurable word list (um, uh, er, like, you know); word-boundary aware
-- **Privacy-first architecture** — NetworkGuard enforces offline/local-only/allow-all network policies; all HTTP routed through a single guard module; loopback, link-local, and RFC-1918 ranges blocked in LocalOnly mode
-- **AI Action Panel** — summarize, extract key points, Q&A, translate, rewrite, or generate chapters from any transcript using 9 LLM providers
-- **LLM providers** — OpenAI (GPT-4o, GPT-4o-mini), Anthropic (Claude Opus/Sonnet/Haiku), Groq (llama3, mixtral), Ollama (local), DeepSeek, xAI, OpenRouter, Azure, and custom OpenAI-compatible endpoints
-- **Streaming AI responses** — real-time token streaming from AI providers with animated cursor display
-- **Token and cost estimation** — estimated token count and USD cost shown before sending to any paid API
-- **Prompt templates** — create, edit, and reuse custom AI prompts with `{{transcript}}`, `{{speaker_list}}`, and `{{duration}}` variable substitution
-- **Cloud transcription** — upload audio to OpenAI Whisper, Deepgram Nova-2 (with diarization), Groq Whisper, or ElevenLabs with explicit opt-in and cost estimate shown first
-- **Hybrid transcription** — transcribe locally then refine with cloud in one click
-- **API key management** — all provider keys stored in macOS Keychain (never written to disk or returned to the renderer process); manage from Settings
-- **Notion integration** — push transcripts to any Notion database via the Notion API; configurable database ID; returns page URL
-- **Obsidian integration** — write transcripts as `.md` files to any Obsidian vault folder with YAML frontmatter (date, duration, language, speakers)
-- **Webhook system** — POST transcript JSON to any Zapier, Make, n8n, or custom endpoint on transcription complete; HMAC-SHA256 request signing; SSRF-protected URL validation
-- **DeepL translation** — translate full transcripts or individual subtitle segments to 30+ languages; auto-detects free vs Pro API endpoint; preserves SRT/VTT structure
-- **Dual subtitles** — display original and cached offline-translated subtitles side-by-side with active segment highlighting synchronized to video playback
-- **Integration wizard** — step-by-step setup UI for all integrations: API key entry, vault/database configuration, connection testing
-- **Auto-update** — check for updates, download and install in-app via tauri-plugin-updater
-- **Deep-link protocol** — `whisperdesk://` URL scheme for external automation (transcribe file, get transcript, start/stop recording)
-- **About dialog** — version display, license info, acknowledgments, and GitHub link
-- **Cross-platform sharing** — share transcripts via system default handler (macOS `open`, Windows `start`, Linux `xdg-open`)
-- **Apple Shortcuts** — "Transcribe File", "Get Transcript", "Start/Stop Recording" intents dispatched via deep-link events
-- **Localization** — i18n support via react-i18next with English, Dutch, and German translations
-- **Typed error handling** — all backend commands return typed `AppError` variants with error codes; no raw string errors (14 error categories)
+- **Local file transcription on macOS** — transcribe MP3, WAV, M4A, FLAC, OGG, and OGA files on-device, with native file drop and click-to-select workflows.
+- **Model manager** — download, SHA-256 verify, choose a default, and manage Whisper models from tiny through large-v3.
+- **Hardware-aware inference** — Apple Silicon can use Metal; Intel Macs use CPU and cannot select an unsupported Metal backend.
+- **Recording** — select a microphone, monitor the live level, and start, pause, resume, or stop from the main window.
+- **Windows audio capture** — WASAPI system and combined microphone/system recording are available on Windows and disabled on macOS; the current Windows binary cannot locally transcribe those recordings.
+- **macOS tray and floating recorder** — record from the menu bar or a draggable control that follows every Space and stays above fullscreen apps.
+- **Single-instance state** — a second launch focuses the running app, and recording state remains synchronized across the main and floating webviews.
+- **Live transcription feedback** — progress and segments stream into the transcript view; completion, cancellation, and structured errors are correlated to the correct job.
+- **Transcript library** — sort transcripts, star or unstar them, move them to Trash, restore them, and permanently delete them. Trashed items are auto-purged after 30 days.
+- **Waveform and transcript editing** — play and seek recorded audio, click a segment to seek, edit segment text inline, and use case-aware find and replace.
+- **Offline translation on macOS** — download the optional NLLB-200 int8 model, view cached dual subtitles, and optionally translate each completed transcript automatically.
+- **Watch folders on macOS** — monitor configured folders and transcribe stable supported audio files in the background with a selected language/model.
+- **Optional YouTube import on macOS** — enabled only when compatible `yt-dlp` and `ffmpeg` binaries are installed; unavailable dependencies are explained in the UI.
+- **Secure settings** — provider credentials are stored in the system Keychain and are used only when the matching online provider feature is invoked.
+- **Updates and automation** — signed-release update checks, `whisperdesk://` deep links, an About dialog, themes, and English/Dutch/German UI strings.
+
+The repository also contains backend or experimental modules for additional exports, AI/cloud actions, integrations, captions, dictation, batch processing, folders/tags, and smart folders. Those modules are not currently linked from the desktop navigation and should not be treated as release-ready UI features.
 
 ## Tech Stack
 
@@ -134,20 +75,21 @@ Models are downloaded separately and are not bundled with the app:
 - **Audio:** Symphonia (decode), Rubato (resample), cpal (recording), hound (WAV writing)
 - **Inference:** whisper-rs with Metal feature flag (macOS only)
 - **Offline translation (macOS):** NLLB-200 Distilled 600M int8 through ct2rs/CTranslate2 with oneDNN + ruy on CPU
-- **Export:** SRT, VTT, TXT, PDF (printpdf), DOCX (zip+handlebars OOXML), HTML, CSV, JSON, Markdown, ZIP-based .whisper archive
-- **Integrations:** Notion API, Obsidian vault, webhooks (HMAC-SHA256 signed), DeepL translation API
+- **Backend export modules:** SRT, VTT, TXT, PDF, DOCX, HTML, CSV, JSON, Markdown, and `.whisper` archives
+- **Backend integration modules:** Notion, Obsidian, signed webhooks, and DeepL
 
 ## Requirements
 
 For release installation:
 
-- macOS 13+ or Windows 10+
+- macOS 13+ for local Whisper transcription and offline translation
+- Windows 10+ for the currently limited Windows desktop/audio-capture build
 - Apple Silicon is recommended for Metal-accelerated Whisper transcription; Intel Macs use CPU inference
 - About 650 MB of additional disk space if the optional offline translation model is downloaded
 
 For source builds:
 
-- Rust 1.77+ and Node.js 22+
+- Rust 1.77.2+ and Node.js 22+
 - macOS: Xcode Command Line Tools and CMake
 - Several gigabytes of free build space; oneDNN is compiled from source on the first translation-enabled build
 
@@ -160,8 +102,11 @@ npm ci
 # Run in development mode (hot reload)
 npm run tauri dev
 
-# Build for production
-npm run tauri build
+# Build a local macOS app without release-updater signing artifacts
+CLANG_RT_DIR="$(xcrun clang -print-runtime-dir)"
+RUSTFLAGS="-C link-arg=-L${CLANG_RT_DIR} -C link-arg=-lclang_rt.osx" \
+  MACOSX_DEPLOYMENT_TARGET=13.0 \
+  npx tauri build --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
 ```
 
 ## Database Migrations
@@ -188,6 +133,8 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | V016    | API keys service registry (actual keys stored in system Keychain) |
 | V017    | Cached per-segment transcript translations                        |
 | V018    | Offline translation model registry                                |
+| V019    | Correct SHA-256 checksums for bundled Whisper model metadata      |
+| V020    | Link persisted acceleration statistics to their transcript        |
 
 ## Acceleration Backends
 
@@ -206,7 +153,9 @@ Migrations live in `src-tauri/migrations/` and run automatically on startup:
 | System Audio | WASAPI loopback capture           | Windows only   |
 | Combined     | Mic + system audio simultaneously | Windows only   |
 
-## Export Formats
+## Backend Export Formats
+
+The backend implements these serializers, but the current desktop navigation does not expose the export dialog yet.
 
 | Format   | Description         | Features                                                      |
 | -------- | ------------------- | ------------------------------------------------------------- |
@@ -268,7 +217,7 @@ src-tauri/              # Rust backend
     error.rs            # Typed error enum (14 error categories with codes)
     keychain.rs         # macOS Keychain integration for API key storage
     logging.rs          # Tracing/logging infrastructure with file rotation
-  migrations/           # SQL migration files (V001-V018)
+  migrations/           # SQL migration files (V001-V020)
   benches/              # Criterion benchmark suite
 
 scripts/

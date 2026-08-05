@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppSettings, WatchFolderConfig } from "@/lib/types";
+import { formatError } from "@/lib/formatError";
 
 interface BackendWatchFolderConfig {
   path: string;
@@ -82,7 +83,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       const settings = await invoke<BackendAppSettings | AppSettings>("get_settings");
       set({ settings: fromBackendSettings(settings), isLoading: false });
     } catch (err) {
-      set({ error: String(err), isLoading: false });
+      set({ error: formatError(err), isLoading: false });
     }
   },
 
@@ -116,7 +117,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       });
       set({ settings: fromBackendSettings(newSettings) });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
+      throw err;
     }
   },
 }));

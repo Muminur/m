@@ -1,23 +1,8 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { WhisperModel } from "@/lib/types";
+import { TRANSCRIPTION_LANGUAGES } from "@/constants/transcriptionLanguages";
 import type { TranscriptionParams } from "./transcriptionParams";
-
-const LANGUAGES = [
-  { value: "auto", label: "Auto-detect" },
-  { value: "en", label: "English" },
-  { value: "nl", label: "Dutch" },
-  { value: "de", label: "German" },
-  { value: "fr", label: "French" },
-  { value: "es", label: "Spanish" },
-  { value: "pt", label: "Portuguese" },
-  { value: "it", label: "Italian" },
-  { value: "ja", label: "Japanese" },
-  { value: "zh", label: "Chinese" },
-  { value: "ko", label: "Korean" },
-  { value: "bn", label: "Bengali (Bangla)" },
-  { value: "ar", label: "Arabic" },
-];
 
 interface TranscriptionSettingsProps {
   params: TranscriptionParams;
@@ -38,10 +23,7 @@ export function TranscriptionSettings({
 
   const downloadedModels = models.filter((m) => m.isDownloaded);
 
-  function update<K extends keyof TranscriptionParams>(
-    key: K,
-    value: TranscriptionParams[K]
-  ) {
+  function update<K extends keyof TranscriptionParams>(key: K, value: TranscriptionParams[K]) {
     onChange({ ...params, [key]: value });
   }
 
@@ -75,11 +57,9 @@ export function TranscriptionSettings({
         <select
           className="flex-1 text-sm bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           value={params.language ?? "auto"}
-          onChange={(e) =>
-            update("language", e.target.value === "auto" ? null : e.target.value)
-          }
+          onChange={(e) => update("language", e.target.value === "auto" ? null : e.target.value)}
         >
-          {LANGUAGES.map((l) => (
+          {TRANSCRIPTION_LANGUAGES.map((l) => (
             <option key={l.value} value={l.value}>
               {l.label}
             </option>
@@ -115,9 +95,7 @@ export function TranscriptionSettings({
         <div className="space-y-3 pl-2 border-l border-border">
           {/* Beam size */}
           <div className="flex items-center gap-3">
-            <label className="text-xs text-muted-foreground w-20 flex-none">
-              Beam size
-            </label>
+            <label className="text-xs text-muted-foreground w-20 flex-none">Beam size</label>
             <div className="flex items-center gap-2 flex-1">
               <input
                 type="range"
@@ -136,9 +114,7 @@ export function TranscriptionSettings({
 
           {/* Temperature */}
           <div className="flex items-center gap-3">
-            <label className="text-xs text-muted-foreground w-20 flex-none">
-              Temperature
-            </label>
+            <label className="text-xs text-muted-foreground w-20 flex-none">Temperature</label>
             <div className="flex items-center gap-2 flex-1">
               <input
                 type="range"
@@ -157,33 +133,27 @@ export function TranscriptionSettings({
 
           {/* Word timestamps */}
           <div className="flex items-center gap-3">
-            <label className="text-xs text-muted-foreground w-20 flex-none">
-              Timestamps
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-primary"
-                checked={params.wordTimestamps}
-                onChange={(e) => update("wordTimestamps", e.target.checked)}
-              />
-              <span className="text-xs text-muted-foreground">Word-level timestamps</span>
+            <label className="text-xs text-muted-foreground w-20 flex-none">Timestamps</label>
+            <label
+              className="flex items-center gap-2 cursor-not-allowed opacity-60"
+              title="Word-level timestamp extraction is not available yet"
+            >
+              <input type="checkbox" className="accent-primary" checked={false} disabled readOnly />
+              <span className="text-xs text-muted-foreground">
+                Word-level timestamps (coming soon)
+              </span>
             </label>
           </div>
 
           {/* Initial prompt */}
           <div className="flex items-start gap-3">
-            <label className="text-xs text-muted-foreground w-20 flex-none pt-1">
-              Prompt
-            </label>
+            <label className="text-xs text-muted-foreground w-20 flex-none pt-1">Prompt</label>
             <textarea
               rows={2}
               placeholder="Optional initial prompt…"
               className="flex-1 text-sm bg-background border border-border rounded-md px-2 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
               value={params.initialPrompt ?? ""}
-              onChange={(e) =>
-                update("initialPrompt", e.target.value.trim() || null)
-              }
+              onChange={(e) => update("initialPrompt", e.target.value.trim() || null)}
             />
           </div>
         </div>

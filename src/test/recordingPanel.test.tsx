@@ -38,6 +38,7 @@ describe("RecordingPanel", () => {
     vi.mocked(startTranscriptionInBackground).mockClear();
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "get_audio_devices") return Promise.resolve([]);
+      if (cmd === "is_system_audio_available") return Promise.resolve(false);
       return Promise.resolve();
     });
     await act(async () => {
@@ -61,9 +62,7 @@ describe("RecordingPanel", () => {
     });
 
     expect(screen.getByText("Recording")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Capture audio from microphone or system audio/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Capture audio from microphone or system audio/)).toBeInTheDocument();
   });
 
   it("renders audio source buttons", async () => {
@@ -74,6 +73,37 @@ describe("RecordingPanel", () => {
     expect(screen.getByText("Microphone")).toBeInTheDocument();
     expect(screen.getByText("System")).toBeInTheDocument();
     expect(screen.getByText("Both")).toBeInTheDocument();
+  });
+
+  it("disables unavailable system audio sources", async () => {
+    await act(async () => {
+      renderPanel();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "System" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Both" })).toBeDisabled();
+    });
+    expect(
+      screen.getByText(/System and combined audio capture are unavailable/)
+    ).toBeInTheDocument();
+  });
+
+  it("enables system audio sources when the backend supports them", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_audio_devices") return Promise.resolve([]);
+      if (cmd === "is_system_audio_available") return Promise.resolve(true);
+      return Promise.resolve();
+    });
+
+    await act(async () => {
+      renderPanel();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "System" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Both" })).toBeEnabled();
+    });
   });
 
   it("shows Start Recording button in idle state", async () => {
@@ -128,6 +158,31 @@ describe("RecordingPanel", () => {
     expect(screen.getByText("-25.3 dB")).toBeInTheDocument();
   });
 
+  it("reads camelCase recording levels emitted by the Rust backend", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_audio_devices") return Promise.resolve([]);
+      if (cmd === "is_system_audio_available") return Promise.resolve(false);
+      if (cmd === "get_recording_level") {
+        return Promise.resolve({
+          levelDb: -12.5,
+          durationMs: 4200,
+          status: "recording",
+        });
+      }
+      return Promise.resolve();
+    });
+    useRecordingStore.setState({ status: "recording" });
+
+    await act(async () => {
+      renderPanel();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("-12.5 dB")).toBeInTheDocument();
+      expect(screen.getByText("00:04")).toBeInTheDocument();
+    });
+  });
+
   it("displays error when present", async () => {
     // Make loadDevices fail to set error naturally
     mockInvoke.mockImplementation((cmd: string) => {
@@ -176,10 +231,7 @@ describe("RecordingPanel", () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith("/library/transcript-42");
     });
-    expect(startTranscriptionInBackground).toHaveBeenCalledWith(
-      "/tmp/rec-42.wav",
-      "transcript-42"
-    );
+    expect(startTranscriptionInBackground).toHaveBeenCalledWith("/tmp/rec-42.wav", "transcript-42");
   });
 
   it("does not navigate when Stop fails (null result)", async () => {

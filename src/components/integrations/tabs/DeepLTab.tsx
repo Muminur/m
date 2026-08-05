@@ -4,6 +4,7 @@ import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { DEEPL_LANGUAGES } from "../../../constants/languages";
 import type { TabSharedProps } from "./types";
+import { formatError } from "@/lib/formatError";
 
 const LS_KEY_LANG = "wd_deepl_target_lang";
 
@@ -46,7 +47,7 @@ export function DeepLTab({
       setStatus({ type: "success", message: "DeepL API key saved to keychain." });
       toast.success("DeepL API key saved");
     } catch (err) {
-      setStatus({ type: "error", message: `Failed to save key: ${String(err)}` });
+      setStatus({ type: "error", message: `Failed to save key: ${formatError(err)}` });
     } finally {
       setSaving(false);
     }
@@ -64,7 +65,7 @@ export function DeepLTab({
       setStatus({ type: "success", message: `Translation: "${result}"` });
       toast.success("DeepL translation successful");
     } catch (err) {
-      setStatus({ type: "error", message: `DeepL test failed: ${String(err)}` });
+      setStatus({ type: "error", message: `DeepL test failed: ${formatError(err)}` });
     } finally {
       setTesting(false);
     }
@@ -74,9 +75,7 @@ export function DeepLTab({
     <>
       <div className="space-y-1.5">
         <label className="text-sm font-medium">Step 1: API Key</label>
-        <p className="text-xs text-muted-foreground">
-          Stored securely in your system keychain.
-        </p>
+        <p className="text-xs text-muted-foreground">Stored securely in your system keychain.</p>
         <div className="flex gap-2">
           <input
             type="password"
@@ -115,11 +114,7 @@ export function DeepLTab({
           disabled={isLoading}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >
-          {testing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Check className="h-4 w-4" />
-          )}
+          {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Test Translation
         </button>
       </div>

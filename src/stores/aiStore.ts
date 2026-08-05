@@ -7,6 +7,7 @@ import type {
   CloudProviderInfo,
   CloudCostEstimate,
 } from "@/lib/aiTypes";
+import { formatError } from "@/lib/formatError";
 
 interface AiState {
   // Provider state
@@ -75,7 +76,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       const providers = await invoke<string[]>("list_ai_providers");
       set({ providers, isLoadingProviders: false });
     } catch (err) {
-      set({ error: String(err), isLoadingProviders: false });
+      set({ error: formatError(err), isLoadingProviders: false });
     }
   },
 
@@ -89,7 +90,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       set({ output: result, isRunning: false });
       return result;
     } catch (err) {
-      set({ error: String(err), isRunning: false });
+      set({ error: formatError(err), isRunning: false });
       throw err;
     }
   },
@@ -109,7 +110,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       const templates = await invoke<AiTemplate[]>("list_ai_templates");
       set({ templates });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -130,12 +131,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     return template;
   },
 
-  updateTemplate: async (
-    id: string,
-    name: string,
-    description: string | null,
-    prompt: string
-  ) => {
+  updateTemplate: async (id: string, name: string, description: string | null, prompt: string) => {
     await invoke("update_ai_template", { id, name, description, prompt });
     await get().loadTemplates();
   },
@@ -150,7 +146,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       const cloudProviders = await invoke<CloudProviderInfo[]>("list_cloud_providers");
       set({ cloudProviders });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -169,7 +165,6 @@ export const useAiStore = create<AiState>((set, get) => ({
   },
 
   setOutput: (text: string) => set({ output: text }),
-  appendOutput: (chunk: string) =>
-    set({ output: get().output + chunk }),
+  appendOutput: (chunk: string) => set({ output: get().output + chunk }),
   clearOutput: () => set({ output: "", costEstimate: null, error: null }),
 }));

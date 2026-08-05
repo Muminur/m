@@ -52,13 +52,9 @@ export function AboutDialog({ open, onClose }: AboutDialogProps) {
         <div className="flex flex-col items-center text-center gap-3">
           <h2 className="text-lg font-semibold">WhisperDesk</h2>
 
-          {appVersion && (
-            <p className="text-sm text-muted-foreground">v{appVersion}</p>
-          )}
+          {appVersion && <p className="text-sm text-muted-foreground">v{appVersion}</p>}
 
-          <p className="text-xs text-muted-foreground">
-            Local-first transcription — all on device
-          </p>
+          <p className="text-xs text-muted-foreground">Local-first transcription — all on device</p>
 
           <div className="h-px w-full bg-border my-1" />
 
@@ -67,7 +63,7 @@ export function AboutDialog({ open, onClose }: AboutDialogProps) {
           </p>
 
           <a
-            href="https://github.com/whisperdesk/whisperdesk"
+            href="https://github.com/Muminur/m"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-primary hover:underline"

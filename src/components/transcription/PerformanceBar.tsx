@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { TranscriptionCompletePayload, BackendFallbackPayload } from "@/lib/types";
 
@@ -10,54 +11,65 @@ interface Stats {
 }
 
 export function PerformanceBar({ transcriptId }: { transcriptId?: string }) {
-  const cachedStatsRef = useRef<Stats | null>(null);
-  const cachedFallbackRef = useRef<string | null>(null);
-
-  const [stats, setStats] = useState<Stats | null>(
-    // Show cached stats if they match the current transcript (or no filter)
-    cachedStatsRef.current && (!transcriptId || cachedStatsRef.current.transcriptId === transcriptId)
-      ? cachedStatsRef.current
-      : null
-  );
-  const [fallbackMessage, setFallbackMessage] = useState<string | null>(cachedFallbackRef.current);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    let unlistenComplete: (() => void) | undefined;
-    let unlistenFallback: (() => void) | undefined;
+    let disposed = false;
+    let eventGeneration = 0;
+    setStats(null);
+    setFallbackMessage(null);
 
-    const setup = async () => {
-      unlistenComplete = await listen<TranscriptionCompletePayload>(
-        "transcription:complete",
-        (event) => {
-          const s: Stats = {
-            realtimeFactor: event.payload.realtimeFactor,
-            backendUsed: event.payload.backendUsed,
-            wallTimeMs: event.payload.wallTimeMs,
-            transcriptId: event.payload.transcriptId,
-          };
-          cachedStatsRef.current = s;
-          cachedFallbackRef.current = null;
-          if (!transcriptId || s.transcriptId === transcriptId) {
-            setStats(s);
-            setFallbackMessage(null);
-          }
+    const completeListener = listen<TranscriptionCompletePayload>(
+      "transcription:complete",
+      (event) => {
+        if (disposed) return;
+        if (transcriptId && event.payload.transcriptId !== transcriptId) return;
+        eventGeneration += 1;
+        setStats({
+          realtimeFactor: event.payload.realtimeFactor,
+          backendUsed: event.payload.backendUsed,
+          wallTimeMs: event.payload.wallTimeMs,
+          transcriptId: event.payload.transcriptId,
+        });
+        setFallbackMessage(null);
+      }
+    );
+
+    const fallbackListener = listen<BackendFallbackPayload>(
+      "transcription:backend_fallback",
+      (event) => {
+        if (disposed) return;
+        if (transcriptId && event.payload.transcriptId !== transcriptId) return;
+        eventGeneration += 1;
+        setFallbackMessage(
+          `${formatBackend(event.payload.requestedBackend)} unavailable — using ${formatBackend(event.payload.actualBackend)}`
+        );
+      }
+    );
+
+    Promise.all([completeListener, fallbackListener])
+      .then(async () => {
+        if (!transcriptId) return null;
+        const generationBeforeLoad = eventGeneration;
+        const persisted = await invoke<Stats | null>("get_transcription_performance", {
+          transcriptId,
+        });
+        return { persisted, generationBeforeLoad };
+      })
+      .then((result) => {
+        if (!disposed && result?.persisted && eventGeneration === result.generationBeforeLoad) {
+          setStats(result.persisted);
         }
-      );
+      })
+      .catch((error) => {
+        if (!disposed) console.warn("Failed to load transcription performance:", error);
+      });
 
-      unlistenFallback = await listen<BackendFallbackPayload>(
-        "transcription:backend_fallback",
-        (event) => {
-          const msg = `${formatBackend(event.payload.requestedBackend)} unavailable — using ${formatBackend(event.payload.actualBackend)}`;
-          cachedFallbackRef.current = msg;
-          setFallbackMessage(msg);
-        }
-      );
-    };
-
-    setup();
     return () => {
-      unlistenComplete?.();
-      unlistenFallback?.();
+      disposed = true;
+      completeListener.then((unlisten) => unlisten()).catch(() => {});
+      fallbackListener.then((unlisten) => unlisten()).catch(() => {});
     };
   }, [transcriptId]);
 
@@ -87,10 +99,15 @@ export function PerformanceBar({ transcriptId }: { transcriptId?: string }) {
 
 function formatBackend(backend: string): string {
   switch (backend) {
-    case "metal": return "Metal";
-    case "cpu": return "CPU";
-    case "core_ml": return "CoreML";
-    case "auto": return "Auto";
-    default: return backend;
+    case "metal":
+      return "Metal";
+    case "cpu":
+      return "CPU";
+    case "core_ml":
+      return "CoreML";
+    case "auto":
+      return "Auto";
+    default:
+      return backend;
   }
 }

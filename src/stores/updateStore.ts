@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "@/lib/formatError";
 
 export interface UpdateInfo {
   version: string;
@@ -31,7 +32,7 @@ export const useUpdateStore = create<UpdateState>((set) => ({
       const version = await invoke<string>("get_app_version");
       set({ appVersion: version });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -41,7 +42,7 @@ export const useUpdateStore = create<UpdateState>((set) => ({
       const update = await invoke<UpdateInfo | null>("check_for_update");
       set({ update, checking: false });
     } catch (err) {
-      set({ error: String(err), checking: false });
+      set({ error: formatError(err), checking: false });
     }
   },
 
@@ -51,7 +52,7 @@ export const useUpdateStore = create<UpdateState>((set) => ({
       await invoke("download_and_install_update");
       set({ installing: false });
     } catch (err) {
-      set({ error: String(err), installing: false });
+      set({ error: formatError(err), installing: false });
     }
   },
 }));

@@ -149,6 +149,7 @@ impl WhisperEngine {
 
             full_params.set_n_threads(params.n_threads);
             full_params.set_translate(params.translate);
+            full_params.set_temperature(params.temperature.clamp(0.0, 1.0));
             full_params.set_print_special(false);
             full_params.set_print_progress(false);
             full_params.set_print_realtime(false);

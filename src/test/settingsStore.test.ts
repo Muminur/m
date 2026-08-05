@@ -143,7 +143,9 @@ describe("settingsStore", () => {
     it("sets error on failure", async () => {
       mockInvoke.mockRejectedValue("update failed");
 
-      await useSettingsStore.getState().updateSettings({ theme: "dark" });
+      await expect(useSettingsStore.getState().updateSettings({ theme: "dark" })).rejects.toBe(
+        "update failed"
+      );
 
       expect(useSettingsStore.getState().error).toBe("update failed");
     });

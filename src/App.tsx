@@ -11,6 +11,8 @@ import { lazy, Suspense, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { initTrayBridge } from "./lib/trayBridge";
 import { initAutoTranslate } from "./lib/autoTranslate";
+import { initWatchFolderBridge } from "./lib/watchFolderBridge";
+import { initRecordingBridge } from "./lib/recordingBridge";
 
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
@@ -104,6 +106,26 @@ function AppInner() {
     };
   }, [navigate]);
 
+  // The recorder can start from the floating webview or tray while this route
+  // is not mounted. Keep the main store hydrated from authoritative backend
+  // events so controls and tray actions never operate on stale local state.
+  useEffect(() => {
+    let cancelled = false;
+    let unmount: (() => void) | null = null;
+    initRecordingBridge()
+      .then((dispose) => {
+        if (cancelled) dispose();
+        else unmount = dispose;
+      })
+      .catch((error) => {
+        console.error("[recording] listener setup failed:", error);
+      });
+    return () => {
+      cancelled = true;
+      unmount?.();
+    };
+  }, []);
+
   // Mount the auto-translate listener once. Fires after each
   // `transcription:complete` and, when enabled in Settings, translates the new
   // transcript into the fixed target language. Never blocks transcription.
@@ -117,6 +139,26 @@ function AppInner() {
       })
       .catch((error) => {
         console.error("[autoTranslate] listener setup failed:", error);
+      });
+    return () => {
+      cancelled = true;
+      unmount?.();
+    };
+  }, []);
+
+  // Process files detected by enabled watch folders in the background. The
+  // bridge owns one native listener set and deliberately does not navigate,
+  // so watch-folder jobs never interrupt the user's current screen.
+  useEffect(() => {
+    let cancelled = false;
+    let unmount: (() => void) | null = null;
+    initWatchFolderBridge()
+      .then((dispose) => {
+        if (cancelled) dispose();
+        else unmount = dispose;
+      })
+      .catch((error) => {
+        console.error("[watchFolder] listener setup failed:", error);
       });
     return () => {
       cancelled = true;

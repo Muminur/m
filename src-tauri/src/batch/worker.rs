@@ -99,7 +99,9 @@ pub async fn process_item(
                     duration_ms: Some(duration_ms as i64),
                     language: params.language.clone(),
                     model_id: Some(model_id),
-                    source_type: Some("batch".to_string()),
+                    // Batch items are still ordinary imported files. Keep the
+                    // storage value within transcripts.source_type's contract.
+                    source_type: Some("file".to_string()),
                     source_url: None,
                     audio_path: Some(file_path),
                 },

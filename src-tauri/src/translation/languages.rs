@@ -17,6 +17,12 @@ pub fn supported_languages() -> Vec<TranslationLanguage> {
         ("spa_Latn", "Spanish"),
         ("fra_Latn", "French"),
         ("deu_Latn", "German"),
+        ("nld_Latn", "Dutch"),
+        ("por_Latn", "Portuguese"),
+        ("ita_Latn", "Italian"),
+        ("jpn_Jpan", "Japanese"),
+        ("zho_Hans", "Chinese (Simplified)"),
+        ("kor_Hang", "Korean"),
     ]
     .iter()
     .map(|(c, l)| TranslationLanguage {
@@ -35,32 +41,21 @@ pub fn is_supported(flores_code: &str) -> bool {
 /// code (contains an underscore, e.g. "ben_Beng"), it is returned as-is when
 /// supported. Returns `None` for unknown codes.
 pub fn to_flores(code: &str) -> Option<&'static str> {
-    // Already a FLORES-200 code → validate against the supported set.
-    if code.contains('_') {
-        return supported_languages()
-            .into_iter()
-            .find(|l| l.code == code)
-            .map(|_| match code {
-                "eng_Latn" => "eng_Latn",
-                "ben_Beng" => "ben_Beng",
-                "arb_Arab" => "arb_Arab",
-                "hin_Deva" => "hin_Deva",
-                "urd_Arab" => "urd_Arab",
-                "spa_Latn" => "spa_Latn",
-                "fra_Latn" => "fra_Latn",
-                "deu_Latn" => "deu_Latn",
-                _ => unreachable!(),
-            });
-    }
     match code {
-        "en" => Some("eng_Latn"),
-        "bn" => Some("ben_Beng"),
-        "ar" => Some("arb_Arab"),
-        "hi" => Some("hin_Deva"),
-        "ur" => Some("urd_Arab"),
-        "es" => Some("spa_Latn"),
-        "fr" => Some("fra_Latn"),
-        "de" => Some("deu_Latn"),
+        "en" | "eng_Latn" => Some("eng_Latn"),
+        "bn" | "ben_Beng" => Some("ben_Beng"),
+        "ar" | "arb_Arab" => Some("arb_Arab"),
+        "hi" | "hin_Deva" => Some("hin_Deva"),
+        "ur" | "urd_Arab" => Some("urd_Arab"),
+        "es" | "spa_Latn" => Some("spa_Latn"),
+        "fr" | "fra_Latn" => Some("fra_Latn"),
+        "de" | "deu_Latn" => Some("deu_Latn"),
+        "nl" | "nld_Latn" => Some("nld_Latn"),
+        "pt" | "por_Latn" => Some("por_Latn"),
+        "it" | "ita_Latn" => Some("ita_Latn"),
+        "ja" | "jpn_Jpan" => Some("jpn_Jpan"),
+        "zh" | "zho_Hans" => Some("zho_Hans"),
+        "ko" | "kor_Hang" => Some("kor_Hang"),
         _ => None,
     }
 }
@@ -125,6 +120,12 @@ mod tests {
         assert_eq!(to_flores("ar"), Some("arb_Arab"));
         // Already-FLORES passthrough.
         assert_eq!(to_flores("ben_Beng"), Some("ben_Beng"));
+        assert_eq!(to_flores("nl"), Some("nld_Latn"));
+        assert_eq!(to_flores("pt"), Some("por_Latn"));
+        assert_eq!(to_flores("it"), Some("ita_Latn"));
+        assert_eq!(to_flores("ja"), Some("jpn_Jpan"));
+        assert_eq!(to_flores("zh"), Some("zho_Hans"));
+        assert_eq!(to_flores("ko"), Some("kor_Hang"));
         // Unknown.
         assert_eq!(to_flores("zz"), None);
     }

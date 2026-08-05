@@ -3,42 +3,67 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag is not strict SemVer: $tag" >&2
+            exit 1
+          fi
+          version="${tag#v}"
+          package_version=$(jq -r '.version' package.json)
+          tauri_version=$(jq -r '.version' src-tauri/tauri.conf.json)
+          cargo_version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          for declared in "$package_version" "$tauri_version" "$cargo_version"; do
+            if [[ "$declared" != "$version" ]]; then
+              echo "Tag $tag does not match declared app version $declared" >&2
+              exit 1
+            fi
+          done
+
   release:
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
         include:
           # macOS Apple Silicon (arm64) — macos-14+ runners are ARM by default
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
+            args: "--target aarch64-apple-darwin"
             rust_target: aarch64-apple-darwin
           # Windows x86_64
           - platform: windows-latest
-            args: ''
-            rust_target: ''
+            args: ""
+            rust_target: ""
           # macOS Intel (x86_64) — cross-compiled on ARM runner
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
+            args: "--target x86_64-apple-darwin"
             rust_target: x86_64-apple-darwin
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           targets: ${{ matrix.rust_target }}
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry
@@ -49,10 +74,10 @@ jobs:
             ${{ runner.os }}-${{ matrix.rust_target }}-cargo-clangrt2-
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -69,11 +94,11 @@ jobs:
           echo "RUSTFLAGS=-C link-arg=-L${CLANG_RT_DIR} -C link-arg=-lclang_rt.osx" >> $GITHUB_ENV
 
       - name: Build and release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS deployment target — sets minimum SDK floor; matches tauri.conf.json minimumSystemVersion
-          MACOSX_DEPLOYMENT_TARGET: '13.0'
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
           # Tauri updater artifact signing (all platforms)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -107,8 +132,14 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           TARGET="${{ matrix.rust_target }}"
-          for sig in src-tauri/target/${TARGET}/release/bundle/macos/*.sig; do
-            [ -f "$sig" ] && gh release upload "${{ github.ref_name }}" "$sig" --clobber
+          shopt -s nullglob
+          signatures=(src-tauri/target/${TARGET}/release/bundle/macos/*.app.tar.gz.sig)
+          if [ "${#signatures[@]}" -eq 0 ]; then
+            echo "No signed macOS updater artifact was generated for ${TARGET}" >&2
+            exit 1
+          fi
+          for sig in "${signatures[@]}"; do
+            gh release upload "${{ github.ref_name }}" "$sig" --clobber
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -120,10 +151,12 @@ jobs:
           # tauri-action uploads the .exe but not its .sig. Re-sign the .exe and
           # upload the .sig so the Cloudflare updater worker can serve it.
           EXE=$(find src-tauri/target/release/bundle/nsis -name "*-setup.exe" 2>/dev/null | head -1)
-          if [ -n "$EXE" ]; then
-            npx tauri signer sign "$EXE" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-            gh release upload "${{ github.ref_name }}" "${EXE}.sig" --clobber
+          if [ -z "$EXE" ]; then
+            echo "No Windows NSIS updater artifact was generated" >&2
+            exit 1
           fi
+          npx tauri signer sign "$EXE" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          gh release upload "${{ github.ref_name }}" "${EXE}.sig" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -131,9 +164,41 @@ jobs:
 
   publish:
     needs: release
-    if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Verify updater asset pairs
+        shell: bash
+        run: |
+          assets=$(gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')
+          require_asset() {
+            if ! grep -Eq "$1" <<< "$assets"; then
+              echo "Missing required release asset matching: $1" >&2
+              exit 1
+            fi
+          }
+          require_exact_asset() {
+            if ! grep -Fxq "$1" <<< "$assets"; then
+              echo "Missing required release asset: $1" >&2
+              exit 1
+            fi
+          }
+          version="${GITHUB_REF_NAME#v}"
+          require_asset 'aarch64\.app\.tar\.gz$'
+          require_asset '(x64|x86_64)\.app\.tar\.gz$'
+          require_exact_asset "WhisperDesk_${version}_aarch64.dmg"
+          require_exact_asset "WhisperDesk_${version}_x64.dmg"
+          require_exact_asset "WhisperDesk_${version}_x64-setup.exe"
+
+          bundles=$(grep -E '(\.app\.tar\.gz|x64-setup\.exe)$' <<< "$assets")
+          while IFS= read -r bundle; do
+            if ! grep -Fxq "${bundle}.sig" <<< "$assets"; then
+              echo "Missing exact signature for updater asset: ${bundle}" >&2
+              exit 1
+            fi
+          done <<< "$bundles"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish release
         run: gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
         env:

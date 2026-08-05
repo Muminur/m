@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "@/stores/settingsStore";
 import type { AccelerationBackend } from "@/lib/types";
+import { formatError } from "@/lib/formatError";
 
 interface Option {
   value: AccelerationBackend;
@@ -37,6 +40,33 @@ const OPTIONS: Option[] = [
 export function AccelerationSettings() {
   const { settings, updateSettings } = useSettingsStore();
   const current = settings?.accelerationBackend ?? "auto";
+  const [metalAvailable, setMetalAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    invoke<boolean>("is_metal_available")
+      .then((available) => {
+        if (!cancelled) setMetalAvailable(available);
+      })
+      .catch(() => {
+        if (!cancelled) setMetalAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const options = OPTIONS.map((option) => {
+    if (option.value !== "metal") return option;
+    return {
+      ...option,
+      disabled: metalAvailable !== true,
+      disabledReason:
+        metalAvailable === null
+          ? "Checking hardware support..."
+          : "Unavailable — Metal requires an Apple Silicon Mac",
+    };
+  });
 
   return (
     <div className="space-y-3">
@@ -48,15 +78,15 @@ export function AccelerationSettings() {
       </div>
 
       <div className="space-y-2">
-        {OPTIONS.map((opt) => (
+        {options.map((opt) => (
           <label
             key={opt.value}
             className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
               opt.disabled
                 ? "opacity-50 cursor-not-allowed border-border"
                 : current === opt.value
-                ? "border-primary bg-primary/5"
-                : "border-border hover:border-primary/50 hover:bg-accent/50"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50 hover:bg-accent/50"
             }`}
           >
             <input
@@ -65,7 +95,11 @@ export function AccelerationSettings() {
               value={opt.value}
               checked={current === opt.value}
               disabled={opt.disabled}
-              onChange={() => updateSettings({ accelerationBackend: opt.value })}
+              onChange={() => {
+                void updateSettings({ accelerationBackend: opt.value }).catch((error) => {
+                  console.error("Failed to update acceleration backend:", formatError(error));
+                });
+              }}
               className="mt-0.5 flex-none"
             />
             <div className="min-w-0">
@@ -77,6 +111,13 @@ export function AccelerationSettings() {
           </label>
         ))}
       </div>
+
+      {current === "metal" && metalAvailable === false && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Metal is unavailable on this device. Transcription will use the CPU until you select Auto
+          or CPU Only.
+        </p>
+      )}
     </div>
   );
 }

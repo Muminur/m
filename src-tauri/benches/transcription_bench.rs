@@ -8,7 +8,7 @@
 ///   cargo bench --bench transcription_bench
 ///
 /// Realtime factor = audio_duration / wall_time. Higher = faster than realtime.
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main};
 
 #[cfg(target_os = "macos")]
 mod macos_benches {
@@ -90,7 +90,7 @@ criterion_group!(
 );
 
 #[cfg(not(target_os = "macos"))]
-fn noop_bench(_c: &mut Criterion) {
+fn noop_bench(_c: &mut criterion::Criterion) {
     eprintln!("transcription_bench: skipping — macOS only");
 }
 

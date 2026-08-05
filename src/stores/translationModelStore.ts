@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { formatError } from "@/lib/formatError";
 
 export interface TranslationModelInfo {
   id: string;
@@ -49,7 +50,7 @@ export const useTranslationModelStore = create<TranslationModelState>((set, get)
       const models = await invoke<TranslationModelInfo[]>("list_translation_models");
       set({ models, isLoading: false });
     } catch (err) {
-      set({ error: String(err), isLoading: false });
+      set({ error: formatError(err), isLoading: false });
     }
   },
 
@@ -57,7 +58,7 @@ export const useTranslationModelStore = create<TranslationModelState>((set, get)
     try {
       await invoke("download_translation_model", { modelId });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -66,7 +67,7 @@ export const useTranslationModelStore = create<TranslationModelState>((set, get)
       await invoke("delete_translation_model", { modelId });
       await get().loadModels();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -94,16 +95,13 @@ export const useTranslationModelStore = create<TranslationModelState>((set, get)
       get().loadModels();
     });
 
-    listen<{ modelId: string; error: string }>(
-      "translation-model:download-error",
-      (event) => {
-        const { modelId, error } = event.payload;
-        set((s) => {
-          const progress = { ...s.downloadProgress };
-          delete progress[modelId];
-          return { downloadProgress: progress, error };
-        });
-      }
-    );
+    listen<{ modelId: string; error: string }>("translation-model:download-error", (event) => {
+      const { modelId, error } = event.payload;
+      set((s) => {
+        const progress = { ...s.downloadProgress };
+        delete progress[modelId];
+        return { downloadProgress: progress, error };
+      });
+    });
   },
 }));

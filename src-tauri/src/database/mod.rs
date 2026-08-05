@@ -139,4 +139,67 @@ mod tests {
             .unwrap();
         assert_eq!(count, 1);
     }
+
+    #[test]
+    fn test_whisper_model_sha256_migration() {
+        let conn = in_memory_db();
+        let expected = [
+            (
+                "tiny",
+                "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+            ),
+            (
+                "tiny.en",
+                "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f",
+            ),
+            (
+                "base",
+                "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+            ),
+            (
+                "base.en",
+                "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
+            ),
+            (
+                "small",
+                "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+            ),
+            (
+                "small.en",
+                "c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d",
+            ),
+            (
+                "medium",
+                "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208",
+            ),
+            (
+                "large-v2",
+                "9a423fe4d40c82774b6af34115b8b935f34152246eb19e80e376071d3f999487",
+            ),
+            (
+                "large-v3",
+                "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
+            ),
+        ];
+
+        for (model_id, expected_sha256) in expected {
+            let actual: String = conn
+                .query_row(
+                    "SELECT sha256 FROM whisper_models WHERE id = ?1",
+                    [model_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(actual, expected_sha256, "unexpected SHA-256 for {model_id}");
+        }
+
+        let applied: bool = conn
+            .query_row(
+                "SELECT COUNT(*) = 1 FROM _migrations WHERE version = 'V019'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(applied);
+    }
 }

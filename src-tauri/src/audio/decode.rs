@@ -37,7 +37,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, AppError> {
         return Err(AppError::AudioError {
             code: AudioErrorCode::UnsupportedFormat,
             message: format!(
-                "Unsupported audio format: {:?}. Supported: mp3, wav, m4a, flac, ogg",
+                "Unsupported audio format: {:?}. Supported: mp3, wav, m4a, flac, ogg, oga",
                 path.extension()
                     .and_then(|e| e.to_str())
                     .unwrap_or("unknown")

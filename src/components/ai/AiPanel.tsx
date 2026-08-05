@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatError } from "@/lib/formatError";
 
 interface AiPanelProps {
   transcriptId: string;
@@ -94,7 +95,7 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
         targetLanguage: selectedAction === "translate" ? targetLanguage : undefined,
       });
     } catch (err) {
-      toast.error(`AI action failed: ${String(err)}`);
+      toast.error(`AI action failed: ${formatError(err)}`);
     }
   };
 
@@ -131,9 +132,7 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
 
         {/* Action Buttons */}
         <div>
-          <label className="text-xs font-medium text-muted-foreground mb-2 block">
-            Action
-          </label>
+          <label className="text-xs font-medium text-muted-foreground mb-2 block">Action</label>
           <div className="grid grid-cols-2 gap-1.5">
             {AI_ACTIONS.map((action) => (
               <button
@@ -191,9 +190,7 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
             <span>
               Est. {costEstimate.inputTokens} input + {costEstimate.outputTokens} output tokens
             </span>
-            <span className="ml-auto font-medium">
-              ${costEstimate.estimatedUsd.toFixed(4)}
-            </span>
+            <span className="ml-auto font-medium">${costEstimate.estimatedUsd.toFixed(4)}</span>
           </div>
         )}
 
@@ -238,7 +235,9 @@ export function AiPanel({ transcriptId, transcriptText, onClose }: AiPanelProps)
             </div>
             <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap max-h-64 overflow-auto">
               {output}
-              {isRunning && <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5" />}
+              {isRunning && (
+                <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5" />
+              )}
             </div>
           </div>
         )}

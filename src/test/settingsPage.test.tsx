@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 const mockInvoke = vi.fn();
+const { mockUpdateSettings } = vi.hoisted(() => ({
+  mockUpdateSettings: vi.fn(),
+}));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }));
@@ -27,7 +30,7 @@ vi.mock("@/stores/settingsStore", () => ({
       accelerationBackend: "auto",
       watchFolders: [],
     },
-    updateSettings: vi.fn(),
+    updateSettings: mockUpdateSettings,
   })),
 }));
 
@@ -38,9 +41,12 @@ vi.mock("@/stores/modelStore", () => {
     setDefaultModel: vi.fn(),
   };
   return {
-    useModelStore: Object.assign(vi.fn(() => state), {
-      getState: () => state,
-    }),
+    useModelStore: Object.assign(
+      vi.fn(() => state),
+      {
+        getState: () => state,
+      }
+    ),
   };
 });
 
@@ -78,6 +84,7 @@ function renderSettings() {
 describe("SettingsPage", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
+    mockUpdateSettings.mockReset().mockResolvedValue(undefined);
     mockInvoke.mockImplementation(() => Promise.resolve(false));
   });
 
@@ -137,5 +144,29 @@ describe("SettingsPage", () => {
 
     const coremlRadio = screen.getByDisplayValue("core_ml");
     expect(coremlRadio).toBeDisabled();
+  });
+
+  it("disables Metal when the backend reports unsupported hardware", async () => {
+    await act(async () => {
+      renderSettings();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("metal")).toBeDisabled();
+    });
+    expect(screen.getByText(/requires an Apple Silicon Mac/)).toBeInTheDocument();
+  });
+
+  it("persists the visible target when auto-translate is enabled", async () => {
+    await act(async () => {
+      renderSettings();
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto-translate after transcription" }));
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
+      autoTranslate: true,
+      autoTranslateTargetLang: "ben_Beng",
+    });
   });
 });

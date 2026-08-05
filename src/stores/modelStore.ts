@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { WhisperModel } from "@/lib/types";
+import { formatError } from "@/lib/formatError";
 
 interface DownloadProgress {
   modelId: string;
@@ -39,7 +40,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
       const models = await invoke<WhisperModel[]>("list_models");
       set({ models, isLoading: false });
     } catch (err) {
-      set({ error: String(err), isLoading: false });
+      set({ error: formatError(err), isLoading: false });
     }
   },
 
@@ -47,7 +48,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
     try {
       await invoke("download_model", { modelId });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -60,7 +61,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
         return { downloadProgress: progress };
       });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -69,7 +70,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
       await invoke("delete_model", { modelId });
       await get().loadModels();
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 
@@ -80,7 +81,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
         models: s.models.map((m) => ({ ...m, isDefault: m.id === modelId })),
       }));
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 

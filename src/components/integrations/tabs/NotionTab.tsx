@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { TabSharedProps } from "./types";
+import { formatError } from "@/lib/formatError";
 
 const LS_KEY_DB_ID = "wd_notion_db_id";
 
@@ -46,7 +47,7 @@ export function NotionTab({
       setStatus({ type: "success", message: "Notion API key saved to keychain." });
       toast.success("Notion API key saved");
     } catch (err) {
-      setStatus({ type: "error", message: `Failed to save key: ${String(err)}` });
+      setStatus({ type: "error", message: `Failed to save key: ${formatError(err)}` });
     } finally {
       setSaving(false);
     }
@@ -72,7 +73,7 @@ export function NotionTab({
       setStatus({ type: "success", message: `Pushed to Notion: ${url}` });
       toast.success("Transcript pushed to Notion");
     } catch (err) {
-      setStatus({ type: "error", message: `Notion push failed: ${String(err)}` });
+      setStatus({ type: "error", message: `Notion push failed: ${formatError(err)}` });
     } finally {
       setTesting(false);
     }
@@ -82,9 +83,7 @@ export function NotionTab({
     <>
       <div className="space-y-1.5">
         <label className="text-sm font-medium">Step 1: API Key</label>
-        <p className="text-xs text-muted-foreground">
-          Stored securely in your system keychain.
-        </p>
+        <p className="text-xs text-muted-foreground">Stored securely in your system keychain.</p>
         <div className="flex gap-2">
           <input
             type="password"
@@ -119,11 +118,7 @@ export function NotionTab({
           disabled={isLoading || !notionDbId.trim()}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >
-          {testing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Check className="h-4 w-4" />
-          )}
+          {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           {transcriptId ? "Push Current Transcript" : "Test Connection (open a transcript first)"}
         </button>
       </div>

@@ -112,14 +112,23 @@ pub fn get_by_id(conn: &Connection, segment_id: &str) -> Result<SegmentRow, AppE
 }
 
 pub fn update_text(conn: &Connection, segment_id: &str, text: &str) -> Result<(), AppError> {
-    conn.execute(
-        "UPDATE segments SET text = ?2 WHERE id = ?1 AND is_deleted = 0",
-        params![segment_id, text],
-    )
-    .map_err(|e| AppError::StorageError {
-        code: StorageErrorCode::DatabaseError,
-        message: format!("Failed to update segment text: {}", e),
-    })?;
+    let updated = conn
+        .execute(
+            "UPDATE segments SET text = ?2 WHERE id = ?1 AND is_deleted = 0",
+            params![segment_id, text],
+        )
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Failed to update segment text: {}", e),
+        })?;
+
+    if updated == 0 {
+        return Err(AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("Segment '{segment_id}' was not found or has been deleted"),
+        });
+    }
+
     Ok(())
 }
 
@@ -225,6 +234,14 @@ mod tests {
         update_text(&conn, &ids[0], "Updated text").unwrap();
         let rows = get_by_transcript(&conn, &tid).unwrap();
         assert_eq!(rows[0].text, "Updated text");
+    }
+
+    #[test]
+    fn test_update_missing_segment_returns_error() {
+        let conn = test_db();
+        let error = update_text(&conn, "missing-segment", "Updated text").unwrap_err();
+
+        assert!(error.to_string().contains("missing-segment"));
     }
 
     #[test]

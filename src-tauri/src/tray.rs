@@ -119,12 +119,40 @@ fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
             crate::commands::float::show_or_toggle_floating_recorder(app);
             return;
         }
+        "tray.pause" => {
+            if let Some(manager) =
+                app.try_state::<std::sync::Arc<crate::audio::recording::RecordingManager>>()
+            {
+                if let Err(error) = manager.pause(app) {
+                    tracing::error!(error = ?error, "tray pause_recording failed");
+                }
+            } else {
+                tracing::error!("RecordingManager not initialized");
+            }
+            return;
+        }
+        "tray.resume" => {
+            if let Some(manager) =
+                app.try_state::<std::sync::Arc<crate::audio::recording::RecordingManager>>()
+            {
+                if let Err(error) = manager.resume(app) {
+                    tracing::error!(error = ?error, "tray resume_recording failed");
+                }
+            } else {
+                tracing::error!("RecordingManager not initialized");
+            }
+            return;
+        }
         "tray.stop" => {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
+            // Disable Stop immediately so a rapid double click cannot enqueue
+            // two competing finalization requests before the worker thread
+            // publishes the manager's Stopping state.
+            update_tray_state(app, TrayState::Idle);
             // Run the actual stop_recording in Rust so it works even when
             // the webview is busy or unresponsive (the in-app Recording
             // panel can hang for reasons unrelated to recording state).
@@ -147,6 +175,18 @@ fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
                         }
                     }
                     Err(e) => {
+                        let stale_stop = matches!(
+                            &e,
+                            crate::error::AppError::AudioError { message, .. }
+                                if message == "Not recording"
+                        );
+                        if stale_stop {
+                            tracing::debug!(
+                                error = ?e,
+                                "ignored stale tray stop after recording became idle"
+                            );
+                            return;
+                        }
                         tracing::error!(error = ?e, "tray stop_recording failed");
                         let _ = app_clone.emit("tray://record/stop-failed", e.to_string());
                     }
@@ -162,8 +202,6 @@ fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
     // handle them.
     let event_name = match id {
         "tray.start" => "tray://record/start",
-        "tray.pause" => "tray://record/pause",
-        "tray.resume" => "tray://record/resume",
         _ => return,
     };
     if let Err(e) = app.emit(event_name, ()) {

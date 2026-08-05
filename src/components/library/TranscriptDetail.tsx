@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -9,8 +9,8 @@ import { useTranslation } from "react-i18next";
 import { FileText, Loader2 } from "lucide-react";
 import type { Segment } from "@/lib/types";
 import { PerformanceBar } from "@/components/transcription/PerformanceBar";
-import { FindReplace } from "@/components/editor/FindReplace";
-import { Waveform } from "@/components/editor/Waveform";
+import { FindReplace, type FindMatch } from "@/components/editor/FindReplace";
+import { Waveform, type WaveformHandle } from "@/components/editor/Waveform";
 import { TranscriptView } from "@/components/editor/TranscriptView";
 import { DualSubtitles } from "@/components/editor";
 
@@ -43,9 +43,7 @@ export function TranscriptDetail() {
   // MUST live above any conditional early returns to satisfy the Rules of
   // Hooks — the early returns below render different hook-counts on different
   // ids/loading states, and a Zustand selector hook must run on every render.
-  const pendingModel = useTranscribingStore((s) =>
-    id ? s.pending[id] : undefined
-  );
+  const pendingModel = useTranscribingStore((s) => (id ? s.pending[id] : undefined));
 
   // Real-time segments streamed via events before the full transcript loads
   const [streamingSegments, setStreamingSegments] = useState<Segment[]>([]);
@@ -58,15 +56,21 @@ export function TranscriptDetail() {
 
   // Editor state
   const [showFindReplace, setShowFindReplace] = useState(false);
-  const [, setEditingSegmentId] = useState<string | null>(null);
+  const [activeFindMatch, setActiveFindMatch] = useState<FindMatch | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [viewMode, setViewMode] = useState<"original" | "translated">("original");
+  const waveformRef = useRef<WaveformHandle>(null);
+
+  // During transcription: show streaming segments before DB data is available
+  const displaySegments: Segment[] =
+    isTranscribing && streamingSegments.length > 0 ? streamingSegments : (current?.segments ?? []);
 
   // Load transcript from DB when ID changes
   useEffect(() => {
     if (id) {
       loadTranscript(id);
       setStreamingSegments([]);
+      setActiveFindMatch(null);
     }
     return () => {
       clearCurrent();
@@ -112,10 +116,9 @@ export function TranscriptDetail() {
           setIsTranscribing(false);
           setStreamingSegments([]);
           useTranscribingStore.getState().finish(id);
-          toast.warning(
-            "Transcription may have stalled — check transcript for partial results",
-            { duration: 8000 }
-          );
+          toast.warning("Transcription may have stalled — check transcript for partial results", {
+            duration: 8000,
+          });
           loadTranscript(id);
         }, 60_000);
       });
@@ -172,6 +175,15 @@ export function TranscriptDetail() {
     }
   }, [streamingSegments.length]);
 
+  // Streamed rows use temporary IDs until the backend commits the final
+  // segments. Never expose editing controls for those synthetic rows.
+  useEffect(() => {
+    if (isTranscribing) {
+      setShowFindReplace(false);
+      setActiveFindMatch(null);
+    }
+  }, [isTranscribing]);
+
   // Global keyboard shortcuts: undo/redo and find
   useEffect(() => {
     if (!id) return;
@@ -188,35 +200,77 @@ export function TranscriptDetail() {
           await loadTranscript(id);
         } else if (e.key === "f") {
           e.preventDefault();
-          setShowFindReplace(true);
+          if (!isTranscribing) {
+            setViewMode("original");
+            setShowFindReplace(true);
+          }
         }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [id, loadTranscript]);
+  }, [id, isTranscribing, loadTranscript]);
 
-  const handleReplace = async (segmentId: string, oldText: string, newText: string) => {
-    const seg = displaySegments.find((s) => s.id === segmentId);
-    if (seg) {
-      const updated = seg.text.replace(
-        new RegExp(oldText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
-        newText
-      );
-      await invoke("update_segment", { segmentId, text: updated });
-      if (id) await loadTranscript(id);
+  const handleSeek = useCallback((timeMs: number) => {
+    waveformRef.current?.seekTo(timeMs);
+    setCurrentTimeMs(timeMs);
+  }, []);
+
+  const handleReplace = async (
+    match: FindMatch,
+    oldText: string,
+    newText: string,
+    caseSensitive: boolean
+  ) => {
+    if (!oldText) return;
+    if (isTranscribing) {
+      throw new Error("Wait for transcription to finish before editing segments.");
     }
+
+    const segment = displaySegments.find((candidate) => candidate.id === match.segmentId);
+    if (!segment) {
+      throw new Error("The selected match is no longer available. Search again and retry.");
+    }
+
+    // Replace the exact match selected by FindReplace. This avoids replacing an
+    // earlier occurrence in the same segment when the user navigates forward.
+    const matchedText = segment.text.slice(match.index, match.index + match.length);
+    const stillMatches = new RegExp(
+      `^(?:${escapeRegExp(oldText)})$`,
+      caseSensitive ? "" : "i"
+    ).test(matchedText);
+    if (!stillMatches) {
+      throw new Error("The selected match changed. Search again and retry.");
+    }
+
+    const updated =
+      segment.text.slice(0, match.index) + newText + segment.text.slice(match.index + match.length);
+    await invoke("update_segment", { segmentId: segment.id, text: updated });
+    if (id) await loadTranscript(id);
   };
 
-  const handleReplaceAll = async (oldText: string, newText: string) => {
-    const regex = new RegExp(oldText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-    for (const seg of displaySegments) {
-      if (regex.test(seg.text)) {
-        const updated = seg.text.replace(regex, newText);
-        await invoke("update_segment", { segmentId: seg.id, text: updated });
+  const handleReplaceAll = async (oldText: string, newText: string, caseSensitive: boolean) => {
+    if (!oldText) return;
+    if (isTranscribing) {
+      throw new Error("Wait for transcription to finish before editing segments.");
+    }
+
+    const regex = new RegExp(escapeRegExp(oldText), caseSensitive ? "g" : "gi");
+    for (const segment of displaySegments) {
+      const updated = segment.text.replace(regex, () => newText);
+      if (updated !== segment.text) {
+        await invoke("update_segment", { segmentId: segment.id, text: updated });
       }
     }
+    if (id) await loadTranscript(id);
+  };
+
+  const handleSaveSegment = async (segmentId: string, text: string) => {
+    if (isTranscribing || segmentId.startsWith("stream-")) {
+      throw new Error("Wait for transcription to finish before editing segments.");
+    }
+    await invoke("update_segment", { segmentId, text });
     if (id) await loadTranscript(id);
   };
 
@@ -245,14 +299,7 @@ export function TranscriptDetail() {
     );
   }
 
-  // During transcription: show streaming segments before DB data is available
-  const displaySegments: Segment[] =
-    isTranscribing && streamingSegments.length > 0
-      ? streamingSegments
-      : (current?.segments ?? []);
-
-  const showStartupSpinner =
-    pendingModel !== undefined && displaySegments.length === 0;
+  const showStartupSpinner = pendingModel !== undefined && displaySegments.length === 0;
 
   return (
     <div className="flex flex-col h-full overflow-hidden" tabIndex={0}>
@@ -260,19 +307,16 @@ export function TranscriptDetail() {
       <div className="flex-none bg-background border-b border-border px-6 py-4 pt-10">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold truncate flex-1">
-            {current?.transcript.title ?? (isTranscribing ? t("transcription.in_progress", "Transcribing…") : "…")}
+            {current?.transcript.title ??
+              (isTranscribing ? t("transcription.in_progress", "Transcribing…") : "…")}
           </h1>
-          {isTranscribing && (
-            <Loader2 size={16} className="animate-spin text-primary flex-none" />
-          )}
+          {isTranscribing && <Loader2 size={16} className="animate-spin text-primary flex-none" />}
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
           {displaySegments.length} {t("transcription.segments", "segments")}
           {current?.transcript.durationMs &&
             ` · ${Math.round(current.transcript.durationMs / 60000)} min`}
-          {current?.transcript.wordCount
-            ? ` · ${current.transcript.wordCount} words`
-            : null}
+          {current?.transcript.wordCount ? ` · ${current.transcript.wordCount} words` : null}
         </p>
         <div className="mt-2 flex items-center gap-1">
           <button
@@ -301,17 +345,24 @@ export function TranscriptDetail() {
 
       {/* Waveform */}
       {current?.transcript.audioPath && (
-        <Waveform audioUrl={current.transcript.audioPath} onTimeUpdate={setCurrentTimeMs} />
+        <Waveform
+          ref={waveformRef}
+          audioUrl={current.transcript.audioPath}
+          onTimeUpdate={setCurrentTimeMs}
+        />
       )}
 
       {/* FindReplace bar */}
-      {showFindReplace && (
+      {showFindReplace && !isTranscribing && (
         <FindReplace
           segments={displaySegments}
-          onHighlight={() => {}}
+          onActiveMatchChange={setActiveFindMatch}
           onReplace={handleReplace}
           onReplaceAll={handleReplaceAll}
-          onClose={() => setShowFindReplace(false)}
+          onClose={() => {
+            setShowFindReplace(false);
+            setActiveFindMatch(null);
+          }}
         />
       )}
 
@@ -322,11 +373,9 @@ export function TranscriptDetail() {
         <div className="flex flex-col items-center justify-center flex-1 gap-3 text-muted-foreground">
           <Loader2 size={28} className="animate-spin text-primary" />
           <p className="text-sm">
-            {t(
-              "transcription.starting_with_model",
-              "Transcribing with {{model}}…",
-              { model: pendingModel }
-            )}
+            {t("transcription.starting_with_model", "Transcribing with {{model}}…", {
+              model: pendingModel,
+            })}
           </p>
         </div>
       ) : isTranscribing && streamingSegments.length > 0 ? (
@@ -343,13 +392,18 @@ export function TranscriptDetail() {
           <div ref={bottomRef} />
         </div>
       ) : viewMode === "translated" ? (
-        <DualSubtitles transcriptId={id!} segments={displaySegments} currentTimeMs={currentTimeMs} />
+        <DualSubtitles
+          transcriptId={id!}
+          segments={displaySegments}
+          currentTimeMs={currentTimeMs}
+        />
       ) : (
         <TranscriptView
           segments={displaySegments}
           currentTimeMs={currentTimeMs}
-          onSeek={(ms) => setCurrentTimeMs(ms)}
-          onEditSegment={setEditingSegmentId}
+          onSeek={handleSeek}
+          activeFindMatch={activeFindMatch}
+          onSaveSegment={handleSaveSegment}
         />
       )}
     </div>
@@ -380,4 +434,8 @@ function formatMs(ms: number): string {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

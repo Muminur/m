@@ -57,7 +57,8 @@ mod tests {
     // (tracing macros would panic if subscriber not set)
     #[test]
     fn test_logging_module_exists() {
-        // Just verify the module compiles
-        assert!(true);
+        // Taking the function pointer verifies the public initializer remains
+        // available without mutating the process-global tracing subscriber.
+        let _initializer: fn() = super::init;
     }
 }

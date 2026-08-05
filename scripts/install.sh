@@ -13,6 +13,8 @@ umask 077
 REPO="Muminur/m"
 APP_NAME="WhisperDesk"
 INSTALL_DIR="/Applications"
+APP_BUNDLE="${INSTALL_DIR}/${APP_NAME}.app"
+BUNDLE_ID="com.whisperdesk.app"
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -31,15 +33,21 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   die "This installer is for macOS only. Visit https://github.com/${REPO}/releases for other platforms."
 fi
 
+MACOS_VERSION="$(sw_vers -productVersion)"
+MACOS_MAJOR="${MACOS_VERSION%%.*}"
+if [[ ! "$MACOS_MAJOR" =~ ^[0-9]+$ ]] || (( MACOS_MAJOR < 13 )); then
+  die "WhisperDesk requires macOS 13 or newer (found ${MACOS_VERSION})."
+fi
+
 # ─── Detect architecture ──────────────────────────────────────────────────────
 ARCH="$(uname -m)"
 if [[ "$ARCH" == "arm64" ]]; then
-  DMG_PATTERN="aarch64.dmg"
-  FALLBACK_PATTERN="x64.dmg"
+  DMG_ARCH="aarch64"
+  FALLBACK_ARCH="x64"
   ARCH_LABEL="Apple Silicon"
 elif [[ "$ARCH" == "x86_64" ]]; then
-  DMG_PATTERN="x64.dmg"
-  FALLBACK_PATTERN=""
+  DMG_ARCH="x64"
+  FALLBACK_ARCH=""
   ARCH_LABEL="Intel"
 else
   die "Unsupported architecture: $ARCH"
@@ -47,26 +55,51 @@ fi
 
 info "Installing ${APP_NAME} for macOS ${ARCH_LABEL} (${ARCH})"
 
-# ─── Fetch latest release ─────────────────────────────────────────────────────
-info "Fetching latest release from GitHub..."
-RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")"
-VERSION="$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/' || true)"
+# ─── Resolve latest release ───────────────────────────────────────────────────
+# Follow GitHub's public redirect instead of its rate-limited API. This keeps
+# the one-liner credential-free even when the shared unauthenticated API quota
+# has been exhausted.
+info "Resolving latest release from GitHub..."
+LATEST_RELEASE_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+  --proto '=https' --tlsv1.2 "https://github.com/${REPO}/releases/latest")"
 
-if [[ -z "$VERSION" ]]; then
+case "$LATEST_RELEASE_URL" in
+  "https://github.com/${REPO}/releases/tag/"*) ;;
+  *) die "GitHub returned an unexpected latest-release URL." ;;
+esac
+
+VERSION="${LATEST_RELEASE_URL##*/}"
+if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
   die "Could not determine latest release version."
 fi
 
 ok "Latest release: ${VERSION}"
 
-# ─── Find the DMG URL ─────────────────────────────────────────────────────────
-DMG_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep "${DMG_PATTERN}" | head -1 | sed 's/.*"browser_download_url": "\(.*\)".*/\1/' || true)"
+# ─── Find a compatible DMG ────────────────────────────────────────────────────
+VERSION_NUMBER="${VERSION#v}"
 
-if [[ -z "$DMG_URL" && -n "$FALLBACK_PATTERN" ]]; then
+set_dmg_url() {
+  DMG_FILE="${APP_NAME}_${VERSION_NUMBER}_${1}.dmg"
+  DMG_URL="https://github.com/${REPO}/releases/download/${VERSION}/${DMG_FILE}"
+}
+
+asset_exists() {
+  local status
+  status="$(curl -LsS -o /dev/null -w '%{http_code}' --range 0-0 \
+    --proto '=https' --tlsv1.2 "$1" || true)"
+  [[ "$status" == "200" || "$status" == "206" ]]
+}
+
+set_dmg_url "$DMG_ARCH"
+
+if asset_exists "$DMG_URL"; then
+  :
+elif [[ -n "$FALLBACK_ARCH" ]]; then
   warn "No Apple Silicon DMG found in ${VERSION}. Trying the Intel build through Rosetta..."
-  DMG_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep "${FALLBACK_PATTERN}" | head -1 | sed 's/.*"browser_download_url": "\(.*\)".*/\1/' || true)"
-fi
-
-if [[ -z "$DMG_URL" ]]; then
+  set_dmg_url "$FALLBACK_ARCH"
+  asset_exists "$DMG_URL" || \
+    die "No compatible macOS DMG found for ${VERSION}. Visit: https://github.com/${REPO}/releases/tag/${VERSION}"
+else
   die "No compatible macOS DMG found for ${VERSION}. Visit: https://github.com/${REPO}/releases/tag/${VERSION}"
 fi
 
@@ -79,11 +112,12 @@ if [[ "$ARCH" == "arm64" && "$DMG_URL" == *"x64.dmg" ]]; then
   warn "This release will run under Rosetta. macOS may prompt to install it on first launch."
 fi
 
-DMG_FILE="$(basename "$DMG_URL")"
 TMP_DIR="$(mktemp -d)"
 TMP_DMG="${TMP_DIR}/${DMG_FILE}"
 MOUNT_POINT=""
 MOUNTED=false
+STAGE_DIR=""
+PREVIOUS_APP=""
 
 cleanup() {
   if [[ "$MOUNTED" == true && -n "$MOUNT_POINT" ]]; then
@@ -91,6 +125,12 @@ cleanup() {
   fi
   if [[ -n "$MOUNT_POINT" && -d "$MOUNT_POINT" ]]; then
     rmdir "$MOUNT_POINT" 2>/dev/null || true
+  fi
+  if [[ -n "$PREVIOUS_APP" && -d "$PREVIOUS_APP" && ! -e "$APP_BUNDLE" ]]; then
+    mv "$PREVIOUS_APP" "$APP_BUNDLE" 2>/dev/null || true
+  fi
+  if [[ -n "$STAGE_DIR" && -d "$STAGE_DIR" ]]; then
+    rm -rf -- "$STAGE_DIR"
   fi
   if [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]]; then
     rm -rf -- "$TMP_DIR"
@@ -102,7 +142,7 @@ ok "Found: ${DMG_FILE}"
 
 # ─── Download ─────────────────────────────────────────────────────────────────
 info "Downloading ${DMG_FILE}..."
-curl -fL --progress-bar -o "$TMP_DMG" "$DMG_URL"
+curl -fL --proto '=https' --tlsv1.2 --progress-bar -o "$TMP_DMG" "$DMG_URL"
 ok "Downloaded to ${TMP_DMG}"
 
 # ─── Mount DMG ────────────────────────────────────────────────────────────────
@@ -114,18 +154,58 @@ MOUNTED=true
 # ─── Copy to /Applications ────────────────────────────────────────────────────
 info "Installing ${APP_NAME}.app to ${INSTALL_DIR}..."
 
-APP_SOURCE="$(find "$MOUNT_POINT" -maxdepth 1 -name "*.app" | head -1)"
-if [[ -z "$APP_SOURCE" ]]; then
-  die "Could not find .app bundle in DMG."
+APP_SOURCE="${MOUNT_POINT}/${APP_NAME}.app"
+if [[ ! -d "$APP_SOURCE" ]]; then
+  die "The DMG does not contain the expected ${APP_NAME}.app bundle."
 fi
 
-# Remove existing installation
-if [[ -d "${INSTALL_DIR}/${APP_NAME}.app" ]]; then
+SOURCE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${APP_SOURCE}/Contents/Info.plist" 2>/dev/null || true)"
+if [[ "$SOURCE_BUNDLE_ID" != "$BUNDLE_ID" ]]; then
+  die "The downloaded app has an unexpected bundle identifier."
+fi
+
+# Copy and validate the replacement before touching an existing installation.
+STAGE_DIR="$(mktemp -d "${INSTALL_DIR}/.${APP_NAME}.install.XXXXXX")" || \
+  die "Could not create a staging directory in ${INSTALL_DIR}."
+STAGED_APP="${STAGE_DIR}/${APP_NAME}.app"
+if ! ditto "$APP_SOURCE" "$STAGED_APP"; then
+  die "Failed to stage ${APP_NAME}.app in ${INSTALL_DIR}."
+fi
+
+STAGED_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${STAGED_APP}/Contents/Info.plist" 2>/dev/null || true)"
+if [[ "$STAGED_BUNDLE_ID" != "$BUNDLE_ID" ]]; then
+  die "The staged app failed bundle validation."
+fi
+
+# Never replace a symlink or a non-bundle object at the installation path. The
+# rollback path is deliberately scoped to a real application directory.
+if [[ -L "$APP_BUNDLE" || ( -e "$APP_BUNDLE" && ! -d "$APP_BUNDLE" ) ]]; then
+  die "${APP_BUNDLE} exists but is not a regular application bundle directory."
+fi
+
+# Swap only after staging succeeds. The trap restores the previous app if the
+# final move fails or the installer is interrupted between these operations.
+if [[ -e "$APP_BUNDLE" || -L "$APP_BUNDLE" ]]; then
   warn "Replacing existing ${APP_NAME}.app"
-  rm -rf "${INSTALL_DIR:?}/${APP_NAME}.app"
+  PREVIOUS_APP="${STAGE_DIR}/${APP_NAME}.previous.app"
+  if ! mv "$APP_BUNDLE" "$PREVIOUS_APP"; then
+    die "Could not move the existing ${APP_NAME}.app out of the way."
+  fi
 fi
 
-ditto "$APP_SOURCE" "${INSTALL_DIR}/${APP_NAME}.app"
+if ! mv "$STAGED_APP" "$APP_BUNDLE"; then
+  if [[ -n "$PREVIOUS_APP" && -d "$PREVIOUS_APP" ]]; then
+    mv "$PREVIOUS_APP" "$APP_BUNDLE" 2>/dev/null || true
+  fi
+  die "Failed to install ${APP_NAME}.app."
+fi
+
+if [[ -n "$PREVIOUS_APP" && -d "$PREVIOUS_APP" ]]; then
+  rm -rf -- "$PREVIOUS_APP"
+fi
+PREVIOUS_APP=""
+rm -rf -- "$STAGE_DIR"
+STAGE_DIR=""
 
 # ─── Cleanup ──────────────────────────────────────────────────────────────────
 if hdiutil detach -quiet "$MOUNT_POINT"; then
@@ -145,7 +225,7 @@ fi
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}WhisperDesk ${VERSION} installed successfully!${NC}"
-echo -e "  Launch: ${BLUE}open ${INSTALL_DIR}/${APP_NAME}.app${NC}"
+echo -e "  Launch: ${BLUE}open ${APP_BUNDLE}${NC}"
 echo -e "  Or find it in Launchpad / Spotlight."
 echo ""
 echo -e "  ${YELLOW}Note:${NC} On first launch macOS may show a security prompt."

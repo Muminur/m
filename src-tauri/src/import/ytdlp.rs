@@ -47,10 +47,19 @@ impl YtDlpManager {
 
     /// Return the path to a usable yt-dlp binary, or an error if not found.
     pub fn get_binary_path() -> Result<PathBuf, AppError> {
-        Self::find_binary().ok_or_else(|| AppError::ImportError {
-            code: ImportErrorCode::YtDlpNotFound,
-            message: "yt-dlp binary not found. Install it via 'pip install yt-dlp' or from https://github.com/yt-dlp/yt-dlp".into(),
-        })
+        match Self::detect()? {
+            YtDlpStatus::Available { path, .. } => Ok(PathBuf::from(path)),
+            YtDlpStatus::NotFound => Err(AppError::ImportError {
+                code: ImportErrorCode::YtDlpNotFound,
+                message: "yt-dlp binary not found. Install it and make it available on PATH (macOS Homebrew: 'brew install yt-dlp')".into(),
+            }),
+            YtDlpStatus::Outdated { version, minimum } => Err(AppError::ImportError {
+                code: ImportErrorCode::DependencyNotFound,
+                message: format!(
+                    "yt-dlp {version} is too old; version {minimum} or newer is required"
+                ),
+            }),
+        }
     }
 
     /// Returns `true` if yt-dlp is available and meets the minimum version.
@@ -58,16 +67,37 @@ impl YtDlpManager {
         matches!(Self::detect(), Ok(YtDlpStatus::Available { .. }))
     }
 
+    /// Locate ffmpeg, which yt-dlp requires for audio extraction/conversion.
+    pub fn find_ffmpeg_path() -> Option<PathBuf> {
+        Self::find_named_binary(if cfg!(target_os = "windows") {
+            &["ffmpeg.exe", "ffmpeg"]
+        } else {
+            &["ffmpeg"]
+        })
+    }
+
+    pub fn get_ffmpeg_path() -> Result<PathBuf, AppError> {
+        Self::find_ffmpeg_path().ok_or_else(|| AppError::ImportError {
+            code: ImportErrorCode::DependencyNotFound,
+            message: "ffmpeg binary not found. Install ffmpeg and make it available on PATH (macOS Homebrew: 'brew install ffmpeg')".into(),
+        })
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /// Search PATH and common install locations for a yt-dlp executable.
     fn find_binary() -> Option<PathBuf> {
-        // 1. PATH lookup via `which` / `where`
         let candidates: &[&str] = if cfg!(target_os = "windows") {
             &["yt-dlp.exe", "yt-dlp"]
         } else {
             &["yt-dlp"]
         };
+
+        Self::find_named_binary(candidates)
+    }
+
+    fn find_named_binary(candidates: &[&str]) -> Option<PathBuf> {
+        // 1. PATH lookup via `which` / `where`
 
         for name in candidates {
             if let Ok(output) = Command::new(if cfg!(target_os = "windows") {
@@ -89,34 +119,38 @@ impl YtDlpManager {
         }
 
         // 2. Homebrew (macOS / Linux)
-        let homebrew_path = PathBuf::from("/opt/homebrew/bin/yt-dlp");
-        if homebrew_path.exists() {
-            return Some(homebrew_path);
-        }
-        // Intel Homebrew
-        let homebrew_intel = PathBuf::from("/usr/local/bin/yt-dlp");
-        if homebrew_intel.exists() {
-            return Some(homebrew_intel);
+        for name in candidates {
+            let homebrew_path = PathBuf::from("/opt/homebrew/bin").join(name);
+            if homebrew_path.exists() {
+                return Some(homebrew_path);
+            }
+            let homebrew_intel = PathBuf::from("/usr/local/bin").join(name);
+            if homebrew_intel.exists() {
+                return Some(homebrew_intel);
+            }
         }
 
         // 3. Local app data (Windows)
         if cfg!(target_os = "windows") {
             if let Some(local_app_data) = dirs::data_local_dir() {
-                let win_path = local_app_data
-                    .join("Programs")
-                    .join("yt-dlp")
-                    .join("yt-dlp.exe");
-                if win_path.exists() {
-                    return Some(win_path);
+                for name in candidates {
+                    for package in ["yt-dlp", "ffmpeg"] {
+                        let win_path = local_app_data.join("Programs").join(package).join(name);
+                        if win_path.exists() {
+                            return Some(win_path);
+                        }
+                    }
                 }
             }
         }
 
         // 4. Common Linux user installs
         if let Some(home) = dirs::home_dir() {
-            let user_bin = home.join(".local").join("bin").join("yt-dlp");
-            if user_bin.exists() {
-                return Some(user_bin);
+            for name in candidates {
+                let user_bin = home.join(".local").join("bin").join(name);
+                if user_bin.exists() {
+                    return Some(user_bin);
+                }
             }
         }
 
@@ -231,5 +265,12 @@ mod tests {
             "2023.01.01",
             "2023.02.01"
         ));
+    }
+
+    #[test]
+    fn ffmpeg_detection_never_returns_a_missing_path() {
+        if let Some(path) = YtDlpManager::find_ffmpeg_path() {
+            assert!(path.exists());
+        }
     }
 }

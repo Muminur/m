@@ -3,6 +3,7 @@ import { Download, Trash2, CheckCircle } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useTranslationModelStore } from "@/stores/translationModelStore";
 import { TRANSLATION_LANGUAGES } from "@/constants/translationLanguages";
+import { formatError } from "@/lib/formatError";
 
 /**
  * Translation settings: auto-translate toggle + fixed target-language, plus a
@@ -29,8 +30,8 @@ export function TranslationSettings() {
       <div>
         <h3 className="text-sm font-medium">Translation</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Automatically translate a recording into a fixed language once it
-          finishes transcribing, using the offline NLLB model.
+          Automatically translate a recording into a fixed language once it finishes transcribing,
+          using the offline NLLB model.
         </p>
       </div>
 
@@ -40,21 +41,30 @@ export function TranslationSettings() {
           type="checkbox"
           className="accent-primary"
           checked={autoTranslate}
-          onChange={(e) => updateSettings({ autoTranslate: e.target.checked })}
+          onChange={(e) => {
+            void updateSettings({
+              autoTranslate: e.target.checked,
+              ...(e.target.checked ? { autoTranslateTargetLang: targetLang } : {}),
+            }).catch((error) => {
+              console.error("Failed to update auto-translation:", formatError(error));
+            });
+          }}
         />
         <span className="text-sm">Auto-translate after transcription</span>
       </label>
 
       {/* Target language */}
       <div className="flex items-center gap-3">
-        <label className="text-xs text-muted-foreground w-24 flex-none">
-          Target language
-        </label>
+        <label className="text-xs text-muted-foreground w-24 flex-none">Target language</label>
         <select
           className="flex-1 text-sm bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           value={targetLang}
           disabled={!autoTranslate}
-          onChange={(e) => updateSettings({ autoTranslateTargetLang: e.target.value })}
+          onChange={(e) => {
+            void updateSettings({ autoTranslateTargetLang: e.target.value }).catch((error) => {
+              console.error("Failed to update translation target:", formatError(error));
+            });
+          }}
         >
           {TRANSLATION_LANGUAGES.map((l) => (
             <option key={l.value} value={l.value}>
@@ -81,20 +91,13 @@ export function TranslationSettings() {
             {models.map((m) => {
               const progress = downloadProgress[m.id];
               const isDownloading = progress !== undefined;
-              const percentage = progress
-                ? Math.min(progress.percentage * 100, 100)
-                : 0;
+              const percentage = progress ? Math.min(progress.percentage * 100, 100) : 0;
               return (
-                <div
-                  key={m.id}
-                  className="rounded-md border border-border p-3 flex flex-col gap-2"
-                >
+                <div key={m.id} className="rounded-md border border-border p-3 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <span className="text-sm font-medium">{m.displayName}</span>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {m.fileSizeMb} MB
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{m.fileSizeMb} MB</p>
                     </div>
                     {isDownloading ? (
                       <span className="text-xs text-muted-foreground flex-none">

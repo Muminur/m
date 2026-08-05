@@ -50,6 +50,7 @@ pub struct TranscriptionCompleteEvent {
 #[serde(rename_all = "camelCase")]
 pub struct BackendFallbackEvent {
     pub job_id: String,
+    pub transcript_id: String,
     pub requested_backend: String,
     pub actual_backend: String,
     pub reason: String,
@@ -338,6 +339,7 @@ fn run_transcription_thread(
                 "transcription:backend_fallback",
                 BackendFallbackEvent {
                     job_id: job_id.to_string(),
+                    transcript_id: transcript_id.to_string(),
                     requested_backend: backend.to_string(),
                     actual_backend: AccelerationBackend::Cpu.to_string(),
                     reason: reason_str,
@@ -415,11 +417,21 @@ fn run_transcription_thread(
         let stat_id = uuid::Uuid::new_v4().to_string();
         let backend_name = backend_used.to_string();
         if let Ok(conn) = db.get() {
-            let _ = conn.execute(
-                "INSERT INTO acceleration_stats (id, model_id, backend, audio_duration_ms, wall_time_ms, realtime_factor) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![stat_id, model_id, backend_name, duration_ms as i64, wall_time_ms as i64, realtime_factor],
-            );
+            if let Err(error) = conn.execute(
+                "INSERT INTO acceleration_stats (id, transcript_id, model_id, backend, audio_duration_ms, wall_time_ms, realtime_factor) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    stat_id,
+                    transcript_id,
+                    model_id,
+                    backend_name,
+                    duration_ms as i64,
+                    wall_time_ms as i64,
+                    realtime_factor
+                ],
+            ) {
+                tracing::warn!(%error, %transcript_id, "failed to persist transcription performance");
+            }
         }
     }
 

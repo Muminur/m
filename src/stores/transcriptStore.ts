@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type { Transcript, Segment, Speaker } from "@/lib/types";
+import { formatError } from "@/lib/formatError";
 
 interface TranscriptDetail {
   transcript: Transcript;
@@ -35,7 +36,7 @@ export const useTranscriptStore = create<TranscriptState>((set, get) => ({
       const detail = await invoke<TranscriptDetail>("get_transcript", { id });
       set({ current: detail, isLoading: false });
     } catch (err) {
-      set({ error: String(err), isLoading: false });
+      set({ error: formatError(err), isLoading: false });
     }
   },
 
@@ -50,13 +51,11 @@ export const useTranscriptStore = create<TranscriptState>((set, get) => ({
       set({
         current: {
           ...current,
-          segments: current.segments.map((s) =>
-            s.id === segmentId ? { ...s, text } : s
-          ),
+          segments: current.segments.map((s) => (s.id === segmentId ? { ...s, text } : s)),
         },
       });
     } catch (err) {
-      set({ error: String(err) });
+      set({ error: formatError(err) });
     }
   },
 }));

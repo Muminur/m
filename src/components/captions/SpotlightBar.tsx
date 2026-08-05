@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useCaptionStore } from "@/stores/captionStore";
 import type { CaptionSegment } from "@/lib/captionTypes";
+import { formatError } from "@/lib/formatError";
 
 /**
  * Spotlight-style global input bar for speech-to-text dictation.
@@ -41,9 +42,7 @@ export function SpotlightBar() {
         await invoke("stop_captions");
         setStatus("idle");
       }
-      const { getCurrentWebviewWindow } = await import(
-        "@tauri-apps/api/webviewWindow"
-      );
+      const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
       const win = getCurrentWebviewWindow();
       await win.close();
     } catch {
@@ -64,9 +63,7 @@ export function SpotlightBar() {
 
   const handleCopy = useCallback(async () => {
     try {
-      const { writeText } = await import(
-        "@tauri-apps/plugin-clipboard-manager"
-      );
+      const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
       await writeText(spotlightText);
     } catch {
       // Fallback to web clipboard API
@@ -96,7 +93,7 @@ export function SpotlightBar() {
         setStatus("listening");
       }
     } catch (err) {
-      setError(String(err));
+      setError(formatError(err));
     }
   }, [isListening, setStatus, clearSegments, setSpotlightText, setError]);
 
@@ -172,12 +169,8 @@ export function SpotlightBar() {
       {isListening && (
         <div className="px-4 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            Listening via microphone
-          </span>
-          <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500">
-            ESC to close
-          </span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">Listening via microphone</span>
+          <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500">ESC to close</span>
         </div>
       )}
     </div>

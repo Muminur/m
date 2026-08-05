@@ -32,6 +32,13 @@ impl AudioSource {
             AudioSource::Both => "both",
         }
     }
+
+    fn as_transcript_source_type(&self) -> &str {
+        match self {
+            AudioSource::Both => "meeting",
+            _ => self.as_db_str(),
+        }
+    }
 }
 
 impl std::str::FromStr for AudioSource {
@@ -135,6 +142,17 @@ impl RecordingManager {
         source: AudioSource,
         device_id: Option<String>,
     ) -> Result<String, AppError> {
+        let recordings_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|_| AppError::AudioError {
+                code: AudioErrorCode::CaptureFailure,
+                message: "Failed to get app data dir".into(),
+            })?
+            .join("recordings");
+
+        std::fs::create_dir_all(&recordings_dir)?;
+
         let rec_id = {
             let mut inner = lock(&self.inner);
             if inner.status != RecordingStatus::Idle {
@@ -151,17 +169,6 @@ impl RecordingManager {
             inner.device_id = device_id.clone();
             rid
         };
-
-        let recordings_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|_| AppError::AudioError {
-                code: AudioErrorCode::CaptureFailure,
-                message: "Failed to get app data dir".into(),
-            })?
-            .join("recordings");
-
-        std::fs::create_dir_all(&recordings_dir)?;
 
         let active_result: Result<ActiveRecording, AppError> = (|| match source {
             AudioSource::Microphone => {
@@ -204,6 +211,8 @@ impl RecordingManager {
                 let mut inner = lock(&self.inner);
                 inner.status = RecordingStatus::Idle;
                 inner.recording_id = None;
+                drop(inner);
+                publish_status(app, RecordingStatus::Idle, None);
                 return Err(e);
             }
         };
@@ -211,13 +220,7 @@ impl RecordingManager {
         // Store the active recording
         lock(&self.inner).active = Some(active);
 
-        let _ = app.emit(
-            "recording:status",
-            RecordingStatusEvent {
-                status: RecordingStatus::Recording,
-                recording_id: Some(rec_id.clone()),
-            },
-        );
+        publish_status(app, RecordingStatus::Recording, Some(rec_id.clone()));
 
         Ok(rec_id)
     }
@@ -242,65 +245,75 @@ impl RecordingManager {
             )
         };
 
-        let _ = app.emit(
-            "recording:status",
-            RecordingStatusEvent {
-                status: RecordingStatus::Stopping,
-                recording_id: Some(rec_id.clone()),
-            },
-        );
+        publish_status(app, RecordingStatus::Stopping, Some(rec_id.clone()));
 
         // Phase 2: Stop recording and finalize WAV — NO locks held during I/O
-        let (audio_path, system_audio_path, duration_ms, sample_rate, channels) = match active {
+        let capture_result: Result<(String, Option<String>, u64, i64, i64), AppError> = match active
+        {
             Some(ActiveRecording::Mic(recorder)) => {
                 let dur = recorder.duration_ms();
                 let sr = recorder.sample_rate();
                 let ch = recorder.channels();
-                let path = recorder.stop()?;
-                (
-                    path.to_string_lossy().to_string(),
-                    None,
-                    dur,
-                    sr as i64,
-                    ch as i64,
-                )
+                recorder.stop().map(|path| {
+                    (
+                        path.to_string_lossy().to_string(),
+                        None,
+                        dur,
+                        sr as i64,
+                        ch as i64,
+                    )
+                })
             }
             #[cfg(target_os = "windows")]
             Some(ActiveRecording::System(capture)) => {
                 let dur = capture.duration_ms();
                 let sr = capture.sample_rate();
                 let ch = capture.channels();
-                let path = capture.stop()?;
-                (
-                    path.to_string_lossy().to_string(),
-                    None,
-                    dur,
-                    sr as i64,
-                    ch as i64,
-                )
+                capture.stop().map(|path| {
+                    (
+                        path.to_string_lossy().to_string(),
+                        None,
+                        dur,
+                        sr as i64,
+                        ch as i64,
+                    )
+                })
             }
             Some(ActiveRecording::Combined(combined)) => {
                 let dur = combined.duration_ms();
                 let sr = combined.mic_sample_rate();
                 let ch = combined.mic_channels();
-                let (mic_path, sys_path) = combined.stop()?;
-                let sys_str = sys_path.map(|p| p.to_string_lossy().to_string());
-                (
-                    mic_path.to_string_lossy().to_string(),
-                    sys_str,
-                    dur,
-                    sr as i64,
-                    ch as i64,
-                )
+                combined.stop().map(|(mic_path, sys_path)| {
+                    let sys_str = sys_path.map(|p| p.to_string_lossy().to_string());
+                    (
+                        mic_path.to_string_lossy().to_string(),
+                        sys_str,
+                        dur,
+                        sr as i64,
+                        ch as i64,
+                    )
+                })
             }
-            None => {
-                lock(&self.inner).status = RecordingStatus::Idle;
-                return Err(AppError::AudioError {
-                    code: AudioErrorCode::CaptureFailure,
-                    message: "No active recording".into(),
-                });
-            }
+            None => Err(AppError::AudioError {
+                code: AudioErrorCode::CaptureFailure,
+                message: "No active recording".into(),
+            }),
         };
+
+        let (audio_path, system_audio_path, duration_ms, sample_rate, channels) =
+            match capture_result {
+                Ok(result) => result,
+                Err(error) => {
+                    // A device/finalization failure must not leave the manager
+                    // or tray stuck in the Stopping state.
+                    let mut inner = lock(&self.inner);
+                    inner.status = RecordingStatus::Idle;
+                    inner.recording_id = None;
+                    drop(inner);
+                    publish_status(app, RecordingStatus::Idle, None);
+                    return Err(error);
+                }
+            };
 
         // Phase 3: Save to database — reset to Idle regardless of success/failure.
         // Returns the placeholder transcript id so callers (e.g. tray "Stop and
@@ -308,10 +321,14 @@ impl RecordingManager {
         // a duplicate.
         let db_result = (|| -> Result<String, AppError> {
             let db = app.state::<Arc<Database>>();
-            let conn = db.get()?;
+            let mut conn = db.get()?;
+            let tx = conn.transaction().map_err(|error| AppError::StorageError {
+                code: crate::error::StorageErrorCode::DatabaseError,
+                message: format!("Failed to begin recording save: {error}"),
+            })?;
 
             database::recordings::insert(
-                &conn,
+                &tx,
                 &rec_id,
                 source.as_db_str(),
                 device_id.as_deref(),
@@ -328,13 +345,13 @@ impl RecordingManager {
                 chrono::Local::now().format("%Y-%m-%d %H:%M")
             );
             let transcript_id = database::transcripts::insert(
-                &conn,
+                &tx,
                 &database::transcripts::NewTranscript {
                     title,
                     duration_ms: Some(duration_ms as i64),
                     language: None,
                     model_id: None,
-                    source_type: Some(source.as_db_str().to_string()),
+                    source_type: Some(source.as_transcript_source_type().to_string()),
                     source_url: None,
                     audio_path: Some(audio_path.clone()),
                 },
@@ -342,20 +359,18 @@ impl RecordingManager {
 
             // Link the recording row to the placeholder transcript so
             // get-recording-with-transcript queries work later.
-            database::recordings::link_transcript(&conn, &rec_id, &transcript_id)?;
+            database::recordings::link_transcript(&tx, &rec_id, &transcript_id)?;
+            tx.commit().map_err(|error| AppError::StorageError {
+                code: crate::error::StorageErrorCode::DatabaseError,
+                message: format!("Failed to commit recording save: {error}"),
+            })?;
 
             Ok(transcript_id)
         })();
 
         // Phase 4: Always reset to Idle — even if DB failed, audio is already saved to disk
         lock(&self.inner).status = RecordingStatus::Idle;
-        let _ = app.emit(
-            "recording:status",
-            RecordingStatusEvent {
-                status: RecordingStatus::Idle,
-                recording_id: None,
-            },
-        );
+        publish_status(app, RecordingStatus::Idle, None);
 
         let transcript_id = db_result?;
         Ok(StopRecordingResult {
@@ -387,13 +402,7 @@ impl RecordingManager {
             inner.recording_id.clone()
         };
 
-        let _ = app.emit(
-            "recording:status",
-            RecordingStatusEvent {
-                status: RecordingStatus::Paused,
-                recording_id: rid,
-            },
-        );
+        publish_status(app, RecordingStatus::Paused, rid);
 
         Ok(())
     }
@@ -420,13 +429,7 @@ impl RecordingManager {
             inner.recording_id.clone()
         };
 
-        let _ = app.emit(
-            "recording:status",
-            RecordingStatusEvent {
-                status: RecordingStatus::Recording,
-                recording_id: rid,
-            },
-        );
+        publish_status(app, RecordingStatus::Recording, rid);
 
         Ok(())
     }
@@ -453,5 +456,35 @@ impl RecordingManager {
 
     pub fn status(&self) -> RecordingStatus {
         lock(&self.inner).status
+    }
+}
+
+fn publish_status(app: &AppHandle, status: RecordingStatus, recording_id: Option<String>) {
+    let _ = app.emit(
+        "recording:status",
+        RecordingStatusEvent {
+            status,
+            recording_id,
+        },
+    );
+
+    let tray_state = match status {
+        RecordingStatus::Recording => crate::tray::TrayState::Recording,
+        RecordingStatus::Paused => crate::tray::TrayState::Paused,
+        RecordingStatus::Idle | RecordingStatus::Stopping => crate::tray::TrayState::Idle,
+    };
+    crate::tray::update_tray_state(app, tray_state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AudioSource;
+
+    #[test]
+    fn combined_capture_uses_valid_transcript_source_type() {
+        assert_eq!(AudioSource::Microphone.as_transcript_source_type(), "mic");
+        assert_eq!(AudioSource::System.as_transcript_source_type(), "system");
+        assert_eq!(AudioSource::Both.as_db_str(), "both");
+        assert_eq!(AudioSource::Both.as_transcript_source_type(), "meeting");
     }
 }

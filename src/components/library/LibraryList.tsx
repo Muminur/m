@@ -3,7 +3,17 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLibraryStore } from "@/stores/libraryStore";
 import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
-import { FileText, Mic, Monitor, Star, Clock, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  FileText,
+  Mic,
+  Monitor,
+  Star,
+  Clock,
+  ArrowUp,
+  ArrowDown,
+  Trash2,
+  RotateCcw,
+} from "lucide-react";
 import type { Transcript, TranscriptFilter, TranscriptSort } from "@/lib/types";
 
 export function LibraryList() {
@@ -17,6 +27,9 @@ export function LibraryList() {
   const sort = useLibraryStore((s) => s.sort);
   const loadTranscripts = useLibraryStore((s) => s.loadTranscripts);
   const setSort = useLibraryStore((s) => s.setSort);
+  const starTranscript = useLibraryStore((s) => s.starTranscript);
+  const deleteTranscript = useLibraryStore((s) => s.deleteTranscript);
+  const restoreTranscript = useLibraryStore((s) => s.restoreTranscript);
 
   // Sync the libraryStore filter to the URL's ?filter= query param. The
   // sidebar uses ?filter=starred and ?filter=trash to switch views without
@@ -41,7 +54,16 @@ export function LibraryList() {
 
   const handleSelectTranscript = useCallback(
     (transcriptId: string) => navigate(`/library/${transcriptId}`),
-    [navigate],
+    [navigate]
+  );
+
+  const handlePermanentDelete = useCallback(
+    (transcriptId: string) => {
+      if (window.confirm("Permanently delete this transcript? This cannot be undone.")) {
+        void deleteTranscript(transcriptId, true);
+      }
+    },
+    [deleteTranscript]
   );
 
   if (isLoading) {
@@ -86,6 +108,10 @@ export function LibraryList() {
             transcript={transcript}
             isSelected={transcript.id === id}
             onSelect={handleSelectTranscript}
+            onStar={starTranscript}
+            onTrash={(transcriptId) => deleteTranscript(transcriptId)}
+            onRestore={restoreTranscript}
+            onPermanentDelete={handlePermanentDelete}
           />
         ))}
       </ul>
@@ -140,25 +166,31 @@ function TranscriptRow({
   transcript,
   isSelected,
   onSelect,
+  onStar,
+  onTrash,
+  onRestore,
+  onPermanentDelete,
 }: {
   transcript: Transcript;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  onStar: (id: string) => Promise<void>;
+  onTrash: (id: string) => Promise<void>;
+  onRestore: (id: string) => Promise<void>;
+  onPermanentDelete: (id: string) => void;
 }) {
-  const handleClick = useCallback(() => onSelect(transcript.id), [onSelect, transcript.id]);
+  const handleClick = useCallback(() => {
+    if (!transcript.isDeleted) onSelect(transcript.id);
+  }, [onSelect, transcript.id, transcript.isDeleted]);
 
   const SourceIcon =
-    transcript.sourceType === "mic"
-      ? Mic
-      : transcript.sourceType === "system"
-      ? Monitor
-      : FileText;
+    transcript.sourceType === "mic" ? Mic : transcript.sourceType === "system" ? Monitor : FileText;
 
   return (
     <li
-      className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors ${
-        isSelected ? "bg-accent" : "hover:bg-accent/50"
-      }`}
+      className={`flex items-start gap-3 px-4 py-3 transition-colors ${
+        transcript.isDeleted ? "cursor-default" : "cursor-pointer"
+      } ${isSelected ? "bg-accent" : "hover:bg-accent/50"}`}
       onClick={handleClick}
     >
       <div className="mt-0.5 text-muted-foreground flex-none">
@@ -189,6 +221,56 @@ function TranscriptRow({
             </>
           )}
         </div>
+      </div>
+      <div
+        className="flex flex-none items-center gap-1"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {transcript.isDeleted ? (
+          <>
+            <button
+              type="button"
+              onClick={() => void onRestore(transcript.id)}
+              className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="Restore transcript"
+              aria-label={`Restore ${transcript.title}`}
+            >
+              <RotateCcw size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onPermanentDelete(transcript.id)}
+              className="rounded p-1.5 text-destructive hover:bg-destructive/10"
+              title="Delete permanently"
+              aria-label={`Permanently delete ${transcript.title}`}
+            >
+              <Trash2 size={14} />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => void onStar(transcript.id)}
+              className={`rounded p-1.5 hover:bg-accent ${
+                transcript.isStarred ? "text-yellow-500" : "text-muted-foreground"
+              }`}
+              title={transcript.isStarred ? "Remove star" : "Star transcript"}
+              aria-label={`${transcript.isStarred ? "Unstar" : "Star"} ${transcript.title}`}
+            >
+              <Star size={14} className={transcript.isStarred ? "fill-current" : ""} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void onTrash(transcript.id)}
+              className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              title="Move to Trash"
+              aria-label={`Move ${transcript.title} to Trash`}
+            >
+              <Trash2 size={14} />
+            </button>
+          </>
+        )}
       </div>
     </li>
   );

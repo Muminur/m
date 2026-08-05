@@ -1,17 +1,10 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mic, Square, Pause, Play, Radio } from "lucide-react";
 import { useRecordingStore } from "@/stores/recordingStore";
 import { DeviceSelector } from "./DeviceSelector";
 import { handleRecordingStopped } from "@/lib/onRecordingStopped";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-
-type RecordingStatus = "idle" | "recording" | "paused" | "stopping";
-
-function isValidStatus(s: string): s is RecordingStatus {
-  return ["idle", "recording", "paused", "stopping"].includes(s);
-}
 
 export function RecordingPanel() {
   const navigate = useNavigate();
@@ -33,10 +26,29 @@ export function RecordingPanel() {
   } = useRecordingStore();
 
   const levelPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [systemAudioAvailable, setSystemAudioAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadDevices();
   }, [loadDevices]);
+
+  useEffect(() => {
+    let cancelled = false;
+    invoke<boolean>("is_system_audio_available")
+      .then((available) => {
+        if (cancelled) return;
+        setSystemAudioAvailable(available);
+        if (!available && useRecordingStore.getState().audioSource !== "Microphone") {
+          setAudioSource("Microphone");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSystemAudioAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setAudioSource]);
 
   // Poll audio levels during recording
   useEffect(() => {
@@ -44,13 +56,15 @@ export function RecordingPanel() {
       levelPollRef.current = setInterval(async () => {
         try {
           const level = await invoke<{
-            level_db: number;
-            duration_ms: number;
+            levelDb?: number;
+            level_db?: number;
+            durationMs?: number;
+            duration_ms?: number;
             status: string;
           }>("get_recording_level");
           useRecordingStore.setState({
-            audioLevel: level.level_db,
-            durationMs: level.duration_ms,
+            audioLevel: level.levelDb ?? level.level_db ?? -60,
+            durationMs: level.durationMs ?? level.duration_ms ?? 0,
           });
         } catch {
           // ignore polling errors
@@ -68,25 +82,6 @@ export function RecordingPanel() {
       }
     };
   }, [status]);
-
-  // Listen for status events from backend
-  useEffect(() => {
-    const unlisten = listen<{ status: string; recording_id: string | null }>(
-      "recording:status",
-      (event) => {
-        const s = event.payload.status;
-        if (isValidStatus(s)) {
-          useRecordingStore.setState({
-            status: s,
-            recordingId: event.payload.recording_id,
-          });
-        }
-      }
-    );
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
 
   const handleStart = useCallback(async () => {
     await startRecording();
@@ -137,15 +132,18 @@ export function RecordingPanel() {
           />
 
           <div>
-            <label className="text-sm font-medium mb-2 block">
-              Audio Source
-            </label>
+            <label className="text-sm font-medium mb-2 block">Audio Source</label>
             <div className="flex gap-2">
               {(["Microphone", "System", "Both"] as const).map((src) => (
                 <button
                   key={src}
                   onClick={() => setAudioSource(src)}
-                  disabled={!isIdle}
+                  disabled={!isIdle || (src !== "Microphone" && systemAudioAvailable !== true)}
+                  title={
+                    src !== "Microphone" && systemAudioAvailable === false
+                      ? "System audio capture is not supported on this platform"
+                      : undefined
+                  }
                   className={`flex-1 px-3 py-2 rounded-md text-sm border transition-colors ${
                     audioSource === src
                       ? "bg-primary text-primary-foreground border-primary"
@@ -158,6 +156,11 @@ export function RecordingPanel() {
                 </button>
               ))}
             </div>
+            {systemAudioAvailable === false && (
+              <p className="text-xs text-muted-foreground mt-2">
+                System and combined audio capture are unavailable on this platform. Use Microphone.
+              </p>
+            )}
           </div>
         </section>
 
@@ -247,9 +250,7 @@ export function RecordingPanel() {
 
         {/* Error display */}
         {error && (
-          <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-            {error}
-          </div>
+          <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
         )}
       </div>
     </div>

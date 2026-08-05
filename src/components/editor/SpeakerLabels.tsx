@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Users } from "lucide-react";
 import { getSpeakerColor } from "@/lib/diarizationTypes";
 import type { DiarizedSegment } from "@/lib/diarizationTypes";
+import { formatError } from "@/lib/formatError";
 
 interface DiarizeTranscriptResult {
   transcriptId: string;
@@ -46,7 +47,12 @@ function formatMs(ms: number): string {
  * Displays diarized transcript segments with per-speaker color coding and
  * inline label rename functionality.
  */
-export function SpeakerLabels({ transcriptId, segments, onRenameLabel, onDiarizeComplete }: SpeakerLabelsProps) {
+export function SpeakerLabels({
+  transcriptId,
+  segments,
+  onRenameLabel,
+  onDiarizeComplete,
+}: SpeakerLabelsProps) {
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizeError, setDiarizeError] = useState<string | null>(null);
@@ -89,7 +95,7 @@ export function SpeakerLabels({ transcriptId, segments, onRenameLabel, onDiarize
       });
       onDiarizeComplete?.(result);
     } catch (err) {
-      setDiarizeError(String(err));
+      setDiarizeError(formatError(err));
     } finally {
       setIsDiarizing(false);
     }
@@ -98,23 +104,15 @@ export function SpeakerLabels({ transcriptId, segments, onRenameLabel, onDiarize
   if (segments.length === 0) {
     return (
       <div className="text-center py-8 space-y-3">
-        <p className="text-sm text-muted-foreground">
-          No diarized segments available.
-        </p>
-        {diarizeError && (
-          <p className="text-xs text-destructive">{diarizeError}</p>
-        )}
+        <p className="text-sm text-muted-foreground">No diarized segments available.</p>
+        {diarizeError && <p className="text-xs text-destructive">{diarizeError}</p>}
         <button
           type="button"
           disabled={isDiarizing || !transcriptId}
           onClick={handleDiarize}
           className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          {isDiarizing ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Users size={12} />
-          )}
+          {isDiarizing ? <Loader2 size={12} className="animate-spin" /> : <Users size={12} />}
           {isDiarizing ? "Diarizing\u2026" : "Run Diarization"}
         </button>
       </div>
@@ -149,9 +147,7 @@ export function SpeakerLabels({ transcriptId, segments, onRenameLabel, onDiarize
                   data-testid="speaker-rename-input"
                   type="text"
                   value={editing.draft}
-                  onChange={(e) =>
-                    setEditing({ ...editing, draft: e.target.value })
-                  }
+                  onChange={(e) => setEditing({ ...editing, draft: e.target.value })}
                   onBlur={commitEdit}
                   onKeyDown={handleKeyDown}
                   className="text-xs font-semibold border border-ring rounded px-1 py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring w-full"

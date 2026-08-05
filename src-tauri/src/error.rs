@@ -160,6 +160,7 @@ pub enum DictationErrorCode {
 #[derive(Debug, Serialize, Clone)]
 pub enum ImportErrorCode {
     YtDlpNotFound,
+    DependencyNotFound,
     DownloadFailed,
     InvalidUrl,
     UnsupportedPlatform,

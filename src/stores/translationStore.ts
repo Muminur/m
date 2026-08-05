@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "@/lib/formatError";
 
 interface TranslationRow {
   id: string;
@@ -46,7 +47,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
       }
     } catch (err) {
       if (request === requestVersion) {
-        set({ error: String(err), isTranslating: false });
+        set({ error: formatError(err), isTranslating: false });
       }
     }
   },
@@ -60,7 +61,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
       }
     } catch (err) {
       if (request === requestVersion) {
-        set({ error: String(err) });
+        set({ error: formatError(err) });
       }
     }
   },

@@ -175,10 +175,12 @@ mod tests {
 
     #[test]
     fn test_settings_round_trip() {
-        let mut s = AppSettings::default();
-        s.theme = Theme::Dark;
-        s.network_policy = NetworkPolicy::Offline;
-        s.language = "nl".to_string();
+        let s = AppSettings {
+            theme: Theme::Dark,
+            network_policy: NetworkPolicy::Offline,
+            language: "nl".to_string(),
+            ..AppSettings::default()
+        };
 
         let json = serde_json::to_string(&s).unwrap();
         let s2: AppSettings = serde_json::from_str(&json).unwrap();
@@ -233,10 +235,12 @@ mod tests {
 
     #[test]
     fn test_all_optional_fields_serialize() {
-        let mut s = AppSettings::default();
-        s.global_shortcut_transcribe = Some("Cmd+Shift+T".to_string());
-        s.global_shortcut_dictate = Some("Cmd+Shift+D".to_string());
-        s.show_onboarding = false;
+        let s = AppSettings {
+            global_shortcut_transcribe: Some("Cmd+Shift+T".to_string()),
+            global_shortcut_dictate: Some("Cmd+Shift+D".to_string()),
+            show_onboarding: false,
+            ..AppSettings::default()
+        };
 
         let json = serde_json::to_value(&s).unwrap();
         assert_eq!(json["global_shortcut_transcribe"], "Cmd+Shift+T");
