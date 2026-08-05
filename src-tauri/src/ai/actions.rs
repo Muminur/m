@@ -79,9 +79,8 @@ fn builtin_prompt(action: &AiAction) -> String {
             "Answer questions about this transcript. Transcript:\n\n{{transcript}}".into()
         }
         AiActionType::Translate => {
-            format!(
-                "Translate the following transcript to {{{{target_language}}}}:\n\n{{{{transcript}}}}"
-            )
+            "Translate the following transcript to {{target_language}}:\n\n{{transcript}}"
+                .to_string()
         }
         AiActionType::Rewrite => {
             "Rewrite the following transcript for clarity and readability:\n\n{{transcript}}".into()

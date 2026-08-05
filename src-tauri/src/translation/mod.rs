@@ -8,37 +8,23 @@
 //! dependency panics "MacOS is not supported" on x86_64. Depend on `ct2rs`
 //! directly and select the macOS-safe CPU backends `dnnl` + `ruy`.
 //!
-//!   use ct2rs::{Config, Translator};
-//!
-//!   // Constructor: model dir must contain model.bin, config.json, and a
-//!   // tokenizer.json (the `tokenizers` feature reads tokenizer.json).
-//!   let translator = Translator::new(model_dir, &Config::default())?;  // -> anyhow::Result<Translator<Tokenizer>>
-//!
-//!   // Translate: sources are PLAIN strings (the built-in tokenizer handles
-//!   // encoding — do NOT pre-tokenize). The NLLB target language is passed as a
-//!   // target prefix: one Vec<String> of language tokens per source sentence.
-//!   let sources: Vec<String> = vec!["Hello, how are you?".to_string()];
-//!   let target_prefixes: Vec<Vec<String>> = vec![vec!["ben_Beng".to_string()]];
-//!   let results = translator.translate_batch_with_target_prefix(
-//!       &sources,
-//!       &target_prefixes,
-//!       &Default::default(),   // ct2rs::TranslationOptions
-//!       None,                  // Option<&mut dyn FnMut(GenerationStepResult) -> Result<()>> step callback
-//!   )?;
-//!   // results: Vec<(String, Option<f32>)> — (translated_text, score) per source.
-//!
 //! NLLB language codes are FLORES-200 style: eng_Latn (English), ben_Beng
-//! (Bengali), arb_Arab (Modern Standard Arabic). Source language is auto-detected
-//! by NLLB; only the target prefix is required.
+//! (Bengali), arb_Arab (Modern Standard Arabic). Callers provide both source and
+//! target codes; NLLB does not auto-detect its encoder language. [`NllbEngine`]
+//! configures the HuggingFace tokenizer with the runtime source suffix and the
+//! CTranslate2 decoder with the target-language prefix.
+//!
+//! [`NllbEngine`]: engine::NllbEngine
 
-pub mod languages;
-pub mod model;
 pub mod engine;
+pub mod languages;
 pub mod manager;
+pub mod model;
 
 #[cfg(test)]
 mod smoke {
-    use ct2rs::{Config, Translator};
+    use super::engine::NllbEngine;
+    use std::path::Path;
 
     /// Smoke test: prove ct2rs builds and translates English -> Bengali on CPU int8.
     /// Requires the pre-converted NLLB-200-distilled-600M int8 model at
@@ -49,27 +35,15 @@ mod smoke {
     #[ignore] // requires the model at /tmp/nllb-smoke/model; run explicitly
     fn eng_to_ben_smoke() {
         let path = "/tmp/nllb-smoke/model";
-        let translator =
-            Translator::new(path, &Config::default()).expect("load NLLB model");
-
-        // Sources are plain strings; the built-in tokenizer encodes them.
-        let sources = vec!["Hello, how are you?".to_string()];
-        // NLLB target language passed as a target prefix (one per source).
-        let target_prefixes = vec![vec!["ben_Beng".to_string()]];
-
-        let results = translator
-            .translate_batch_with_target_prefix(
-                &sources,
-                &target_prefixes,
-                &Default::default(),
-                None,
-            )
+        let engine = NllbEngine::load(Path::new(path)).expect("load NLLB model");
+        let results = engine
+            .translate(&["Hello, how are you?".into()], "eng_Latn", "ben_Beng")
             .expect("translate");
 
         println!("NLLB eng->ben: {results:?}");
 
         assert!(!results.is_empty(), "no translation returned");
-        let (text, _score) = &results[0];
+        let text = &results[0];
         assert!(!text.trim().is_empty(), "empty translation text");
         // Assert the output is actually Bengali script (Unicode block U+0980–U+09FF),
         // not English pass-through or a mock.

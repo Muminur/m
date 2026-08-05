@@ -1,9 +1,9 @@
 //! Owns the lazily-loaded NllbEngine (load weights once).
-use std::path::Path;
-use std::sync::Mutex;
-use crate::error::{AppError, StorageErrorCode};
 use super::engine::NllbEngine;
 use super::model;
+use crate::error::{AppError, StorageErrorCode};
+use std::path::Path;
+use std::sync::Mutex;
 
 pub struct TranslationEngineManager {
     engine: Mutex<Option<NllbEngine>>,
@@ -11,7 +11,9 @@ pub struct TranslationEngineManager {
 
 impl TranslationEngineManager {
     pub fn new() -> Self {
-        Self { engine: Mutex::new(None) }
+        Self {
+            engine: Mutex::new(None),
+        }
     }
 
     /// Load the engine once. Errors if the model isn't downloaded.
@@ -35,7 +37,12 @@ impl TranslationEngineManager {
     }
 
     /// Translate with the loaded engine. Call ensure_loaded first.
-    pub fn translate(&self, texts: &[String], src: &str, tgt: &str) -> Result<Vec<String>, AppError> {
+    pub fn translate(
+        &self,
+        texts: &[String],
+        src: &str,
+        tgt: &str,
+    ) -> Result<Vec<String>, AppError> {
         let guard = self.engine.lock().map_err(|_| AppError::StorageError {
             code: StorageErrorCode::DatabaseError,
             message: "translation engine mutex poisoned".into(),
@@ -49,7 +56,9 @@ impl TranslationEngineManager {
 }
 
 impl Default for TranslationEngineManager {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]

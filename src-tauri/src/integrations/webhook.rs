@@ -2,7 +2,7 @@ use crate::error::{AppError, IntegrationErrorCode};
 use crate::network::guard::NetworkGuard;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use url::Url;
+use url::{Host, Url};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -43,37 +43,32 @@ fn validate_webhook_url(raw: &str) -> Result<(), AppError> {
         });
     }
 
-    let host = parsed.host_str().unwrap_or("").to_lowercase();
+    let host = parsed.host().ok_or_else(|| AppError::IntegrationError {
+        code: IntegrationErrorCode::ConfigurationMissing,
+        message: "Webhook URL must include a host".into(),
+    })?;
 
-    // Block loopback and internal hosts
-    if host == "localhost"
-        || host == "127.0.0.1"
-        || host.starts_with("127.")
-        || host == "::1"
-        || host == "0.0.0.0"
-        || host == "169.254.169.254"
-        || host.starts_with("10.")
-        || host.starts_with("192.168.")
-        || host.starts_with("fe80")
-    {
+    // Block literal loopback, private, link-local, and unspecified addresses.
+    // Using Url::host avoids bracket-format differences for IPv6 hosts.
+    let blocked = match host {
+        Host::Domain(domain) => domain.eq_ignore_ascii_case("localhost"),
+        Host::Ipv4(ip) => {
+            ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified()
+        }
+        Host::Ipv6(ip) => {
+            let first = ip.segments()[0];
+            ip.is_loopback()
+                || ip.is_unspecified()
+                || first & 0xfe00 == 0xfc00 // fc00::/7 unique-local
+                || first & 0xffc0 == 0xfe80 // fe80::/10 link-local
+        }
+    };
+
+    if blocked {
         return Err(AppError::IntegrationError {
             code: IntegrationErrorCode::ConfigurationMissing,
             message: format!("Webhook URL targets a blocked internal host: {}", host),
         });
-    }
-
-    // Block 172.16.0.0/12 range (172.16.* through 172.31.*)
-    if host.starts_with("172.") {
-        if let Some(second_octet) = host.split('.').nth(1) {
-            if let Ok(octet) = second_octet.parse::<u8>() {
-                if (16..=31).contains(&octet) {
-                    return Err(AppError::IntegrationError {
-                        code: IntegrationErrorCode::ConfigurationMissing,
-                        message: format!("Webhook URL targets a blocked internal host: {}", host),
-                    });
-                }
-            }
-        }
     }
 
     Ok(())

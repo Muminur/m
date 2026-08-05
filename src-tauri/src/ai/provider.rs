@@ -5,6 +5,14 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
+pub type StreamingCompletionFuture<'a> = Pin<
+    Box<
+        dyn std::future::Future<Output = Result<mpsc::Receiver<Result<String, AppError>>, AppError>>
+            + Send
+            + 'a,
+    >,
+>;
+
 /// Information about a model offered by an AI provider.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,17 +70,7 @@ pub trait AiProvider: Send + Sync {
 
     /// Perform a streaming completion request.
     /// Sends chunks through the returned receiver. The final empty string signals completion.
-    fn complete_stream(
-        &self,
-        request: CompletionRequest,
-    ) -> Pin<
-        Box<
-            dyn std::future::Future<
-                    Output = Result<mpsc::Receiver<Result<String, AppError>>, AppError>,
-                > + Send
-                + '_,
-        >,
-    >;
+    fn complete_stream(&self, request: CompletionRequest) -> StreamingCompletionFuture<'_>;
 }
 
 /// Registry of AI providers.

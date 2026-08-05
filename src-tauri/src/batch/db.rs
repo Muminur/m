@@ -116,16 +116,8 @@ pub fn get_job_items(db: &Database, job_id: &str) -> Result<Vec<BatchJobItem>, A
 
     let mut items = Vec::new();
     for row in rows {
-        let (
-            id,
-            job_id_col,
-            file_path,
-            transcript_id,
-            status_str,
-            error,
-            progress,
-            processing_ms,
-        ) = row?;
+        let (id, job_id_col, file_path, transcript_id, status_str, error, progress, processing_ms) =
+            row?;
         let status: BatchItemStatus = status_str.parse()?;
         items.push(BatchJobItem {
             id,
@@ -142,11 +134,7 @@ pub fn get_job_items(db: &Database, job_id: &str) -> Result<Vec<BatchJobItem>, A
 }
 
 /// Update a job's status (and related timestamps).
-pub fn set_job_status(
-    db: &Database,
-    job_id: &str,
-    status: BatchJobStatus,
-) -> Result<(), AppError> {
+pub fn set_job_status(db: &Database, job_id: &str, status: BatchJobStatus) -> Result<(), AppError> {
     let conn = db.get()?;
     let now = chrono::Utc::now().timestamp();
     match status {

@@ -27,26 +27,45 @@ function toMap(rows: TranslationRow[]): Record<string, string> {
   return m;
 }
 
+let requestVersion = 0;
+
 export const useTranslationStore = create<TranslationState>((set) => ({
   translations: {},
   isTranslating: false,
   error: null,
   translate: async (transcriptId, targetLang) => {
-    set({ isTranslating: true, error: null });
+    const request = ++requestVersion;
+    set({ translations: {}, isTranslating: true, error: null });
     try {
-      const rows = await invoke<TranslationRow[]>("translate_transcript", { transcriptId, targetLang });
-      set({ translations: toMap(rows), isTranslating: false });
+      const rows = await invoke<TranslationRow[]>("translate_transcript", {
+        transcriptId,
+        targetLang,
+      });
+      if (request === requestVersion) {
+        set({ translations: toMap(rows), isTranslating: false });
+      }
     } catch (err) {
-      set({ error: String(err), isTranslating: false });
+      if (request === requestVersion) {
+        set({ error: String(err), isTranslating: false });
+      }
     }
   },
   loadCached: async (transcriptId, targetLang) => {
+    const request = ++requestVersion;
+    set({ translations: {}, isTranslating: false, error: null });
     try {
       const rows = await invoke<TranslationRow[]>("get_translation", { transcriptId, targetLang });
-      set({ translations: toMap(rows) });
+      if (request === requestVersion) {
+        set({ translations: toMap(rows) });
+      }
     } catch (err) {
-      set({ error: String(err) });
+      if (request === requestVersion) {
+        set({ error: String(err) });
+      }
     }
   },
-  clear: () => set({ translations: {}, error: null }),
+  clear: () => {
+    requestVersion += 1;
+    set({ translations: {}, isTranslating: false, error: null });
+  },
 }));

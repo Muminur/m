@@ -92,6 +92,7 @@ fn write_float_visible(app: &AppHandle, visible: bool) {
 /// same window). On error we log rather than panic so a failed conversion
 /// leaves the app running with a plain (Desktop-only) window.
 #[cfg(target_os = "macos")]
+#[allow(deprecated)] // tauri-nspanel v2 has not migrated this API to objc2 yet.
 fn convert_to_panel(window: &tauri::WebviewWindow) {
     use tauri_nspanel::cocoa::appkit::NSWindowCollectionBehavior;
     use tauri_nspanel::WebviewWindowExt;
@@ -201,7 +202,14 @@ fn build_float_window(app: &AppHandle) -> tauri::Result<()> {
         let logical_h = size.height as f64 / scale;
         let x = (logical_w - FLOAT_W - 24.0).max(0.0);
         let y = (logical_h - FLOAT_H - 80.0).max(0.0);
-        tracing::info!(x, y, logical_w, logical_h, scale, "float window target position");
+        tracing::info!(
+            x,
+            y,
+            logical_w,
+            logical_h,
+            scale,
+            "float window target position"
+        );
         builder = builder.position(x, y);
     } else {
         tracing::warn!("float: primary_monitor() returned None — using default position");

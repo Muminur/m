@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useTranslationStore } from "@/stores/translationStore";
 import { ISO_TO_FLORES } from "@/constants/translationLanguages";
 
 interface TranslationModelInfo {
@@ -16,7 +15,38 @@ interface TranscriptDetailPayload {
   transcript: { language?: string };
 }
 
-let initialized = false;
+let subscriberCount = 0;
+let initialization: Promise<void> | null = null;
+let removeListeners: UnlistenFn | null = null;
+
+async function setupListeners(): Promise<void> {
+  const unlistenComplete = await listen<{ transcriptId: string }>(
+    "transcription:complete",
+    (event) => {
+      void handleTranscriptionComplete(event.payload.transcriptId);
+    }
+  );
+
+  try {
+    // The backend emits this when a translate call runs but the NLLB model dir
+    // is absent (e.g. a manual Translate click before download). Prompt rather
+    // than fail silently.
+    const unlistenMissing = await listen("translation:model-missing", () => {
+      toast.warning(
+        "The translation model isn't downloaded. Open Settings → Translation to download it.",
+        { duration: 8000 }
+      );
+    });
+
+    removeListeners = () => {
+      unlistenComplete();
+      unlistenMissing();
+    };
+  } catch (error) {
+    unlistenComplete();
+    throw error;
+  }
+}
 
 /**
  * Auto-translate after a recording finishes transcribing. Frontend-driven,
@@ -29,36 +59,37 @@ let initialized = false;
  *   - If the model isn't downloaded, do NOT fail the transcript — prompt the
  *     user to download it in Settings.
  *
- * This never blocks or breaks the transcription flow: the translate store
- * swallows its own errors, and every branch here is fire-and-forget.
+ * This never blocks or breaks the transcription flow: translation is invoked
+ * fire-and-forget and failures are logged independently.
  *
  * Returns an unlisten function; safe to call multiple times (guarded).
  */
 export async function initAutoTranslate(): Promise<UnlistenFn> {
-  if (initialized) return () => {};
-  initialized = true;
+  subscriberCount += 1;
+  if (!initialization) {
+    initialization = setupListeners().catch((error) => {
+      initialization = null;
+      throw error;
+    });
+  }
 
-  const unlistenComplete = await listen<{ transcriptId: string }>(
-    "transcription:complete",
-    (event) => {
-      void handleTranscriptionComplete(event.payload.transcriptId);
-    }
-  );
+  try {
+    await initialization;
+  } catch (error) {
+    subscriberCount -= 1;
+    throw error;
+  }
 
-  // The backend emits this when a translate call runs but the NLLB model dir
-  // is absent (e.g. a manual Translate click before download). Prompt rather
-  // than fail silently.
-  const unlistenMissing = await listen("translation:model-missing", () => {
-    toast.warning(
-      "The translation model isn't downloaded. Open Settings → Translation to download it.",
-      { duration: 8000 }
-    );
-  });
-
+  let disposed = false;
   return () => {
-    initialized = false;
-    unlistenComplete();
-    unlistenMissing();
+    if (disposed) return;
+    disposed = true;
+    subscriberCount -= 1;
+    if (subscriberCount === 0) {
+      removeListeners?.();
+      removeListeners = null;
+      initialization = null;
+    }
   };
 }
 
@@ -77,10 +108,7 @@ async function handleTranscriptionComplete(transcriptId: string): Promise<void> 
     });
     const sourceIso = detail.transcript.language?.toLowerCase() ?? "";
     if (sourceIso && ISO_TO_FLORES[sourceIso] === targetLang) {
-      console.info(
-        "[autoTranslate] source language matches target; skipping",
-        sourceIso
-      );
+      console.info("[autoTranslate] source language matches target; skipping", sourceIso);
       return;
     }
 
@@ -96,9 +124,12 @@ async function handleTranscriptionComplete(transcriptId: string): Promise<void> 
     }
 
     console.info("[autoTranslate] translating", transcriptId, "→", targetLang);
-    // Fire-and-forget; the store surfaces its own errors into store.error and
-    // never throws, so this can't break the transcription flow.
-    void useTranslationStore.getState().translate(transcriptId, targetLang);
+    // Keep background auto-translation out of the view-scoped translation
+    // store. The backend completion event tells an open subtitle view to
+    // refresh its cache without overwriting another transcript's UI state.
+    void invoke("translate_transcript", { transcriptId, targetLang }).catch((error) => {
+      console.error("[autoTranslate] translation failed:", error);
+    });
   } catch (err) {
     // A failure here (e.g. get_transcript / list_translation_models) must not
     // affect the transcript itself — just log it.

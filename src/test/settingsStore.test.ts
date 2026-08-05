@@ -17,6 +17,21 @@ const DEFAULT_SETTINGS: AppSettings = {
   showOnboarding: false,
 };
 
+const BACKEND_SETTINGS = {
+  theme: "system" as const,
+  language: "en",
+  default_model_id: "base",
+  network_policy: "allow_all" as const,
+  logs_enabled: true,
+  watch_folders: [],
+  show_onboarding: false,
+  global_shortcut_transcribe: undefined,
+  global_shortcut_dictate: undefined,
+  acceleration_backend: "auto" as const,
+  auto_translate: true,
+  auto_translate_target_lang: "ben_Beng",
+};
+
 describe("settingsStore", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
@@ -29,7 +44,7 @@ describe("settingsStore", () => {
 
   describe("loadSettings", () => {
     it("sets isLoading then populates settings on success", async () => {
-      mockInvoke.mockResolvedValue(DEFAULT_SETTINGS);
+      mockInvoke.mockResolvedValue(BACKEND_SETTINGS);
 
       const promise = useSettingsStore.getState().loadSettings();
       expect(useSettingsStore.getState().isLoading).toBe(true);
@@ -37,7 +52,14 @@ describe("settingsStore", () => {
 
       await promise;
 
-      expect(useSettingsStore.getState().settings).toEqual(DEFAULT_SETTINGS);
+      expect(useSettingsStore.getState().settings).toEqual({
+        ...DEFAULT_SETTINGS,
+        accelerationBackend: "auto",
+        autoTranslate: true,
+        autoTranslateTargetLang: "ben_Beng",
+        globalShortcutTranscribe: undefined,
+        globalShortcutDictate: undefined,
+      });
       expect(useSettingsStore.getState().isLoading).toBe(false);
       expect(mockInvoke).toHaveBeenCalledWith("get_settings");
     });
@@ -84,6 +106,26 @@ describe("settingsStore", () => {
       expect(mockInvoke).toHaveBeenCalledWith("update_settings", {
         updates: { acceleration_backend: "metal" },
       });
+    });
+
+    it("maps nested watch-folder model IDs in both directions", async () => {
+      mockInvoke.mockResolvedValue({
+        ...BACKEND_SETTINGS,
+        watch_folders: [{ path: "/audio", model_id: "large", language: "bn", enabled: true }],
+      });
+
+      await useSettingsStore.getState().updateSettings({
+        watchFolders: [{ path: "/audio", modelId: "large", language: "bn", enabled: true }],
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith("update_settings", {
+        updates: {
+          watch_folders: [{ path: "/audio", model_id: "large", language: "bn", enabled: true }],
+        },
+      });
+      expect(useSettingsStore.getState().settings?.watchFolders).toEqual([
+        { path: "/audio", modelId: "large", language: "bn", enabled: true },
+      ]);
     });
 
     it("filters out unknown keys", async () => {

@@ -81,6 +81,9 @@ export function TranslationSettings() {
             {models.map((m) => {
               const progress = downloadProgress[m.id];
               const isDownloading = progress !== undefined;
+              const percentage = progress
+                ? Math.min(progress.percentage * 100, 100)
+                : 0;
               return (
                 <div
                   key={m.id}
@@ -95,7 +98,7 @@ export function TranslationSettings() {
                     </div>
                     {isDownloading ? (
                       <span className="text-xs text-muted-foreground flex-none">
-                        {progress.percentage.toFixed(0)}%
+                        {percentage.toFixed(0)}%
                       </span>
                     ) : m.isDownloaded ? (
                       <button
@@ -122,7 +125,7 @@ export function TranslationSettings() {
                     <div className="bg-primary/20 rounded-full h-1">
                       <div
                         className="bg-primary h-1 rounded-full transition-all"
-                        style={{ width: `${progress.percentage}%` }}
+                        style={{ width: `${percentage}%` }}
                       />
                     </div>
                   ) : m.isDownloaded ? (

@@ -27,6 +27,8 @@ mod tests {
 
     #[test]
     fn not_downloaded_when_missing() {
-        assert!(!is_downloaded(&PathBuf::from("/tmp/definitely-not-here-xyz")));
+        assert!(!is_downloaded(&PathBuf::from(
+            "/tmp/definitely-not-here-xyz"
+        )));
     }
 }

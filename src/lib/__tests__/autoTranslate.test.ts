@@ -26,13 +26,6 @@ vi.mock("@/stores/settingsStore", () => ({
   },
 }));
 
-const translateMock = vi.fn();
-vi.mock("@/stores/translationStore", () => ({
-  useTranslationStore: {
-    getState: () => ({ translate: translateMock }),
-  },
-}));
-
 // Capture registered listeners by event name so we can invoke them directly.
 const listenerMap = new Map<string, (e: { payload: unknown }) => void>();
 
@@ -40,12 +33,10 @@ async function loadModule() {
   vi.resetModules();
   listenerMap.clear();
   listenMock.mockReset();
-  listenMock.mockImplementation(
-    (event: string, cb: (e: { payload: unknown }) => void) => {
-      listenerMap.set(event, cb);
-      return Promise.resolve(() => {});
-    }
-  );
+  listenMock.mockImplementation((event: string, cb: (e: { payload: unknown }) => void) => {
+    listenerMap.set(event, cb);
+    return Promise.resolve(() => {});
+  });
   const mod = await import("../autoTranslate");
   await mod.initAutoTranslate();
   return mod;
@@ -61,7 +52,6 @@ async function fireComplete(transcriptId: string) {
 describe("autoTranslate", () => {
   beforeEach(() => {
     invokeMock.mockReset();
-    translateMock.mockReset();
     toastWarning.mockReset();
     currentSettings = null;
   });
@@ -71,26 +61,24 @@ describe("autoTranslate", () => {
     await loadModule();
     await fireComplete("tx1");
     expect(invokeMock).not.toHaveBeenCalled();
-    expect(translateMock).not.toHaveBeenCalled();
   });
 
   it("does nothing when no target language is set", async () => {
     currentSettings = { autoTranslate: true, autoTranslateTargetLang: undefined };
     await loadModule();
     await fireComplete("tx1");
-    expect(translateMock).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it("skips translation when source language equals target", async () => {
     currentSettings = { autoTranslate: true, autoTranslateTargetLang: "eng_Latn" };
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "get_transcript")
-        return Promise.resolve({ transcript: { language: "en" } });
+      if (cmd === "get_transcript") return Promise.resolve({ transcript: { language: "en" } });
       return Promise.resolve([]);
     });
     await loadModule();
     await fireComplete("tx1");
-    expect(translateMock).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalledWith("translate_transcript", expect.anything());
     // Should not even reach list_translation_models.
     expect(invokeMock).not.toHaveBeenCalledWith("list_translation_models");
   });
@@ -98,43 +86,46 @@ describe("autoTranslate", () => {
   it("prompts (no throw) when the model is not downloaded", async () => {
     currentSettings = { autoTranslate: true, autoTranslateTargetLang: "ben_Beng" };
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "get_transcript")
-        return Promise.resolve({ transcript: { language: "en" } });
+      if (cmd === "get_transcript") return Promise.resolve({ transcript: { language: "en" } });
       if (cmd === "list_translation_models")
         return Promise.resolve([{ id: "nllb", isDownloaded: false }]);
       return Promise.resolve([]);
     });
     await loadModule();
     await fireComplete("tx1");
-    expect(translateMock).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalledWith("translate_transcript", expect.anything());
     expect(toastWarning).toHaveBeenCalled();
   });
 
   it("translates when enabled, model present, and source differs from target", async () => {
     currentSettings = { autoTranslate: true, autoTranslateTargetLang: "ben_Beng" };
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "get_transcript")
-        return Promise.resolve({ transcript: { language: "en" } });
+      if (cmd === "get_transcript") return Promise.resolve({ transcript: { language: "en" } });
       if (cmd === "list_translation_models")
         return Promise.resolve([{ id: "nllb", isDownloaded: true }]);
       return Promise.resolve([]);
     });
     await loadModule();
     await fireComplete("tx7");
-    expect(translateMock).toHaveBeenCalledWith("tx7", "ben_Beng");
+    expect(invokeMock).toHaveBeenCalledWith("translate_transcript", {
+      transcriptId: "tx7",
+      targetLang: "ben_Beng",
+    });
   });
 
   it("translates when the source language is unknown/empty", async () => {
     currentSettings = { autoTranslate: true, autoTranslateTargetLang: "ben_Beng" };
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "get_transcript")
-        return Promise.resolve({ transcript: { language: null } });
+      if (cmd === "get_transcript") return Promise.resolve({ transcript: { language: null } });
       if (cmd === "list_translation_models")
         return Promise.resolve([{ id: "nllb", isDownloaded: true }]);
       return Promise.resolve([]);
     });
     await loadModule();
     await fireComplete("tx8");
-    expect(translateMock).toHaveBeenCalledWith("tx8", "ben_Beng");
+    expect(invokeMock).toHaveBeenCalledWith("translate_transcript", {
+      transcriptId: "tx8",
+      targetLang: "ben_Beng",
+    });
   });
 });

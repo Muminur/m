@@ -23,6 +23,12 @@ pub struct WatchFolderManager {
     app_handle: Mutex<Option<AppHandle>>,
 }
 
+impl Default for WatchFolderManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WatchFolderManager {
     pub fn new() -> Self {
         Self {

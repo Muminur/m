@@ -22,8 +22,14 @@ pub fn insert_batch(
     rows: &[(String, String)],
 ) -> Result<(), AppError> {
     let now = chrono::Utc::now().to_rfc3339();
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("begin translation batch: {e}"),
+        })?;
     for (segment_id, text) in rows {
-        conn.execute(
+        tx.execute(
             "INSERT OR REPLACE INTO translations
                 (id, transcript_id, segment_id, target_lang, source_lang, text, engine, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'nllb-600m', ?7)",
@@ -42,7 +48,10 @@ pub fn insert_batch(
             message: format!("insert translation: {e}"),
         })?;
     }
-    Ok(())
+    tx.commit().map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("commit translation batch: {e}"),
+    })
 }
 
 pub fn get_by_transcript_lang(
@@ -121,8 +130,14 @@ mod tests {
     #[test]
     fn insert_and_fetch_roundtrip() {
         let conn = setup();
-        insert_batch(&conn, "t1", "ben_Beng", Some("eng_Latn"),
-            &[("s1".into(), "একটি".into()), ("s2".into(), "দুই".into())]).unwrap();
+        insert_batch(
+            &conn,
+            "t1",
+            "ben_Beng",
+            Some("eng_Latn"),
+            &[("s1".into(), "একটি".into()), ("s2".into(), "দুই".into())],
+        )
+        .unwrap();
         let rows = get_by_transcript_lang(&conn, "t1", "ben_Beng").unwrap();
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].text, "একটি");
@@ -131,11 +146,52 @@ mod tests {
     #[test]
     fn insert_or_replace_caches() {
         let conn = setup();
-        insert_batch(&conn, "t1", "ben_Beng", None, &[("s1".into(), "old".into())]).unwrap();
-        insert_batch(&conn, "t1", "ben_Beng", None, &[("s1".into(), "new".into())]).unwrap();
+        insert_batch(
+            &conn,
+            "t1",
+            "ben_Beng",
+            None,
+            &[("s1".into(), "old".into())],
+        )
+        .unwrap();
+        insert_batch(
+            &conn,
+            "t1",
+            "ben_Beng",
+            None,
+            &[("s1".into(), "new".into())],
+        )
+        .unwrap();
         let rows = get_by_transcript_lang(&conn, "t1", "ben_Beng").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].text, "new");
+    }
+
+    #[test]
+    fn insert_batch_rolls_back_on_error() {
+        let conn = setup();
+        conn.execute_batch(
+            "CREATE TRIGGER fail_second_translation
+             BEFORE INSERT ON translations
+             WHEN NEW.segment_id = 's2'
+             BEGIN
+               SELECT RAISE(FAIL, 'forced failure');
+             END;",
+        )
+        .unwrap();
+
+        let result = insert_batch(
+            &conn,
+            "t1",
+            "ben_Beng",
+            Some("eng_Latn"),
+            &[("s1".into(), "one".into()), ("s2".into(), "two".into())],
+        );
+
+        assert!(result.is_err());
+        assert!(get_by_transcript_lang(&conn, "t1", "ben_Beng")
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -143,6 +199,8 @@ mod tests {
         let conn = setup();
         insert_batch(&conn, "t1", "ben_Beng", None, &[("s1".into(), "x".into())]).unwrap();
         delete_by_transcript(&conn, "t1").unwrap();
-        assert!(get_by_transcript_lang(&conn, "t1", "ben_Beng").unwrap().is_empty());
+        assert!(get_by_transcript_lang(&conn, "t1", "ben_Beng")
+            .unwrap()
+            .is_empty());
     }
 }

@@ -14,10 +14,10 @@ use std::sync::Arc;
 use tauri::{command, AppHandle, Emitter, Manager, State};
 
 use crate::database::Database;
+use crate::database::{segments, translations};
 use crate::error::{AppError, ModelErrorCode, StorageErrorCode};
 use crate::models::manager::ModelManager;
 use crate::network::guard::NetworkGuard;
-use crate::database::{segments, translations};
 use crate::translation::manager::TranslationEngineManager;
 use crate::translation::{languages, model};
 
@@ -215,7 +215,11 @@ async fn run_translation_download(
     let base = base_url.trim_end_matches('/');
 
     // model.bin last so is_downloaded() only flips true once everything is present.
-    let mut files: Vec<&str> = MODEL_FILES.iter().filter(|f| **f != "model.bin").copied().collect();
+    let mut files: Vec<&str> = MODEL_FILES
+        .iter()
+        .filter(|f| **f != "model.bin")
+        .copied()
+        .collect();
     files.push("model.bin");
 
     for file in files {
@@ -295,6 +299,13 @@ pub async fn translate_transcript(
     model_manager: State<'_, Arc<ModelManager>>,
     translation_manager: State<'_, Arc<TranslationEngineManager>>,
 ) -> Result<Vec<translations::TranslationRow>, AppError> {
+    if !languages::is_supported(&target_lang) {
+        return Err(AppError::StorageError {
+            code: StorageErrorCode::DatabaseError,
+            message: format!("unsupported translation target language: {target_lang}"),
+        });
+    }
+
     let models_root = model_manager.models_dir.clone();
     if !model::is_downloaded(&models_root) {
         let _ = app_handle.emit("translation:model-missing", model::NLLB_MODEL_ID);
@@ -311,11 +322,13 @@ pub async fn translate_transcript(
         let lang: Option<String> = conn
             .query_row(
                 "SELECT language FROM transcripts WHERE id = ?1",
-                rusqlite::params![transcript_id],
+                rusqlite::params![&transcript_id],
                 |row| row.get(0),
             )
-            .ok()
-            .flatten();
+            .map_err(|e| AppError::StorageError {
+                code: StorageErrorCode::DatabaseError,
+                message: format!("load transcript language: {e}"),
+            })?;
         let src = languages::to_flores(lang.as_deref().unwrap_or("en"))
             .unwrap_or("eng_Latn")
             .to_string();
@@ -327,9 +340,19 @@ pub async fn translate_transcript(
         return Ok(Vec::new());
     }
 
-    translation_manager.ensure_loaded(&models_root)?;
     let texts: Vec<String> = segs.iter().map(|s| s.text.clone()).collect();
-    let translated = translation_manager.translate(&texts, &source_flores, &target_lang)?;
+    let engine_manager = Arc::clone(translation_manager.inner());
+    let source_for_job = source_flores.clone();
+    let target_for_job = target_lang.clone();
+    let translated = tauri::async_runtime::spawn_blocking(move || {
+        engine_manager.ensure_loaded(&models_root)?;
+        engine_manager.translate(&texts, &source_for_job, &target_for_job)
+    })
+    .await
+    .map_err(|e| AppError::StorageError {
+        code: StorageErrorCode::DatabaseError,
+        message: format!("translation worker failed: {e}"),
+    })??;
 
     let rows: Vec<(String, String)> = segs
         .iter()

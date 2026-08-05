@@ -13,12 +13,12 @@ import { initTrayBridge } from "./lib/trayBridge";
 import { initAutoTranslate } from "./lib/autoTranslate";
 
 const SettingsPage = lazy(() =>
-  import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+  import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
 );
 const ModelManager = lazy(() =>
   import("./components/transcription/ModelManager").then((m) => ({
     default: m.ModelManager,
-  })),
+  }))
 );
 
 function LazyFallback() {
@@ -108,11 +108,18 @@ function AppInner() {
   // `transcription:complete` and, when enabled in Settings, translates the new
   // transcript into the fixed target language. Never blocks transcription.
   useEffect(() => {
+    let cancelled = false;
     let unmount: (() => void) | null = null;
-    initAutoTranslate().then((u) => {
-      unmount = u;
-    });
+    initAutoTranslate()
+      .then((u) => {
+        if (cancelled) u();
+        else unmount = u;
+      })
+      .catch((error) => {
+        console.error("[autoTranslate] listener setup failed:", error);
+      });
     return () => {
+      cancelled = true;
       unmount?.();
     };
   }, []);
@@ -124,13 +131,66 @@ function AppInner() {
         {/* Each route is wrapped so a crash in one page doesn't blank the
             sidebar/list panes and the user sees the actual error message
             (with stack trace) instead of an empty screen. */}
-        <Route path="library" element={<ErrorBoundary><TranscriptDetail /></ErrorBoundary>} />
-        <Route path="library/:id" element={<ErrorBoundary><TranscriptDetail /></ErrorBoundary>} />
-        <Route path="recording" element={<ErrorBoundary><RecordingPanel /></ErrorBoundary>} />
-        <Route path="models" element={<ErrorBoundary><Suspense fallback={<LazyFallback />}><ModelManager /></Suspense></ErrorBoundary>} />
-        <Route path="transcribe" element={<ErrorBoundary><DropZone /></ErrorBoundary>} />
-        <Route path="settings" element={<ErrorBoundary><Suspense fallback={<LazyFallback />}><SettingsPage /></Suspense></ErrorBoundary>} />
-        <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
+        <Route
+          path="library"
+          element={
+            <ErrorBoundary>
+              <TranscriptDetail />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="library/:id"
+          element={
+            <ErrorBoundary>
+              <TranscriptDetail />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="recording"
+          element={
+            <ErrorBoundary>
+              <RecordingPanel />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="models"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<LazyFallback />}>
+                <ModelManager />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="transcribe"
+          element={
+            <ErrorBoundary>
+              <DropZone />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<LazyFallback />}>
+                <SettingsPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <ErrorBoundary>
+              <NotFound />
+            </ErrorBoundary>
+          }
+        />
       </Route>
     </Routes>
   );

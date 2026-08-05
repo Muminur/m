@@ -436,12 +436,10 @@ impl BatchQueue {
             BatchJobStatus::Cancelled
         } else {
             let items = self.get_job_items(job_id)?;
-            let any_failed = items
-                .iter()
-                .any(|i| i.status == BatchItemStatus::Failed);
-            let any_succeeded = items
-                .iter()
-                .any(|i| i.status == BatchItemStatus::Completed || i.status == BatchItemStatus::Skipped);
+            let any_failed = items.iter().any(|i| i.status == BatchItemStatus::Failed);
+            let any_succeeded = items.iter().any(|i| {
+                i.status == BatchItemStatus::Completed || i.status == BatchItemStatus::Skipped
+            });
 
             if !any_failed {
                 BatchJobStatus::Completed
@@ -610,7 +608,9 @@ mod tests {
         conn.pragma_update(None, "foreign_keys", "ON").unwrap();
         migrations::run(&mut conn).unwrap();
         let db = Arc::new(Database::new(conn));
-        let model_manager = Arc::new(ModelManager::new(std::path::PathBuf::from("/tmp/models-test")));
+        let model_manager = Arc::new(ModelManager::new(std::path::PathBuf::from(
+            "/tmp/models-test",
+        )));
         Arc::new(BatchQueue::new(db, model_manager))
     }
 
@@ -650,7 +650,9 @@ mod tests {
     #[test]
     fn test_get_job_roundtrip() {
         let q = make_queue();
-        let job = q.create_job(vec!["f.mp3".to_string()], 1, None, None).unwrap();
+        let job = q
+            .create_job(vec!["f.mp3".to_string()], 1, None, None)
+            .unwrap();
         let fetched = q.get_job(&job.id).unwrap();
         assert_eq!(fetched.id, job.id);
         assert_eq!(fetched.status, BatchJobStatus::Pending);
@@ -710,7 +712,9 @@ mod tests {
     #[test]
     fn test_status_transitions_pending_to_cancelled() {
         let q = make_queue();
-        let job = q.create_job(vec!["f.mp4".to_string()], 1, None, None).unwrap();
+        let job = q
+            .create_job(vec!["f.mp4".to_string()], 1, None, None)
+            .unwrap();
         assert_eq!(job.status, BatchJobStatus::Pending);
         q.cancel_job(&job.id).unwrap();
         let fetched = q.get_job(&job.id).unwrap();

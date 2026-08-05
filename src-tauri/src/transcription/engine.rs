@@ -9,6 +9,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TranscriptionParams {
     pub language: Option<String>,
     pub translate: bool,
@@ -48,6 +49,8 @@ pub struct SegmentResult {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TranscriptionOutput {
     pub segments: Vec<SegmentResult>,
+    /// ISO 639-1 language of the emitted text (e.g. `en`, `bn`, `ar`).
+    pub language: Option<String>,
     pub backend_used: AccelerationBackend,
     pub wall_time_ms: u64,
 }
@@ -197,6 +200,16 @@ impl WhisperEngine {
                 });
             }
 
+            // Persist the language chosen/detected by Whisper so downstream
+            // translation receives the right FLORES source code. Whisper's
+            // built-in translate task always emits English text even when the
+            // detected speech language differs.
+            let output_language = if params.translate {
+                Some("en".to_string())
+            } else {
+                whisper_rs::get_lang_str(state.full_lang_id_from_state()).map(str::to_string)
+            };
+
             // whisper-rs 0.16.0: full_n_segments() returns c_int directly (not Result)
             let n_segments = state.full_n_segments();
 
@@ -250,11 +263,12 @@ impl WhisperEngine {
                 AccelerationBackend::Cpu
             };
 
-            return Ok(TranscriptionOutput {
+            Ok(TranscriptionOutput {
                 segments: results,
+                language: output_language,
                 backend_used,
                 wall_time_ms,
-            });
+            })
         }
 
         // Non-macOS: whisper-rs is not compiled in
@@ -298,6 +312,25 @@ mod tests {
         assert_eq!(params.n_threads, 4);
         assert!(!params.translate);
         assert!(params.language.is_none());
+    }
+
+    #[test]
+    fn test_params_deserialize_from_frontend_camel_case() {
+        let params: TranscriptionParams = serde_json::from_value(serde_json::json!({
+            "language": "ar",
+            "translate": false,
+            "beamSize": 5,
+            "temperature": 0.0,
+            "nThreads": 4,
+            "wordTimestamps": false,
+            "initialPrompt": null,
+            "noSpeechThreshold": null
+        }))
+        .expect("frontend transcription params should deserialize");
+
+        assert_eq!(params.language.as_deref(), Some("ar"));
+        assert_eq!(params.beam_size, 5);
+        assert_eq!(params.n_threads, 4);
     }
 
     #[test]

@@ -105,10 +105,7 @@ impl NetworkGuard {
 
     /// Read the response body for error reporting, truncating to [`MAX_ERROR_BODY_BYTES`].
     async fn read_error_body(response: Response) -> String {
-        let bytes = response
-            .bytes()
-            .await
-            .unwrap_or_default();
+        let bytes = response.bytes().await.unwrap_or_default();
         let truncated = &bytes[..bytes.len().min(MAX_ERROR_BODY_BYTES)];
         String::from_utf8_lossy(truncated).into_owned()
     }
@@ -301,9 +298,7 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             AppError::NetworkError { code, .. } => match code {
-                NetworkErrorCode::HttpError {
-                    response_body, ..
-                } => {
+                NetworkErrorCode::HttpError { response_body, .. } => {
                     let body = response_body.unwrap();
                     assert_eq!(
                         body.len(),

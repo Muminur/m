@@ -144,7 +144,7 @@ mod tests {
     fn test_export_markdown_empty() {
         let result = export_markdown("Empty", &[], 0, "en").unwrap();
         assert!(result.contains("## Empty"));
-        assert!(result.contains("Segments: 0"));
+        assert!(result.contains("**Segments:** 0"));
     }
 
     #[test]

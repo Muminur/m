@@ -31,16 +31,21 @@ vi.mock("@/stores/settingsStore", () => ({
   })),
 }));
 
-vi.mock("@/stores/libraryStore", () => ({
-  useLibraryStore: vi.fn(() => ({
+vi.mock("@/stores/libraryStore", () => {
+  const state = {
     transcripts: [],
     isLoading: false,
     error: null,
     sort: { field: "created_at", direction: "desc" },
     loadTranscripts: vi.fn(),
     setSort: vi.fn(),
-  })),
-}));
+  };
+  const useLibraryStore = Object.assign(
+    vi.fn((selector: (store: typeof state) => unknown) => selector(state)),
+    { setState: vi.fn() }
+  );
+  return { useLibraryStore };
+});
 
 describe("Layout", () => {
   beforeEach(() => {

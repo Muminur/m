@@ -58,7 +58,7 @@ export function TranscriptDetail() {
 
   // Editor state
   const [showFindReplace, setShowFindReplace] = useState(false);
-  const [_editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
+  const [, setEditingSegmentId] = useState<string | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [viewMode, setViewMode] = useState<"original" | "translated">("original");
 
@@ -301,7 +301,7 @@ export function TranscriptDetail() {
 
       {/* Waveform */}
       {current?.transcript.audioPath && (
-        <Waveform audioUrl={current.transcript.audioPath} onTimeUpdate={(ms) => setCurrentTimeMs(ms)} />
+        <Waveform audioUrl={current.transcript.audioPath} onTimeUpdate={setCurrentTimeMs} />
       )}
 
       {/* FindReplace bar */}

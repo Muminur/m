@@ -362,6 +362,7 @@ fn run_transcription_thread(
         Err(e) => return Err(e),
     };
 
+    let language = output.language;
     let segments: Vec<SegmentResult> = output.segments;
     let backend_used = output.backend_used;
     let wall_time_ms = output.wall_time_ms;
@@ -380,9 +381,10 @@ fn run_transcription_thread(
 
         conn.execute(
             "UPDATE transcripts
-             SET duration_ms = ?1, word_count = ?2, updated_at = strftime('%s','now')
-             WHERE id = ?3",
-            rusqlite::params![duration_ms as i64, word_count, transcript_id],
+             SET duration_ms = ?1, word_count = ?2, language = COALESCE(?3, language),
+                 updated_at = strftime('%s','now')
+             WHERE id = ?4",
+            rusqlite::params![duration_ms as i64, word_count, language, transcript_id],
         )
         .map_err(|e| AppError::StorageError {
             code: crate::error::StorageErrorCode::DatabaseError,

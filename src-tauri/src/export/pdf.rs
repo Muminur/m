@@ -132,19 +132,11 @@ pub fn export_pdf(
 
     // Render pages
     for (page_idx, page_lines) in pages.iter().enumerate() {
-        let (page, layer_idx) = if page_idx == 0 {
-            doc.add_page(
-                Mm(A4_WIDTH_MM),
-                Mm(A4_HEIGHT_MM),
-                &format!("Page {}", page_idx + 1),
-            )
-        } else {
-            doc.add_page(
-                Mm(A4_WIDTH_MM),
-                Mm(A4_HEIGHT_MM),
-                &format!("Page {}", page_idx + 1),
-            )
-        };
+        let (page, layer_idx) = doc.add_page(
+            Mm(A4_WIDTH_MM),
+            Mm(A4_HEIGHT_MM),
+            format!("Page {}", page_idx + 1),
+        );
 
         let layer = doc.get_page(page).get_layer(layer_idx);
         let mut y_pos = A4_HEIGHT_MM - MARGIN_TOP;

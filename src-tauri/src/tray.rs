@@ -43,9 +43,21 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
     let start = MenuItem::with_id(handle, "tray.start", "Start Recording", true, None::<&str>)?;
     let pause = MenuItem::with_id(handle, "tray.pause", "Pause", false, None::<&str>)?;
     let resume = MenuItem::with_id(handle, "tray.resume", "Resume", false, None::<&str>)?;
-    let stop = MenuItem::with_id(handle, "tray.stop", "Stop and Transcribe", false, None::<&str>)?;
+    let stop = MenuItem::with_id(
+        handle,
+        "tray.stop",
+        "Stop and Transcribe",
+        false,
+        None::<&str>,
+    )?;
     let sep = PredefinedMenuItem::separator(handle)?;
-    let float = MenuItem::with_id(handle, "tray.float", "Floating Recorder", true, None::<&str>)?;
+    let float = MenuItem::with_id(
+        handle,
+        "tray.float",
+        "Floating Recorder",
+        true,
+        None::<&str>,
+    )?;
     let show = MenuItem::with_id(handle, "tray.show", "Show WhisperDesk", true, None::<&str>)?;
     let quit = MenuItem::with_id(handle, "tray.quit", "Quit WhisperDesk", true, Some("Cmd+Q"))?;
 
@@ -166,10 +178,7 @@ pub fn update_tray_state(app: &AppHandle, state: TrayState) {
         return;
     };
 
-    let mut current = handle
-        .current
-        .lock()
-        .expect("tray state mutex poisoned");
+    let mut current = handle.current.lock().expect("tray state mutex poisoned");
     if *current == state {
         return;
     }
@@ -204,7 +213,9 @@ fn load_tray_image<M: Manager<tauri::Wry>>(
         TrayState::Recording => "icons/tray-recording.png",
         TrayState::Paused => "icons/tray-paused.png",
     };
-    let path = manager.path().resolve(filename, tauri::path::BaseDirectory::Resource)?;
+    let path = manager
+        .path()
+        .resolve(filename, tauri::path::BaseDirectory::Resource)?;
     Image::from_path(path)
 }
 

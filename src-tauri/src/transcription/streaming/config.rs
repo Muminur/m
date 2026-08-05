@@ -55,7 +55,10 @@ pub struct CaptionSegment {
 /// without loading a real model.
 pub trait InferenceProvider: Send {
     /// Run whisper on the given PCM window and return segments.
-    fn infer(&self, pcm_window: &[f32]) -> Result<Vec<crate::transcription::engine::SegmentResult>, crate::error::AppError>;
+    fn infer(
+        &self,
+        pcm_window: &[f32],
+    ) -> Result<Vec<crate::transcription::engine::SegmentResult>, crate::error::AppError>;
 }
 
 /// State of the streaming transcription pipeline.

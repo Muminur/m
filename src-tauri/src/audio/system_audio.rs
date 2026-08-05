@@ -1,7 +1,10 @@
+#[cfg(target_os = "windows")]
 use crate::error::{AppError, AudioErrorCode};
+#[cfg(target_os = "windows")]
 use std::path::PathBuf;
 
 /// Maximum recording duration: 4 hours in seconds.
+#[cfg(target_os = "windows")]
 const MAX_RECORDING_DURATION_SECS: u64 = 4 * 60 * 60;
 
 /// System audio capture abstraction.

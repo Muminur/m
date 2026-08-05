@@ -8,7 +8,6 @@ use std::path::PathBuf;
 /// On macOS: uses cpal mic input + ScreenCaptureKit (future)
 ///
 /// When system audio is unavailable, falls back to mic-only capture.
-
 pub struct CombinedCapture {
     mic: MicRecorder,
     #[cfg(target_os = "windows")]

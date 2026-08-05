@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Loader2, Copy, AlertCircle, Languages } from "lucide-react";
 import { toast } from "sonner";
+import { listen } from "@tauri-apps/api/event";
 import type { Segment } from "@/lib/types";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { TRANSLATION_LANGUAGES } from "../../constants/translationLanguages";
 import { useTranslationStore } from "../../stores";
 
@@ -19,14 +21,10 @@ function formatTimestamp(ms: number): string {
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
-export function DualSubtitles({
-  transcriptId,
-  segments,
-  currentTimeMs,
-}: DualSubtitlesProps) {
-  const [targetLang, setTargetLang] = useState("ben_Beng");
-  const { translations, isTranslating, error, translate, loadCached } =
-    useTranslationStore();
+export function DualSubtitles({ transcriptId, segments, currentTimeMs }: DualSubtitlesProps) {
+  const configuredTarget = useSettingsStore((state) => state.settings?.autoTranslateTargetLang);
+  const [targetLang, setTargetLang] = useState(configuredTarget ?? TRANSLATION_LANGUAGES[0].value);
+  const { translations, isTranslating, error, translate, loadCached } = useTranslationStore();
 
   // Load any persisted translations for the current target language so the
   // Translated view shows cached results immediately, without waiting for the
@@ -35,11 +33,33 @@ export function DualSubtitles({
     void loadCached(transcriptId, targetLang);
   }, [transcriptId, targetLang, loadCached]);
 
+  useEffect(() => {
+    if (configuredTarget) setTargetLang(configuredTarget);
+  }, [configuredTarget]);
+
+  // Auto-translation runs outside the view store. Refresh this transcript's
+  // cache when the backend finishes so an already-open Translated view updates.
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    void listen<string>("translation:complete", (event) => {
+      if (event.payload === transcriptId) {
+        void loadCached(transcriptId, targetLang);
+      }
+    }).then((remove) => {
+      if (cancelled) remove();
+      else unlisten = remove;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [transcriptId, targetLang, loadCached]);
+
   const activeIndex = useMemo(() => {
     if (currentTimeMs == null) return -1;
-    return segments.findIndex(
-      (seg) => currentTimeMs >= seg.startMs && currentTimeMs < seg.endMs
-    );
+    return segments.findIndex((seg) => currentTimeMs >= seg.startMs && currentTimeMs < seg.endMs);
   }, [segments, currentTimeMs]);
 
   const handleTranslate = useCallback(async () => {
@@ -53,9 +73,7 @@ export function DualSubtitles({
   const handleCopyTranslated = useCallback(async () => {
     if (!hasTranslations) return;
     try {
-      const text = segments
-        .map((seg) => translations[seg.id] ?? "")
-        .join("\n");
+      const text = segments.map((seg) => translations[seg.id] ?? "").join("\n");
       await navigator.clipboard.writeText(text);
       toast.success("Translated text copied to clipboard");
     } catch {
@@ -146,9 +164,7 @@ export function DualSubtitles({
                   <tr
                     key={segment.id}
                     className={`border-b border-border last:border-b-0 transition-colors ${
-                      isActive
-                        ? "bg-primary/10 dark:bg-primary/20"
-                        : "hover:bg-muted/30"
+                      isActive ? "bg-primary/10 dark:bg-primary/20" : "hover:bg-muted/30"
                     }`}
                   >
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground align-top">
@@ -175,9 +191,7 @@ export function DualSubtitles({
 
       {/* Empty state */}
       {segments.length === 0 && (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No segments available.
-        </div>
+        <div className="py-8 text-center text-sm text-muted-foreground">No segments available.</div>
       )}
     </div>
   );

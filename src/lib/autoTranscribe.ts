@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import type { WhisperModel } from "./types";
+import { formatError } from "./formatError";
 import { useTranscriptStore } from "@/stores/transcriptStore";
 import { useTranscribingStore } from "@/stores/transcribingStore";
 
@@ -80,7 +81,7 @@ export async function startTranscriptionInBackground(
     await attachCompletionListener(result.transcriptId);
   } catch (err) {
     console.error("[autoTranscribe] FAILED:", err);
-    toast.error(`Transcription failed: ${String(err)}`, { duration: 10000 });
+    toast.error(`Transcription failed: ${formatError(err)}`, { duration: 10000 });
     transcribingStore.finish(existingTranscriptId);
   }
 }
@@ -93,21 +94,18 @@ export async function startTranscriptionInBackground(
  */
 async function attachCompletionListener(transcriptId: string): Promise<void> {
   let firedOrCancelled = false;
-  const unlisten = await listen<{ transcriptId: string }>(
-    "transcription:complete",
-    (event) => {
-      if (firedOrCancelled) return;
-      if (event.payload.transcriptId !== transcriptId) return;
-      firedOrCancelled = true;
-      console.info("[autoTranscribe] complete event for", transcriptId, "→ reloading from DB");
-      useTranscribingStore.getState().finish(transcriptId);
-      useTranscriptStore
-        .getState()
-        .loadTranscript(transcriptId)
-        .catch((e) => console.error("[autoTranscribe] reload failed:", e));
-      unlisten();
-    }
-  );
+  const unlisten = await listen<{ transcriptId: string }>("transcription:complete", (event) => {
+    if (firedOrCancelled) return;
+    if (event.payload.transcriptId !== transcriptId) return;
+    firedOrCancelled = true;
+    console.info("[autoTranscribe] complete event for", transcriptId, "→ reloading from DB");
+    useTranscribingStore.getState().finish(transcriptId);
+    useTranscriptStore
+      .getState()
+      .loadTranscript(transcriptId)
+      .catch((e) => console.error("[autoTranscribe] reload failed:", e));
+    unlisten();
+  });
   setTimeout(
     () => {
       if (firedOrCancelled) return;

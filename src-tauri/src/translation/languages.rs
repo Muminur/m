@@ -19,7 +19,10 @@ pub fn supported_languages() -> Vec<TranslationLanguage> {
         ("deu_Latn", "German"),
     ]
     .iter()
-    .map(|(c, l)| TranslationLanguage { code: c.to_string(), label: l.to_string() })
+    .map(|(c, l)| TranslationLanguage {
+        code: c.to_string(),
+        label: l.to_string(),
+    })
     .collect()
 }
 

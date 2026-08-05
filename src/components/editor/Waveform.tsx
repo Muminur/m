@@ -1,17 +1,20 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
 import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 
 interface WaveformProps {
   audioUrl?: string;
   onTimeUpdate?: (timeMs: number) => void;
-  onSeek?: (timeMs: number) => void;
 }
 
-export function Waveform({ audioUrl, onTimeUpdate: _onTimeUpdate, onSeek: _onSeek }: WaveformProps) {
+export function Waveform({ audioUrl, onTimeUpdate }: WaveformProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { isPlaying, currentTime, duration, playbackRate, togglePlay, seekTo, setPlaybackRate } =
     usePlayer(containerRef, audioUrl);
+
+  useEffect(() => {
+    onTimeUpdate?.(currentTime * 1000);
+  }, [currentTime, onTimeUpdate]);
 
   const rates = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 

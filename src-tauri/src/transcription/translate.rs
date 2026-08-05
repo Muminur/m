@@ -260,10 +260,13 @@ impl TranslationManager {
     }
 
     pub fn set_config(&self, config: TranslationConfig) -> Result<(), AppError> {
-        *self.config.lock().map_err(|_| AppError::TranscriptionError {
-            code: TranscriptionErrorCode::InferenceFailure,
-            message: "mutex poisoned in TranslationManager::set_config".into(),
-        })? = config;
+        *self
+            .config
+            .lock()
+            .map_err(|_| AppError::TranscriptionError {
+                code: TranscriptionErrorCode::InferenceFailure,
+                message: "mutex poisoned in TranslationManager::set_config".into(),
+            })? = config;
         Ok(())
     }
 

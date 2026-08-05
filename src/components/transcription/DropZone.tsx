@@ -5,11 +5,11 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Upload, FileAudio, AlertCircle, Loader2, Youtube } from "lucide-react";
 import { useModelStore } from "@/stores/modelStore";
+import { TranscriptionSettings } from "./TranscriptionSettings";
 import {
-  TranscriptionSettings,
   DEFAULT_PARAMS,
-} from "./TranscriptionSettings";
-import type { TranscriptionParams } from "./TranscriptionSettings";
+  type TranscriptionParams,
+} from "./transcriptionParams";
 
 interface DropZoneProps {
   onTranscriptionStart?: (jobId: string, transcriptId: string) => void;
@@ -58,7 +58,7 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
   useEffect(() => {
     initEventListeners();
     loadModels();
-  }, []);
+  }, [initEventListeners, loadModels]);
 
   // Keep selectedModelId in sync if models load after mount
   useEffect(() => {
@@ -68,7 +68,7 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
       const id = def?.id ?? first?.id ?? "";
       if (id) setSelectedModelId(id);
     }
-  }, [models]);
+  }, [models, selectedModelId]);
 
   // Listen for transcription completion events
   useEffect(() => {
@@ -81,10 +81,10 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
       }
     );
 
-    const unlistenProgress = listen<{ percentage: number }>(
+    const unlistenProgress = listen<{ progress: number }>(
       "transcription:progress",
       (event) => {
-        setProgress(event.payload.percentage);
+        setProgress(event.payload.progress);
       }
     );
 
@@ -359,13 +359,13 @@ export function DropZone({ onTranscriptionStart }: DropZoneProps) {
                 Transcribing…
               </span>
               <span className="text-xs text-muted-foreground">
-                {progress.toFixed(0)}%
+                {(Math.min(progress, 1) * 100).toFixed(0)}%
               </span>
             </div>
             <div className="bg-primary/20 rounded-full h-1">
               <div
                 className="bg-primary h-1 rounded-full transition-all"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${Math.min(progress, 1) * 100}%` }}
               />
             </div>
           </div>

@@ -46,6 +46,12 @@ pub struct UndoManager {
     redo_stack: Mutex<VecDeque<UndoOperation>>,
 }
 
+impl Default for UndoManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UndoManager {
     pub fn new() -> Self {
         Self {

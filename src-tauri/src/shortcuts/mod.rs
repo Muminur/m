@@ -187,13 +187,13 @@ impl ShortcutManager {
 
     /// Unregister a shortcut (logical state only).
     pub fn unregister(&self, id: &str) -> Result<(), AppError> {
-        let mut bindings =
-            self.bindings
-                .lock()
-                .map_err(|_| AppError::IntegrationError {
-                    code: IntegrationErrorCode::ApiError,
-                    message: "mutex poisoned in ShortcutManager::unregister".into(),
-                })?;
+        let mut bindings = self
+            .bindings
+            .lock()
+            .map_err(|_| AppError::IntegrationError {
+                code: IntegrationErrorCode::ApiError,
+                message: "mutex poisoned in ShortcutManager::unregister".into(),
+            })?;
         match bindings.get_mut(id) {
             Some(binding) => {
                 binding.is_active = false;
@@ -209,13 +209,13 @@ impl ShortcutManager {
 
     /// List all registered shortcut bindings.
     pub fn list_registered(&self) -> Result<Vec<ShortcutBinding>, AppError> {
-        let bindings =
-            self.bindings
-                .lock()
-                .map_err(|_| AppError::IntegrationError {
-                    code: IntegrationErrorCode::ApiError,
-                    message: "mutex poisoned in ShortcutManager::list_registered".into(),
-                })?;
+        let bindings = self
+            .bindings
+            .lock()
+            .map_err(|_| AppError::IntegrationError {
+                code: IntegrationErrorCode::ApiError,
+                message: "mutex poisoned in ShortcutManager::list_registered".into(),
+            })?;
         let mut list: Vec<ShortcutBinding> = bindings.values().cloned().collect();
         list.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(list)
@@ -233,13 +233,13 @@ impl ShortcutManager {
         exclude_id: Option<&str>,
     ) -> Result<Vec<ShortcutConflict>, AppError> {
         let normalized = normalize_accelerator(accelerator);
-        let bindings =
-            self.bindings
-                .lock()
-                .map_err(|_| AppError::IntegrationError {
-                    code: IntegrationErrorCode::ApiError,
-                    message: "mutex poisoned in ShortcutManager::detect_conflicts".into(),
-                })?;
+        let bindings = self
+            .bindings
+            .lock()
+            .map_err(|_| AppError::IntegrationError {
+                code: IntegrationErrorCode::ApiError,
+                message: "mutex poisoned in ShortcutManager::detect_conflicts".into(),
+            })?;
         let mut conflicts = Vec::new();
 
         for binding in bindings.values() {
@@ -275,13 +275,13 @@ impl ShortcutManager {
             });
         }
 
-        let mut bindings =
-            self.bindings
-                .lock()
-                .map_err(|_| AppError::IntegrationError {
-                    code: IntegrationErrorCode::ApiError,
-                    message: "mutex poisoned in ShortcutManager::update_binding".into(),
-                })?;
+        let mut bindings = self
+            .bindings
+            .lock()
+            .map_err(|_| AppError::IntegrationError {
+                code: IntegrationErrorCode::ApiError,
+                message: "mutex poisoned in ShortcutManager::update_binding".into(),
+            })?;
         match bindings.get_mut(id) {
             Some(binding) => {
                 let old = binding.accelerator.clone();
