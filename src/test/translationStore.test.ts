@@ -2,6 +2,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTranslationStore } from "@/stores/translationStore";
 
 const mockInvoke = vi.fn();
+const mockModelLoad = vi.fn().mockResolvedValue(undefined);
+const mockModelDownload = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("@/stores/translationModelStore", () => ({
+  useTranslationModelStore: {
+    getState: () => ({
+      models: [
+        {
+          id: "nllb-200-distilled-600M-int8",
+          displayName: "NLLB-200 Distilled 600M (int8)",
+          fileSizeMb: 650,
+          isDownloaded: true,
+        },
+      ],
+      downloadProgress: {},
+      isLoading: false,
+      error: null,
+      loadModels: mockModelLoad,
+      downloadModel: mockModelDownload,
+      deleteModel: vi.fn().mockResolvedValue(undefined),
+      initEventListeners: vi.fn(),
+    }),
+  },
+}));
+
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }));
@@ -32,6 +57,8 @@ function deferred<T>() {
 describe("translationStore", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
+    mockModelLoad.mockReset();
+    mockModelDownload.mockReset();
     useTranslationStore.getState().clear();
   });
 

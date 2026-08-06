@@ -11,17 +11,18 @@ pub fn supported_languages() -> Vec<TranslationLanguage> {
     [
         ("eng_Latn", "English"),
         ("ben_Beng", "Bangla"),
-        ("arb_Arab", "Arabic"),
+        ("zho_Hans", "Chinese (Simplified)"),
         ("hin_Deva", "Hindi"),
-        ("urd_Arab", "Urdu"),
         ("spa_Latn", "Spanish"),
+        ("arb_Arab", "Arabic"),
+        ("por_Latn", "Portuguese"),
+        ("rus_Cyrl", "Russian"),
         ("fra_Latn", "French"),
+        ("urd_Arab", "Urdu"),
+        ("jpn_Jpan", "Japanese"),
         ("deu_Latn", "German"),
         ("nld_Latn", "Dutch"),
-        ("por_Latn", "Portuguese"),
         ("ita_Latn", "Italian"),
-        ("jpn_Jpan", "Japanese"),
-        ("zho_Hans", "Chinese (Simplified)"),
         ("kor_Hang", "Korean"),
     ]
     .iter()
@@ -53,6 +54,7 @@ pub fn to_flores(code: &str) -> Option<&'static str> {
         "nl" | "nld_Latn" => Some("nld_Latn"),
         "pt" | "por_Latn" => Some("por_Latn"),
         "it" | "ita_Latn" => Some("ita_Latn"),
+        "ru" | "rus_Cyrl" => Some("rus_Cyrl"),
         "ja" | "jpn_Jpan" => Some("jpn_Jpan"),
         "zh" | "zho_Hans" => Some("zho_Hans"),
         "ko" | "kor_Hang" => Some("kor_Hang"),
@@ -89,6 +91,7 @@ mod tests {
         assert!(is_supported("ben_Beng"));
         assert!(is_supported("arb_Arab"));
         assert!(is_supported("eng_Latn"));
+        assert!(is_supported("rus_Cyrl"));
         assert!(!is_supported("xx_Zzzz"));
     }
 
@@ -124,6 +127,7 @@ mod tests {
         assert_eq!(to_flores("pt"), Some("por_Latn"));
         assert_eq!(to_flores("it"), Some("ita_Latn"));
         assert_eq!(to_flores("ja"), Some("jpn_Jpan"));
+        assert_eq!(to_flores("ru"), Some("rus_Cyrl"));
         assert_eq!(to_flores("zh"), Some("zho_Hans"));
         assert_eq!(to_flores("ko"), Some("kor_Hang"));
         // Unknown.

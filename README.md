@@ -8,7 +8,7 @@ A local-first macOS transcription and translation app built with Tauri 2, React 
 
 ### Latest development update
 
-Current `master` adds offline transcript translation with NLLB-200 Distilled 600M int8, automatic translation after transcription, cached dual subtitles, Bengali (Bangla) and Arabic speech-language selection, and reliable detected-language persistence. It also adds a draggable macOS floating recorder that stays above fullscreen apps and across Spaces, a direct **Transcribe File** sidebar destination, single-instance launch handling, hardware-aware Metal and system-audio choices, corrected model checksums, safer update checks, stable watch-folder jobs, durable YouTube imports, and working waveform/find/replace/inline editing controls. These changes will reach the one-line installer after the next tagged release.
+Current `master` adds offline transcript translation with NLLB-200 Distilled 600M int8, automatic translation after transcription, cached dual subtitles, and top-10 popular target languages (English, Bangla, Chinese, Hindi, Spanish, Arabic, Portuguese, Russian, French, Urdu, Japanese) in the UI. It also adds a draggable macOS floating recorder that stays above fullscreen apps and across Spaces, a direct **Transcribe File** sidebar destination, single-instance launch handling, hardware-aware Metal and system-audio choices, corrected model checksums, safer update checks, stable watch-folder jobs, durable YouTube imports, and working waveform/find/replace/inline editing controls. These changes will reach the one-line installer after the next tagged release.
 
 ## Install
 

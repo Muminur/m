@@ -66,7 +66,7 @@ Downloading a Whisper model in the current Windows build does not enable local i
 
 1. Open **Settings → Translation**.
 2. Download **NLLB-200 Distilled 600M (int8)**, which uses about 650 MB.
-3. Choose Bengali (Bangla), Arabic, or English as the target.
+3. Choose a target language: English, Bangla (Bengali), Chinese (Simplified), Hindi, Spanish, Arabic, Portuguese, Russian, French, Urdu, or Japanese.
 4. Optionally enable **Auto-translate after transcription**.
 
 The model download requires external network access. Afterward, NLLB translation runs locally on CPU and does not require an API key.

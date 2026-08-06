@@ -1,8 +1,16 @@
 // FLORES-200 codes understood by NLLB. value = FLORES code, label = human name.
 export const TRANSLATION_LANGUAGES: { value: string; label: string }[] = [
   { value: "ben_Beng", label: "Bengali (Bangla)" },
-  { value: "arb_Arab", label: "Arabic" },
   { value: "eng_Latn", label: "English" },
+  { value: "zho_Hans", label: "Chinese (Simplified)" },
+  { value: "hin_Deva", label: "Hindi" },
+  { value: "spa_Latn", label: "Spanish" },
+  { value: "arb_Arab", label: "Arabic" },
+  { value: "por_Latn", label: "Portuguese" },
+  { value: "rus_Cyrl", label: "Russian" },
+  { value: "fra_Latn", label: "French" },
+  { value: "urd_Arab", label: "Urdu" },
+  { value: "jpn_Jpan", label: "Japanese" },
 ];
 
 // The offline NLLB translation model id (matches the Rust NLLB_MODEL_ID).
@@ -25,5 +33,6 @@ export const ISO_TO_FLORES: Record<string, string> = {
   it: "ita_Latn",
   ja: "jpn_Jpan",
   zh: "zho_Hans",
+  ru: "rus_Cyrl",
   ko: "kor_Hang",
 };
