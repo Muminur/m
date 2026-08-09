@@ -110,6 +110,16 @@ describe("Layout", () => {
     expect(screen.getByText("nav.settings")).toBeInTheDocument();
   });
 
+  it("keeps expanded navigation reachable by scrolling the sidebar", () => {
+    render(
+      <MemoryRouter initialEntries={["/library"]}>
+        <Layout />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("navigation")).toHaveClass("overflow-y-auto");
+  });
+
   it("links the About dialog to the project repository", () => {
     render(
       <MemoryRouter initialEntries={["/library"]}>
@@ -117,7 +127,7 @@ describe("Layout", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "About" }));
+    fireEvent.click(screen.getByRole("button", { name: "about.title" }));
     expect(screen.getByRole("link", { name: "View on GitHub" })).toHaveAttribute(
       "href",
       "https://github.com/Muminur/m"

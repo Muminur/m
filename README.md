@@ -4,11 +4,19 @@ A local-first macOS transcription and translation app built with Tauri 2, React 
 
 ## Project Status
 
-**Latest stable release: v1.0.1.** It includes transcription, editing, processing, integrations, exports, and deep-link support. The one-line installer always installs the latest published release, so it remains on v1.0.1 until a newer tag is published.
+**Latest stable release: v1.0.2.** It includes AI actions, advanced batch processing, caption controls, integrations, secure network policy modes, watch-folder improvements, and deep-link support. The one-line installer always installs the latest published release, currently v1.0.2.
 
-### Latest development update
+### Release highlights (v1.0.2)
 
-Current `master` adds offline transcript translation with NLLB-200 Distilled 600M int8, automatic translation after transcription, cached dual subtitles, and top-10 popular target languages (English, Bangla, Chinese, Hindi, Spanish, Arabic, Portuguese, Russian, French, Urdu, Japanese) in the UI. It also adds a draggable macOS floating recorder that stays above fullscreen apps and across Spaces, a direct **Transcribe File** sidebar destination, single-instance launch handling, hardware-aware Metal and system-audio choices, corrected model checksums, safer update checks, stable watch-folder jobs, durable YouTube imports, and working waveform/find/replace/inline editing controls. These changes will reach the one-line installer after the next tagged release.
+Current release adds:
+
+- AI panel for provider/assistant actions plus localized prompts and actions.
+- Batch processing dashboard, job status details, and queue lifecycle state.
+- Captions mode controls, including source/model selection and auto-display behavior.
+- Notion, Obsidian, webhook, and DeepL integrations in the desktop flow.
+- Network policy controls to restrict network activity to offline/local/allowed-host modes.
+- More reliable watch-folder transcoding with stable completion, cancellation, and fallback behavior.
+- Offline translation workflow and YouTube import hardening under strict network and dependency checks.
 
 ## Install
 
@@ -66,7 +74,7 @@ Models are downloaded separately and are not bundled with the app:
 - **Secure settings** — provider credentials are stored in the system Keychain and are used only when the matching online provider feature is invoked.
 - **Updates and automation** — signed-release update checks, `whisperdesk://` deep links, an About dialog, themes, and English/Dutch/German UI strings.
 
-The repository also contains backend or experimental modules for additional exports, AI/cloud actions, integrations, captions, dictation, batch processing, folders/tags, and smart folders. Those modules are not currently linked from the desktop navigation and should not be treated as release-ready UI features.
+The repository also contains backend modules for exports, AI/cloud actions, folders/tags, and smart folders that are not currently surfaced as primary UI destinations.
 
 ## Tech Stack
 

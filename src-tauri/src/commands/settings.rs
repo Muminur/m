@@ -1,5 +1,7 @@
 use crate::error::AppError;
+use crate::network::guard::NetworkGuard;
 use crate::settings::AppSettings;
+use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
@@ -21,6 +23,7 @@ pub async fn update_settings(
     app: AppHandle,
     updates: serde_json::Value,
     settings_state: State<'_, Mutex<AppSettings>>,
+    network_guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<AppSettings, AppError> {
     let mut settings = settings_state
         .lock()
@@ -38,7 +41,14 @@ pub async fn update_settings(
     }
 
     let new_settings: AppSettings = serde_json::from_value(current_json)?;
+    let network_policy_changed = new_settings.network_policy != settings.network_policy;
     new_settings.save(&app)?;
+
+    // Persist first; once that succeeds, update the managed guard before
+    // publishing the matching in-memory settings snapshot.
+    if network_policy_changed {
+        network_guard.set_policy(new_settings.network_policy.clone());
+    }
     *settings = new_settings.clone();
 
     tracing::info!("Settings updated");

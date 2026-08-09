@@ -109,7 +109,18 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           .filter(([k]) => k in keyMap)
           .map(([k, v]) => [
             keyMap[k],
-            k === "watchFolders" && Array.isArray(v) ? v.map(toBackendWatchFolder) : v,
+            k === "watchFolders" && Array.isArray(v)
+              ? v.map(toBackendWatchFolder)
+              : // `undefined` properties are omitted by JSON/IPC serialization. Rust
+                // uses Option<T> for these values, so send an explicit null to clear
+                // a persisted setting instead.
+                v === undefined &&
+                  (k === "defaultModelId" ||
+                    k === "globalShortcutTranscribe" ||
+                    k === "globalShortcutDictate" ||
+                    k === "autoTranslateTargetLang")
+                ? null
+                : v,
           ])
       );
       const newSettings = await invoke<BackendAppSettings | AppSettings>("update_settings", {

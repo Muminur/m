@@ -108,6 +108,17 @@ describe("settingsStore", () => {
       });
     });
 
+    it("sends null when clearing an optional persisted setting", async () => {
+      mockInvoke.mockResolvedValue({ ...BACKEND_SETTINGS, global_shortcut_dictate: null });
+
+      await useSettingsStore.getState().updateSettings({ globalShortcutDictate: undefined });
+
+      expect(mockInvoke).toHaveBeenCalledWith("update_settings", {
+        updates: { global_shortcut_dictate: null },
+      });
+      expect(useSettingsStore.getState().settings?.globalShortcutDictate).toBeUndefined();
+    });
+
     it("maps nested watch-folder model IDs in both directions", async () => {
       mockInvoke.mockResolvedValue({
         ...BACKEND_SETTINGS,

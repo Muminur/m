@@ -1,8 +1,6 @@
 # Installing WhisperDesk
 
-The latest published release is v1.0.1. Release installers contain the application only; Whisper transcription models and the optional offline translation model are downloaded from inside WhisperDesk.
-
-The current `master` branch is newer than v1.0.1. It includes offline translation, the macOS floating recorder, direct **Transcribe File** navigation, and reliability/platform fixes that will not be installed by the one-line command until the next release is tagged. To run those changes now, use [Building the current source](#building-the-current-source).
+The latest published release is v1.0.2. Release installers contain the application only; Whisper transcription models and the optional offline translation model are downloaded from inside WhisperDesk.
 
 ## macOS one-line installer
 
@@ -47,8 +45,8 @@ On macOS, open the DMG and copy WhisperDesk to Applications. If Gatekeeper block
 - Allow **Microphone** access when prompted if you want to record audio.
 - On macOS, recording supports the microphone. **System Audio** and **Both** are Windows-only choices and are disabled rather than silently falling back to the microphone.
 - Apple Silicon Macs can use Metal acceleration. Intel Macs use CPU inference, and the unavailable Metal setting is disabled.
-- In current `master`, choose **Transcribe File** in the sidebar to process an existing audio file.
-- In current `master`, the floating recorder appears as a draggable pill on first launch, remains visible across Spaces and fullscreen apps, and does not steal focus. Toggle it from **Floating Recorder** in the menu bar tray. Its visibility choice is remembered.
+- The floating recorder appears as a draggable pill on first launch, remains visible across Spaces and fullscreen apps, and does not steal focus. Toggle it from **Floating Recorder** in the menu bar tray. Its visibility choice is remembered.
+- In v1.0.2, choose **Transcribe File** in the sidebar to process an existing audio file.
 
 ## Downloading models
 
@@ -85,7 +83,7 @@ WhisperDesk also detects compatible binaries available on `PATH` and common Home
 
 Running the one-line installer again replaces only `/Applications/WhisperDesk.app`; application data and downloaded models are preserved.
 
-The v1.0.1 macOS release does not include the signed updater archive required for an in-app update. Re-run the one-line installer or install the next DMG manually. Future signed releases can use **Settings → Updates**.
+v1.0.2 includes the signed updater archive required for in-app update checks. Re-run the one-line installer or install a newer DMG manually to move forward from previous releases.
 
 For a source checkout, build first as described below, then preserve the database and models while installing that completed build:
 

@@ -318,7 +318,7 @@ async fn run_download(
         0
     };
 
-    let guard = app_handle.state::<NetworkGuard>();
+    let guard = app_handle.state::<Arc<NetworkGuard>>();
     let client = guard.client();
     let mut req_builder = client.get(download_url);
     if existing_bytes > 0 {

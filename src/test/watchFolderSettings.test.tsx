@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WatchFolderSettings } from "@/components/settings/WatchFolderSettings";
 import type { AppSettings, WhisperModel } from "@/lib/types";
+import i18n from "@/i18n";
 
 const openMock = vi.fn();
 const invokeMock = vi.fn();
@@ -52,7 +53,8 @@ function createSettings(): AppSettings {
 }
 
 describe("WatchFolderSettings", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     vi.clearAllMocks();
     settings = createSettings();
     models = [

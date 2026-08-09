@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ export function DeepLTab({
   setSaving,
   setTesting,
 }: TabSharedProps) {
+  const { t } = useTranslation();
   const [deeplApiKey, setDeeplApiKey] = useState("");
   const [deeplLang, setDeeplLang] = useState(() => getStored(LS_KEY_LANG) || "EN");
 
@@ -44,10 +46,13 @@ export function DeepLTab({
       await invoke("set_api_key", { service: "deepl", key: deeplApiKey.trim() });
       setStored(LS_KEY_LANG, deeplLang);
       setDeeplApiKey("");
-      setStatus({ type: "success", message: "DeepL API key saved to keychain." });
-      toast.success("DeepL API key saved");
+      setStatus({ type: "success", message: t("integrations.deepl_key_saved_detail") });
+      toast.success(t("integrations.deepl_key_saved"));
     } catch (err) {
-      setStatus({ type: "error", message: `Failed to save key: ${formatError(err)}` });
+      setStatus({
+        type: "error",
+        message: t("integrations.save_key_failed", { error: formatError(err) }),
+      });
     } finally {
       setSaving(false);
     }
@@ -62,10 +67,13 @@ export function DeepLTab({
         targetLang: deeplLang,
       });
       setStored(LS_KEY_LANG, deeplLang);
-      setStatus({ type: "success", message: `Translation: "${result}"` });
-      toast.success("DeepL translation successful");
+      setStatus({ type: "success", message: t("integrations.translation_result", { result }) });
+      toast.success(t("integrations.deepl_success"));
     } catch (err) {
-      setStatus({ type: "error", message: `DeepL test failed: ${formatError(err)}` });
+      setStatus({
+        type: "error",
+        message: t("integrations.deepl_test_failed", { error: formatError(err) }),
+      });
     } finally {
       setTesting(false);
     }
@@ -74,14 +82,14 @@ export function DeepLTab({
   return (
     <>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 1: API Key</label>
-        <p className="text-xs text-muted-foreground">Stored securely in your system keychain.</p>
+        <label className="text-sm font-medium">{t("integrations.step_api_key")}</label>
+        <p className="text-xs text-muted-foreground">{t("integrations.keychain_hint")}</p>
         <div className="flex gap-2">
           <input
             type="password"
             value={deeplApiKey}
             onChange={(e) => setDeeplApiKey(e.target.value)}
-            placeholder="DeepL API key"
+            placeholder={t("integrations.deepl_key_placeholder")}
             className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm"
           />
           <button
@@ -89,12 +97,12 @@ export function DeepLTab({
             disabled={!deeplApiKey.trim() || isLoading}
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Key"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t("integrations.save_key")}
           </button>
         </div>
       </div>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 2: Target Language</label>
+        <label className="text-sm font-medium">{t("integrations.step_target_language")}</label>
         <select
           value={deeplLang}
           onChange={(e) => setDeeplLang(e.target.value)}
@@ -108,14 +116,14 @@ export function DeepLTab({
         </select>
       </div>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 3: Test Translation</label>
+        <label className="text-sm font-medium">{t("integrations.step_test_translation")}</label>
         <button
           onClick={handleTestDeepl}
           disabled={isLoading}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >
           {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          Test Translation
+          {t("integrations.test_translation")}
         </button>
       </div>
     </>

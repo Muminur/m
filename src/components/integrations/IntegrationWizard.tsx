@@ -1,13 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import {
-  X,
-  Check,
-  AlertCircle,
-  Globe,
-  BookOpen,
-  Webhook,
-  Languages,
-} from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { X, Check, AlertCircle, Globe, BookOpen, Webhook, Languages } from "lucide-react";
 import { NotionTab, ObsidianTab, WebhookTab, DeepLTab } from "./tabs";
 
 interface IntegrationWizardProps {
@@ -20,30 +13,25 @@ type TabId = "notion" | "obsidian" | "webhook" | "deepl";
 
 interface TabConfig {
   id: TabId;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
 }
 
 const TABS: TabConfig[] = [
-  { id: "notion", label: "Notion", icon: <Globe className="h-4 w-4" /> },
-  { id: "obsidian", label: "Obsidian", icon: <BookOpen className="h-4 w-4" /> },
-  { id: "webhook", label: "Webhook", icon: <Webhook className="h-4 w-4" /> },
-  { id: "deepl", label: "DeepL", icon: <Languages className="h-4 w-4" /> },
+  { id: "notion", labelKey: "integrations.notion", icon: <Globe className="h-4 w-4" /> },
+  { id: "obsidian", labelKey: "integrations.obsidian", icon: <BookOpen className="h-4 w-4" /> },
+  { id: "webhook", labelKey: "integrations.webhook", icon: <Webhook className="h-4 w-4" /> },
+  { id: "deepl", labelKey: "integrations.deepl", icon: <Languages className="h-4 w-4" /> },
 ];
 
-export function IntegrationWizard({
-  transcriptId,
-  isOpen,
-  onClose,
-}: IntegrationWizardProps) {
+export function IntegrationWizard({ transcriptId, isOpen, onClose }: IntegrationWizardProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabId>("notion");
 
   // Shared UI state
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(
-    null
-  );
+  const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const clearStatus = useCallback(() => setStatus(null), []);
 
@@ -73,14 +61,18 @@ export function IntegrationWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-lg border border-border bg-background shadow-lg">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-lg border border-border bg-background shadow-lg"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-base font-semibold">Integration Setup</h2>
+          <h2 className="text-base font-semibold">{t("integrations.setup")}</h2>
           <button
             onClick={onClose}
             className="rounded p-1 hover:bg-muted"
-            aria-label="Close integration wizard"
+            aria-label={t("integrations.close_setup")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -102,7 +94,7 @@ export function IntegrationWizard({
               }`}
             >
               {tab.icon}
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>

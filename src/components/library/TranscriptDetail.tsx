@@ -141,9 +141,8 @@ export function TranscriptDetail() {
       unlistenError = await listen<{ transcriptId?: string; jobId?: string; error: string }>(
         "transcription:error",
         (event) => {
-          // Scope to this transcript when payload carries an id, otherwise
-          // assume it's for us (current behavior pre-fix).
-          if (event.payload.transcriptId && event.payload.transcriptId !== id) return;
+          // Only process scoped errors for this open transcript.
+          if (event.payload.transcriptId !== id) return;
           if (stallTimeoutRef.current) {
             clearTimeout(stallTimeoutRef.current);
             stallTimeoutRef.current = null;

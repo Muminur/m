@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useModelStore } from "@/stores/modelStore";
 import { TRANSCRIPTION_LANGUAGES } from "@/constants/transcriptionLanguages";
@@ -10,6 +11,7 @@ import { formatError } from "@/lib/formatError";
 import type { WatchFolderConfig } from "@/lib/types";
 
 export function WatchFolderSettings() {
+  const { t } = useTranslation();
   const { settings, updateSettings } = useSettingsStore();
   const { models, loadModels } = useModelStore();
   const watchFolders = useMemo(() => settings?.watchFolders ?? [], [settings?.watchFolders]);
@@ -26,7 +28,7 @@ export function WatchFolderSettings() {
     const path = trimTrailingSeparators(selected);
     const pathKey = normalizedPathKey(path);
     if (watchFolders.some((folder) => normalizedPathKey(folder.path) === pathKey)) {
-      toast.error("This folder is already being watched.");
+      toast.error(t("watch_folders.duplicate"));
       return;
     }
 
@@ -48,9 +50,9 @@ export function WatchFolderSettings() {
         });
       }
       console.error("Failed to add watch folder:", err);
-      toast.error(`Could not watch folder: ${formatError(err)}`);
+      toast.error(t("watch_folders.watch_failed", { error: formatError(err) }));
     }
-  }, [watchFolders, updateSettings]);
+  }, [watchFolders, updateSettings, t]);
 
   const removeFolder = useCallback(
     async (index: number) => {
@@ -69,10 +71,10 @@ export function WatchFolderSettings() {
           });
         }
         console.error("Failed to remove watch folder:", err);
-        toast.error(`Could not stop watching folder: ${formatError(err)}`);
+        toast.error(t("watch_folders.stop_failed", { error: formatError(err) }));
       }
     },
-    [watchFolders, updateSettings]
+    [watchFolders, updateSettings, t]
   );
 
   const toggleFolder = useCallback(
@@ -96,10 +98,10 @@ export function WatchFolderSettings() {
           });
         }
         console.error("Failed to toggle watch folder:", err);
-        toast.error(`Could not update watch folder: ${formatError(err)}`);
+        toast.error(t("watch_folders.update_failed", { error: formatError(err) }));
       }
     },
-    [watchFolders, updateSettings]
+    [watchFolders, updateSettings, t]
   );
 
   const updateFolderModel = useCallback(
@@ -110,10 +112,10 @@ export function WatchFolderSettings() {
       try {
         await updateSettings({ watchFolders: updated });
       } catch (error) {
-        toast.error(`Could not save watch-folder model: ${formatError(error)}`);
+        toast.error(t("watch_folders.model_save_failed", { error: formatError(error) }));
       }
     },
-    [watchFolders, updateSettings]
+    [watchFolders, updateSettings, t]
   );
 
   const updateFolderLanguage = useCallback(
@@ -124,35 +126,33 @@ export function WatchFolderSettings() {
       try {
         await updateSettings({ watchFolders: updated });
       } catch (error) {
-        toast.error(`Could not save watch-folder language: ${formatError(error)}`);
+        toast.error(t("watch_folders.language_save_failed", { error: formatError(error) }));
       }
     },
-    [watchFolders, updateSettings]
+    [watchFolders, updateSettings, t]
   );
 
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold">Watch Folders</h3>
-          <p className="text-xs text-muted-foreground">
-            Automatically transcribe new audio files added to these folders
-          </p>
+          <h3 className="text-sm font-semibold">{t("watch_folders.title")}</h3>
+          <p className="text-xs text-muted-foreground">{t("watch_folders.description")}</p>
         </div>
         <button
           onClick={addFolder}
           className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-colors"
         >
           <Plus size={14} />
-          Add Folder
+          {t("watch_folders.add")}
         </button>
       </div>
 
       {watchFolders.length === 0 ? (
         <div className="flex flex-col items-center py-8 text-muted-foreground">
           <FolderOpen size={32} className="mb-2 opacity-50" />
-          <p className="text-sm">No watch folders configured</p>
-          <p className="text-xs mt-1">Add a folder to auto-transcribe new audio files</p>
+          <p className="text-sm">{t("watch_folders.empty")}</p>
+          <p className="text-xs mt-1">{t("watch_folders.empty_hint")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -176,14 +176,14 @@ export function WatchFolderSettings() {
                   <button
                     onClick={() => toggleFolder(index)}
                     className="p-1.5 rounded hover:bg-accent transition-colors"
-                    title={folder.enabled ? "Disable" : "Enable"}
+                    title={folder.enabled ? t("watch_folders.disable") : t("watch_folders.enable")}
                   >
                     {folder.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
                   <button
                     onClick={() => removeFolder(index)}
                     className="p-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors"
-                    title="Remove"
+                    title={t("watch_folders.remove")}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -193,9 +193,9 @@ export function WatchFolderSettings() {
               {folder.enabled && (
                 <div className="flex gap-2 mt-2">
                   <label className="flex-1 space-y-1 text-xs text-muted-foreground">
-                    <span>Language</span>
+                    <span>{t("watch_folders.language")}</span>
                     <select
-                      aria-label={`Language for ${folder.path}`}
+                      aria-label={t("watch_folders.language_for", { path: folder.path })}
                       value={folder.language ?? "auto"}
                       onChange={(e) =>
                         updateFolderLanguage(index, e.target.value === "auto" ? "" : e.target.value)
@@ -207,7 +207,7 @@ export function WatchFolderSettings() {
                           (language) => language.value === folder.language
                         ) && (
                           <option value={folder.language} disabled>
-                            {folder.language} (custom)
+                            {t("watch_folders.custom_value", { value: folder.language })}
                           </option>
                         )}
                       {TRANSCRIPTION_LANGUAGES.map((language) => (
@@ -218,27 +218,33 @@ export function WatchFolderSettings() {
                     </select>
                   </label>
                   <label className="flex-1 space-y-1 text-xs text-muted-foreground">
-                    <span>Model</span>
+                    <span>{t("watch_folders.model")}</span>
                     <select
-                      aria-label={`Model for ${folder.path}`}
+                      aria-label={t("watch_folders.model_for", { path: folder.path })}
                       value={folder.modelId ?? ""}
                       onChange={(e) => updateFolderModel(index, e.target.value)}
                       className="w-full px-2 py-1 text-xs text-foreground border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                     >
-                      <option value="">Default downloaded model</option>
+                      <option value="">{t("watch_folders.default_model")}</option>
                       {folder.modelId &&
                         !downloadedModels.some((model) => model.id === folder.modelId) && (
                           <option value={folder.modelId} disabled>
-                            {folder.modelId} (unavailable)
+                            {t("watch_folders.unavailable_value", { value: folder.modelId })}
                           </option>
                         )}
                       {downloadedModels.map((model) => (
                         <option key={model.id} value={model.id}>
                           {model.displayName}
-                          {model.isDefault ? " (default)" : ""}
+                          {model.isDefault ? t("watch_folders.default_suffix") : ""}
                         </option>
                       ))}
                     </select>
+                    {folder.modelId &&
+                      !downloadedModels.some((model) => model.id === folder.modelId) && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                          {t("watch_folders.model_unavailable_warning")}
+                        </p>
+                      )}
                   </label>
                 </div>
               )}

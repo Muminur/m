@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SettingsPage } from "@/pages/SettingsPage";
+import i18n from "@/i18n";
 
 const mockInvoke = vi.fn();
 const { mockUpdateSettings } = vi.hoisted(() => ({
@@ -82,7 +83,8 @@ function renderSettings() {
 }
 
 describe("SettingsPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     mockInvoke.mockReset();
     mockUpdateSettings.mockReset().mockResolvedValue(undefined);
     mockInvoke.mockImplementation(() => Promise.resolve(false));
@@ -126,6 +128,58 @@ describe("SettingsPage", () => {
 
     expect(screen.getByText("Watch Folders")).toBeInTheDocument();
     expect(screen.getByText(/No watch folders configured/)).toBeInTheDocument();
+  });
+
+  it("renders the language and network settings without unsupported global shortcuts", async () => {
+    await act(async () => {
+      renderSettings();
+    });
+
+    expect(screen.getByText("Language")).toBeInTheDocument();
+    expect(screen.getByText("Network Policy")).toBeInTheDocument();
+    expect(screen.queryByText("Global Shortcuts")).not.toBeInTheDocument();
+  });
+
+  it("reports network-policy save success and failure", async () => {
+    const { toast } = await import("sonner");
+    await act(async () => {
+      renderSettings();
+    });
+
+    const networkPolicy = screen.getByRole("combobox", { name: "Network Policy" });
+    fireEvent.change(networkPolicy, { target: { value: "offline" } });
+    await waitFor(() => {
+      expect(mockUpdateSettings).toHaveBeenCalledWith({ networkPolicy: "offline" });
+      expect(toast.success).toHaveBeenCalledWith("Network policy updated for new requests");
+    });
+
+    mockUpdateSettings.mockRejectedValueOnce(new Error("save failed"));
+    fireEvent.change(networkPolicy, { target: { value: "local_only" } });
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Failed to update network policy: save failed");
+    });
+  });
+
+  it("disables the network policy selector while saving", async () => {
+    let resolveUpdate: (() => void) | undefined;
+    mockUpdateSettings.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUpdate = resolve;
+        })
+    );
+    await act(async () => {
+      renderSettings();
+    });
+
+    const networkPolicy = screen.getByRole("combobox", { name: "Network Policy" });
+    fireEvent.change(networkPolicy, { target: { value: "offline" } });
+    expect(networkPolicy).toBeDisabled();
+
+    await act(async () => {
+      resolveUpdate?.();
+    });
+    expect(networkPolicy).not.toBeDisabled();
   });
 
   it("renders the Auto option as checked by default", async () => {

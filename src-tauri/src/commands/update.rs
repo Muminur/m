@@ -2,8 +2,10 @@
 
 use crate::error::{AppError, NetworkErrorCode};
 use crate::network::guard::NetworkGuard;
+use crate::settings::NetworkPolicy;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{command, AppHandle, State};
 use tauri_plugin_updater::UpdaterExt;
@@ -56,6 +58,23 @@ fn updater_status_has_payload(status: reqwest::StatusCode) -> Option<bool> {
     }
 }
 
+/// The updater plugin owns its HTTP client, so its requests cannot be routed
+/// through `NetworkGuard::request`. Re-check the shared policy immediately
+/// before each plugin operation which can access the network.
+fn ensure_updater_network_allowed(network: &NetworkGuard) -> Result<(), AppError> {
+    match network.policy() {
+        NetworkPolicy::AllowAll => Ok(()),
+        NetworkPolicy::Offline => Err(AppError::NetworkError {
+            code: NetworkErrorCode::PolicyBlocked,
+            message: "Network is disabled (offline mode)".into(),
+        }),
+        NetworkPolicy::LocalOnly => Err(AppError::NetworkError {
+            code: NetworkErrorCode::PolicyBlocked,
+            message: "Network policy 'local_only' blocks the external update service".into(),
+        }),
+    }
+}
+
 /// Probe the dynamic endpoint before invoking the updater plugin.
 ///
 /// The deployed endpoint historically returned 404 when a release did not
@@ -92,7 +111,7 @@ async fn updater_payload_available(
 #[command]
 pub async fn check_for_update(
     app: AppHandle,
-    network: State<'_, NetworkGuard>,
+    network: State<'_, Arc<NetworkGuard>>,
 ) -> Result<Option<UpdateInfo>, AppError> {
     if !updater_payload_available(&app, network.inner()).await? {
         return Ok(None);
@@ -106,6 +125,8 @@ pub async fn check_for_update(
             message: format!("Failed to build updater: {}", e),
         })?;
 
+    // `updater.check` uses the plugin's client, not NetworkGuard's client.
+    ensure_updater_network_allowed(network.inner())?;
     let update = updater.check().await.map_err(|e| AppError::NetworkError {
         code: NetworkErrorCode::ConnectionFailed,
         message: format!("Update check failed: {}", e),
@@ -128,7 +149,7 @@ pub async fn check_for_update(
 #[command]
 pub async fn download_and_install_update(
     app: AppHandle,
-    network: State<'_, NetworkGuard>,
+    network: State<'_, Arc<NetworkGuard>>,
 ) -> Result<(), AppError> {
     if INSTALLING
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -164,6 +185,8 @@ async fn do_install(app: &AppHandle, network: &NetworkGuard) -> Result<(), AppEr
             message: format!("Failed to build updater: {}", e),
         })?;
 
+    // The policy may have changed while the endpoint probe was in flight.
+    ensure_updater_network_allowed(network)?;
     let update = updater.check().await.map_err(|e| AppError::NetworkError {
         code: NetworkErrorCode::ConnectionFailed,
         message: format!("Update check failed: {}", e),
@@ -174,6 +197,9 @@ async fn do_install(app: &AppHandle, network: &NetworkGuard) -> Result<(), AppEr
         message: "No update available to install".into(),
     })?;
 
+    // Check again after discovery and immediately before the plugin begins
+    // downloading/installing the release payload.
+    ensure_updater_network_allowed(network)?;
     update
         .download_and_install(|_chunk_length, _content_length| {}, || {})
         .await
@@ -237,6 +263,31 @@ mod tests {
             updater_status_has_payload(reqwest::StatusCode::BAD_GATEWAY),
             None
         );
+    }
+
+    #[test]
+    fn updater_plugin_operations_require_allow_all_policy() {
+        let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
+        assert!(ensure_updater_network_allowed(&guard).is_ok());
+
+        for policy in [NetworkPolicy::Offline, NetworkPolicy::LocalOnly] {
+            guard.set_policy(policy);
+            assert!(matches!(
+                ensure_updater_network_allowed(&guard),
+                Err(AppError::NetworkError {
+                    code: NetworkErrorCode::PolicyBlocked,
+                    ..
+                })
+            ));
+        }
+    }
+
+    #[test]
+    fn updater_policy_recheck_observes_runtime_changes() {
+        let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
+        assert!(ensure_updater_network_allowed(&guard).is_ok());
+        guard.set_policy(NetworkPolicy::Offline);
+        assert!(ensure_updater_network_allowed(&guard).is_err());
     }
 
     #[test]

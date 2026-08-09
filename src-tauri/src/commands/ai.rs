@@ -225,9 +225,9 @@ pub async fn delete_ai_template(id: String, db: State<'_, Arc<Database>>) -> Res
 
 /// List models available on local Ollama instance.
 #[tauri::command]
-pub async fn list_ollama_models(_guard: State<'_, NetworkGuard>) -> Result<Vec<String>, AppError> {
-    let ollama = OllamaProvider::new(Arc::new(NetworkGuard::new(
-        crate::settings::NetworkPolicy::LocalOnly,
-    )?));
+pub async fn list_ollama_models(
+    guard: State<'_, Arc<NetworkGuard>>,
+) -> Result<Vec<String>, AppError> {
+    let ollama = OllamaProvider::new(Arc::new(guard.restricted_to_local()?));
     ollama.list_local_models().await
 }

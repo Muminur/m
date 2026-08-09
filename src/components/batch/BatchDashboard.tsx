@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useTranslation } from "react-i18next";
 import { useBatchStore } from "@/stores/batchStore";
 import type {
   BatchProgressPayload,
@@ -15,6 +16,7 @@ import { BatchJobCard } from "./BatchJobCard";
  */
 export function BatchDashboard() {
   const { jobs } = useBatchStore();
+  const { t } = useTranslation();
 
   // Subscribe to Tauri batch events and refresh store on each one.
   // Uses a cancelled flag to handle the race where the component unmounts
@@ -24,25 +26,25 @@ export function BatchDashboard() {
     const unlisteners: Array<() => void> = [];
 
     (async () => {
-      const unProgress = await listen<BatchProgressPayload>(
-        "batch:progress",
-        (event) => {
-          const { jobId, itemId, progress } = event.payload;
-          useBatchStore.setState((state) => ({
-            jobs: state.jobs.map((job) =>
-              job.id !== jobId
-                ? job
-                : {
-                    ...job,
-                    items: job.items.map((item) =>
-                      item.id !== itemId ? item : { ...item, progress }
-                    ),
-                  }
-            ),
-          }));
-        }
-      );
-      if (cancelled) { unProgress(); return; }
+      const unProgress = await listen<BatchProgressPayload>("batch:progress", (event) => {
+        const { jobId, itemId, progress } = event.payload;
+        useBatchStore.setState((state) => ({
+          jobs: state.jobs.map((job) =>
+            job.id !== jobId
+              ? job
+              : {
+                  ...job,
+                  items: job.items.map((item) =>
+                    item.id !== itemId ? item : { ...item, progress }
+                  ),
+                }
+          ),
+        }));
+      });
+      if (cancelled) {
+        unProgress();
+        return;
+      }
       unlisteners.push(unProgress);
 
       const unItemComplete = await listen<BatchItemCompletePayload>(
@@ -56,16 +58,17 @@ export function BatchDashboard() {
                 : {
                     ...job,
                     items: job.items.map((item) =>
-                      item.id !== itemId
-                        ? item
-                        : { ...item, status, error, progress: 100 }
+                      item.id !== itemId ? item : { ...item, status, error, progress: 100 }
                     ),
                   }
             ),
           }));
         }
       );
-      if (cancelled) { unItemComplete(); return; }
+      if (cancelled) {
+        unItemComplete();
+        return;
+      }
       unlisteners.push(unItemComplete);
 
       const unJobComplete = await listen<BatchJobCompletePayload>(
@@ -74,7 +77,10 @@ export function BatchDashboard() {
           await useBatchStore.getState().refreshJobs();
         }
       );
-      if (cancelled) { unJobComplete(); return; }
+      if (cancelled) {
+        unJobComplete();
+        return;
+      }
       unlisteners.push(unJobComplete);
     })();
 
@@ -90,19 +96,17 @@ export function BatchDashboard() {
   return (
     <div data-testid="batch-dashboard" className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Batch Jobs</h2>
+        <h2 className="text-base font-semibold">{t("batch.jobs")}</h2>
         <button
           onClick={() => useBatchStore.getState().refreshJobs()}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
-          Refresh
+          {t("batch.refresh")}
         </button>
       </div>
 
       {jobs.length === 0 ? (
-        <div className="text-sm text-muted-foreground text-center py-12">
-          No batch jobs yet. Add files to start a batch transcription.
-        </div>
+        <div className="text-sm text-muted-foreground text-center py-12">{t("batch.empty")}</div>
       ) : (
         <div className="space-y-3">
           {jobs.map((job) => (

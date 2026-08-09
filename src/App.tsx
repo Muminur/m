@@ -13,6 +13,7 @@ import { initTrayBridge } from "./lib/trayBridge";
 import { initAutoTranslate } from "./lib/autoTranslate";
 import { initWatchFolderBridge } from "./lib/watchFolderBridge";
 import { initRecordingBridge } from "./lib/recordingBridge";
+import i18n from "./i18n";
 
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
@@ -22,6 +23,10 @@ const ModelManager = lazy(() =>
     default: m.ModelManager,
   }))
 );
+const BatchPage = lazy(() => import("./pages/BatchPage"));
+const AiPage = lazy(() => import("./pages/AiPage"));
+const CaptionsPage = lazy(() => import("./pages/CaptionsPage"));
+const IntegrationsPage = lazy(() => import("./pages/IntegrationsPage"));
 
 function LazyFallback() {
   return (
@@ -59,6 +64,8 @@ function AppInner() {
   const navigate = useNavigate();
   const { settings, loadSettings } = useSettingsStore();
   const { loadVersion, checkForUpdate } = useUpdateStore();
+  const hasLoadedSettings = settings !== null;
+  const persistedLanguage = settings?.language;
 
   useEffect(() => {
     loadSettings();
@@ -81,6 +88,12 @@ function AppInner() {
   useEffect(() => {
     const root = document.documentElement;
     const theme = settings?.theme ?? "system";
+    let cleanupMediaListener: (() => void) | null = null;
+
+    const applySystemTheme = () => {
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      root.classList.toggle("dark", prefersDark);
+    };
 
     if (theme === "dark") {
       root.classList.add("dark");
@@ -88,10 +101,43 @@ function AppInner() {
       root.classList.remove("dark");
     } else {
       // system
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      root.classList.toggle("dark", prefersDark);
+      applySystemTheme();
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = (event: MediaQueryListEvent) => {
+        root.classList.toggle("dark", event.matches);
+      };
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener("change", handleChange);
+        cleanupMediaListener = () => mediaQuery.removeEventListener("change", handleChange);
+      } else {
+        // Safari legacy support in older WebViews
+        mediaQuery.addListener(handleChange);
+        cleanupMediaListener = () => mediaQuery.removeListener(handleChange);
+      }
     }
+
+    return () => {
+      cleanupMediaListener?.();
+    };
   }, [settings?.theme]);
+
+  // Keep runtime language in sync with persisted settings.
+  useEffect(() => {
+    // Leave the detector-selected language intact until the persisted settings
+    // have loaded. Applying the fallback while `settings` is null would
+    // overwrite it before we know the user's saved preference.
+    if (!hasLoadedSettings) return;
+
+    const supportedLanguages = new Set(Object.keys(i18n.options.resources ?? {}));
+    const desiredLang = persistedLanguage;
+    const fallbackLang = supportedLanguages.has("en") ? "en" : [...supportedLanguages][0];
+    const nextLang =
+      desiredLang && supportedLanguages.has(desiredLang) ? desiredLang : fallbackLang;
+
+    if (nextLang) {
+      void i18n.changeLanguage(nextLang);
+    }
+  }, [hasLoadedSettings, persistedLanguage]);
 
   // Mount tray bridge once. The navigate function is re-captured on every
   // render (initTrayBridge updates its internal ref even on guarded calls),
@@ -212,6 +258,46 @@ function AppInner() {
           element={
             <ErrorBoundary>
               <DropZone />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="batch"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<LazyFallback />}>
+                <BatchPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="ai"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<LazyFallback />}>
+                <AiPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="captions"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<LazyFallback />}>
+                <CaptionsPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="integrations"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<LazyFallback />}>
+                <IntegrationsPage />
+              </Suspense>
             </ErrorBoundary>
           }
         />

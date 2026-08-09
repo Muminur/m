@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppSettings, WhisperModel } from "../types";
+import i18n from "@/i18n";
 
 const invokeMock = vi.fn();
 const listenMock = vi.fn();
@@ -71,7 +72,8 @@ async function emit(event: string, payload: unknown) {
 }
 
 describe("watchFolderBridge", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     vi.resetModules();
     vi.clearAllMocks();
     listenerMap.clear();
@@ -174,6 +176,30 @@ describe("watchFolderBridge", () => {
         "transcribe_file",
         expect.objectContaining({ modelId: "base" })
       );
+    });
+    expect(toastInfo).toHaveBeenCalledWith(
+      '[small] is unavailable for watch folder "/watched". Using "Base" instead.',
+      { duration: 8_000 }
+    );
+    dispose();
+  });
+
+  it("uses the selected language for lifecycle notifications", async () => {
+    await i18n.changeLanguage("nl");
+    const { initWatchFolderBridge } = await import("../watchFolderBridge");
+    const dispose = await initWatchFolderBridge();
+
+    await emit("watch:file-detected", {
+      folderPath: "/watched",
+      filePath: "/watched/interview.wav",
+      fileName: "interview.wav",
+      status: "detected",
+    });
+
+    await vi.waitFor(() => {
+      expect(toastInfo).toHaveBeenCalledWith("interview.wav wordt met Small getranscribeerd…", {
+        duration: 4_000,
+      });
     });
     dispose();
   });

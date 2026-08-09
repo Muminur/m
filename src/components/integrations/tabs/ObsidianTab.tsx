@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Loader2, Check, FolderOpen } from "lucide-react";
@@ -32,6 +33,7 @@ export function ObsidianTab({
   clearStatus,
   setTesting,
 }: TabSharedProps) {
+  const { t } = useTranslation();
   const [obsidianVault, setObsidianVault] = useState(() => getStored(LS_KEY_VAULT));
 
   const handlePickVault = async () => {
@@ -42,17 +44,20 @@ export function ObsidianTab({
         setStored(LS_KEY_VAULT, selected);
       }
     } catch (err) {
-      setStatus({ type: "error", message: `Folder picker failed: ${formatError(err)}` });
+      setStatus({
+        type: "error",
+        message: t("integrations.folder_picker_failed", { error: formatError(err) }),
+      });
     }
   };
 
   const handleTestObsidian = async () => {
     if (!transcriptId) {
-      setStatus({ type: "error", message: "Open a transcript first to test Obsidian export." });
+      setStatus({ type: "error", message: t("integrations.obsidian_open_transcript") });
       return;
     }
     if (!obsidianVault.trim()) {
-      setStatus({ type: "error", message: "Select a vault path first." });
+      setStatus({ type: "error", message: t("integrations.select_vault") });
       return;
     }
     setTesting(true);
@@ -63,10 +68,13 @@ export function ObsidianTab({
         vaultPath: obsidianVault.trim(),
       });
       setStored(LS_KEY_VAULT, obsidianVault.trim());
-      setStatus({ type: "success", message: `Written to: ${filePath}` });
-      toast.success("Transcript written to Obsidian vault");
+      setStatus({ type: "success", message: t("integrations.written_to", { path: filePath }) });
+      toast.success(t("integrations.obsidian_written"));
     } catch (err) {
-      setStatus({ type: "error", message: `Obsidian write failed: ${formatError(err)}` });
+      setStatus({
+        type: "error",
+        message: t("integrations.obsidian_write_failed", { error: formatError(err) }),
+      });
     } finally {
       setTesting(false);
     }
@@ -75,14 +83,14 @@ export function ObsidianTab({
   return (
     <>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 1: Select Vault</label>
-        <p className="text-xs text-muted-foreground">Choose your Obsidian vault folder.</p>
+        <label className="text-sm font-medium">{t("integrations.step_select_vault")}</label>
+        <p className="text-xs text-muted-foreground">{t("integrations.vault_hint")}</p>
         <div className="flex gap-2">
           <input
             type="text"
             value={obsidianVault}
             readOnly
-            placeholder="No vault selected"
+            placeholder={t("integrations.no_vault")}
             className="flex-1 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-sm"
           />
           <button
@@ -90,19 +98,19 @@ export function ObsidianTab({
             className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
           >
             <FolderOpen className="h-4 w-4" />
-            Browse
+            {t("integrations.browse")}
           </button>
         </div>
       </div>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 2: Test Export</label>
+        <label className="text-sm font-medium">{t("integrations.step_test_export")}</label>
         <button
           onClick={handleTestObsidian}
           disabled={isLoading || !obsidianVault.trim()}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >
           {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          {transcriptId ? "Write Current Transcript" : "Test Export (open a transcript first)"}
+          {transcriptId ? t("integrations.write_current") : t("integrations.test_export_hint")}
         </button>
       </div>
     </>

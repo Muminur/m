@@ -4,6 +4,7 @@ import { CaptionOverlay } from "@/components/captions/CaptionOverlay";
 import { CaptionControls } from "@/components/captions/CaptionControls";
 import { SpotlightBar } from "@/components/captions/SpotlightBar";
 import { useCaptionStore } from "@/stores/captionStore";
+import i18n from "@/i18n";
 
 // Mock Tauri APIs
 vi.mock("@tauri-apps/api/event", () => ({
@@ -40,7 +41,8 @@ vi.mock("@tauri-apps/plugin-global-shortcut", () => ({
 }));
 
 describe("CaptionOverlay", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     useCaptionStore.getState().reset();
   });
 
@@ -112,7 +114,8 @@ describe("CaptionOverlay", () => {
 });
 
 describe("CaptionControls", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     useCaptionStore.getState().reset();
   });
 
@@ -145,6 +148,14 @@ describe("CaptionControls", () => {
     useCaptionStore.getState().setError("Audio device not found");
     render(<CaptionControls />);
     expect(screen.getByText("Audio device not found")).toBeInTheDocument();
+  });
+
+  it("renders controls in the selected language", async () => {
+    await i18n.changeLanguage("de");
+    render(<CaptionControls />);
+
+    expect(screen.getByText("Mikrofon")).toBeInTheDocument();
+    expect(screen.getByText("Untertitel starten")).toBeInTheDocument();
   });
 });
 

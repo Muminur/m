@@ -3,6 +3,10 @@ import { useState } from "react";
 import {
   FileText,
   Mic,
+  Sparkles,
+  Radio,
+  Globe,
+  List,
   Settings,
   Star,
   Trash2,
@@ -47,7 +51,7 @@ export function Sidebar() {
   const trashActive = onLibraryPath && filterParam === "trash";
 
   return (
-    <nav className="flex flex-col h-full pt-8 pb-3 px-2 gap-1 no-drag">
+    <nav className="flex flex-col h-full min-h-0 overflow-y-auto pt-8 pb-3 px-2 gap-1 no-drag">
       {/* Navigation items */}
       <NavItem
         to="/library"
@@ -64,6 +68,13 @@ export function Sidebar() {
       <NavItem to="/recording" icon={<Mic size={16} />} label={t("nav.recording")} />
       <NavItem to="/transcribe" icon={<Upload size={16} />} label={t("nav.transcribe")} />
       <NavItem to="/models" icon={<Download size={16} />} label={t("nav.models")} />
+      <div className="text-[11px] uppercase tracking-wide px-3 pt-2 pb-1 text-muted-foreground">
+        {t("nav.advanced")}
+      </div>
+      <NavItem to="/batch" icon={<List size={16} />} label={t("nav.batch")} />
+      <NavItem to="/ai" icon={<Sparkles size={16} />} label={t("nav.ai")} />
+      <NavItem to="/captions" icon={<Radio size={16} />} label={t("nav.captions")} />
+      <NavItem to="/integrations" icon={<Globe size={16} />} label={t("nav.integrations")} />
 
       <div className="h-px bg-border my-2 mx-1" />
 
@@ -91,10 +102,10 @@ export function Sidebar() {
       <button
         onClick={() => setAboutOpen(true)}
         className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors w-full text-left"
-        title={t("about.title", "About WhisperDesk")}
+        title={t("about.title")}
       >
         <Info size={16} />
-        <span>{t("about.title", "About")}</span>
+        <span>{t("about.title")}</span>
       </button>
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />

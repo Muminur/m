@@ -37,7 +37,7 @@ pub async fn diarize_transcript(
     transcript_id: String,
     provider: String,
     db: State<'_, Arc<Database>>,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<DiarizeTranscriptResult, AppError> {
     // 1. Verify the transcript exists.
     {
@@ -77,7 +77,6 @@ pub async fn diarize_transcript(
     // 3. Select provider — cloud providers use block_on internally so we run
     //    them inside spawn_blocking to avoid deadlocking the tokio runtime.
     let segments_clone = raw_segments.clone();
-    let policy = guard.policy().clone();
     let diarized: Vec<DiarizedSegment> = match provider.as_str() {
         "tinydiarize" => {
             let p = TinydiarizeProvider::new();
@@ -85,9 +84,7 @@ pub async fn diarize_transcript(
         }
         "elevenlabs" => {
             use crate::diarization::elevenlabs::ElevenLabsProvider;
-            use crate::network::guard::NetworkGuard as NG;
-
-            let new_guard = NG::new(policy)?;
+            let new_guard = guard.inner().as_ref().clone();
             tokio::task::spawn_blocking(move || {
                 let p = ElevenLabsProvider::new(new_guard);
                 p.diarize(&segments_clone)
@@ -100,9 +97,7 @@ pub async fn diarize_transcript(
         }
         "deepgram" => {
             use crate::diarization::deepgram::DeepgramProvider;
-            use crate::network::guard::NetworkGuard as NG;
-
-            let new_guard = NG::new(policy)?;
+            let new_guard = guard.inner().as_ref().clone();
             tokio::task::spawn_blocking(move || {
                 let p = DeepgramProvider::new(new_guard);
                 p.diarize(&segments_clone)

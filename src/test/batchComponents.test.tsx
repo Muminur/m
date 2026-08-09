@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { BatchDashboard } from "@/components/batch/BatchDashboard";
 import { useBatchStore } from "@/stores/batchStore";
 import type { BatchJob } from "@/lib/batchTypes";
+import i18n from "@/i18n";
 
 // Mock Tauri APIs — invoke is overridden per-test where needed
 vi.mock("@tauri-apps/api/event", () => ({
@@ -70,6 +71,7 @@ async function renderWithJobs(jobs: BatchJob[]) {
 
 describe("BatchDashboard", () => {
   beforeEach(async () => {
+    await i18n.changeLanguage("en");
     mockInvoke.mockReset();
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "list_batch_jobs") return Promise.resolve([]);
@@ -93,6 +95,17 @@ describe("BatchDashboard", () => {
       render(<BatchDashboard />);
     });
     expect(screen.getByText(/no batch jobs yet/i)).toBeInTheDocument();
+  });
+
+  it("renders dashboard copy in the selected language", async () => {
+    await i18n.changeLanguage("nl");
+    await act(async () => {
+      render(<BatchDashboard />);
+    });
+
+    expect(screen.getByText("Batchtaken")).toBeInTheDocument();
+    expect(screen.getByText("Vernieuwen")).toBeInTheDocument();
+    expect(screen.getByText(/Nog geen batchtaken/)).toBeInTheDocument();
   });
 
   it("renders job card for each job in the store", async () => {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ export function NotionTab({
   setSaving,
   setTesting,
 }: TabSharedProps) {
+  const { t } = useTranslation();
   const [notionApiKey, setNotionApiKey] = useState("");
   const [notionDbId, setNotionDbId] = useState(() => getStored(LS_KEY_DB_ID));
 
@@ -44,10 +46,13 @@ export function NotionTab({
       await invoke("set_api_key", { service: "notion", key: notionApiKey.trim() });
       setStored(LS_KEY_DB_ID, notionDbId);
       setNotionApiKey("");
-      setStatus({ type: "success", message: "Notion API key saved to keychain." });
-      toast.success("Notion API key saved");
+      setStatus({ type: "success", message: t("integrations.notion_key_saved_detail") });
+      toast.success(t("integrations.notion_key_saved"));
     } catch (err) {
-      setStatus({ type: "error", message: `Failed to save key: ${formatError(err)}` });
+      setStatus({
+        type: "error",
+        message: t("integrations.save_key_failed", { error: formatError(err) }),
+      });
     } finally {
       setSaving(false);
     }
@@ -55,11 +60,11 @@ export function NotionTab({
 
   const handleTestNotion = async () => {
     if (!transcriptId) {
-      setStatus({ type: "error", message: "Open a transcript first to test Notion push." });
+      setStatus({ type: "error", message: t("integrations.notion_open_transcript") });
       return;
     }
     if (!notionDbId.trim()) {
-      setStatus({ type: "error", message: "Enter a Database ID first." });
+      setStatus({ type: "error", message: t("integrations.enter_database_id") });
       return;
     }
     setTesting(true);
@@ -70,10 +75,13 @@ export function NotionTab({
         databaseId: notionDbId.trim(),
       });
       setStored(LS_KEY_DB_ID, notionDbId.trim());
-      setStatus({ type: "success", message: `Pushed to Notion: ${url}` });
-      toast.success("Transcript pushed to Notion");
+      setStatus({ type: "success", message: t("integrations.pushed_to_notion", { url }) });
+      toast.success(t("integrations.notion_pushed"));
     } catch (err) {
-      setStatus({ type: "error", message: `Notion push failed: ${formatError(err)}` });
+      setStatus({
+        type: "error",
+        message: t("integrations.notion_push_failed", { error: formatError(err) }),
+      });
     } finally {
       setTesting(false);
     }
@@ -82,8 +90,8 @@ export function NotionTab({
   return (
     <>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 1: API Key</label>
-        <p className="text-xs text-muted-foreground">Stored securely in your system keychain.</p>
+        <label className="text-sm font-medium">{t("integrations.step_api_key")}</label>
+        <p className="text-xs text-muted-foreground">{t("integrations.keychain_hint")}</p>
         <div className="flex gap-2">
           <input
             type="password"
@@ -97,12 +105,12 @@ export function NotionTab({
             disabled={!notionApiKey.trim() || isLoading}
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Key"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t("integrations.save_key")}
           </button>
         </div>
       </div>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 2: Database ID</label>
+        <label className="text-sm font-medium">{t("integrations.step_database_id")}</label>
         <input
           type="text"
           value={notionDbId}
@@ -112,14 +120,14 @@ export function NotionTab({
         />
       </div>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">Step 3: Test</label>
+        <label className="text-sm font-medium">{t("integrations.step_test")}</label>
         <button
           onClick={handleTestNotion}
           disabled={isLoading || !notionDbId.trim()}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >
           {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          {transcriptId ? "Push Current Transcript" : "Test Connection (open a transcript first)"}
+          {transcriptId ? t("integrations.push_current") : t("integrations.test_connection_hint")}
         </button>
       </div>
     </>

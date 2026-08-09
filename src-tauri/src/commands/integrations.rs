@@ -16,7 +16,7 @@ pub async fn push_to_notion(
     transcript_id: String,
     database_id: String,
     db: State<'_, Arc<Database>>,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<String, AppError> {
     // Get API key from keychain
     let api_key = tokio::task::spawn_blocking(|| crate::keychain::get("notion", "api_key"))
@@ -165,7 +165,7 @@ pub async fn fire_webhook(
     url: String,
     transcript_id: String,
     db: State<'_, Arc<Database>>,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<(), AppError> {
     validate_webhook_url(&url)?;
 
@@ -210,7 +210,7 @@ pub async fn fire_webhook(
 pub async fn translate_with_deepl(
     text: String,
     target_lang: String,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<String, AppError> {
     let api_key = tokio::task::spawn_blocking(|| crate::keychain::get("deepl", "api_key"))
         .await
@@ -239,7 +239,7 @@ pub async fn translate_segments_deepl(
     transcript_id: String,
     target_lang: String,
     db: State<'_, Arc<Database>>,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<Vec<String>, AppError> {
     let api_key = tokio::task::spawn_blocking(|| crate::keychain::get("deepl", "api_key"))
         .await
@@ -275,7 +275,7 @@ pub async fn translate_segments_deepl(
 pub async fn translate_srt_deepl(
     srt_content: String,
     target_lang: String,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<String, AppError> {
     let api_key = tokio::task::spawn_blocking(|| crate::keychain::get("deepl", "api_key"))
         .await
@@ -305,7 +305,7 @@ pub async fn translate_transcript_deepl(
     transcript_id: String,
     target_lang: String,
     db: State<'_, Arc<Database>>,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<String, AppError> {
     let api_key = tokio::task::spawn_blocking(|| crate::keychain::get("deepl", "api_key"))
         .await

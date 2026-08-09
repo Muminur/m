@@ -1,4 +1,5 @@
 import type { BatchStatus } from "@/lib/batchTypes";
+import { useTranslation } from "react-i18next";
 
 const STATUS_STYLES: Record<BatchStatus, string> = {
   Pending: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -11,11 +12,12 @@ const STATUS_STYLES: Record<BatchStatus, string> = {
 };
 
 export function StatusBadge({ status }: { status: BatchStatus }) {
+  const { t } = useTranslation();
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[status]}`}
     >
-      {status}
+      {t(`batch.status_${status.toLowerCase()}`)}
     </span>
   );
 }

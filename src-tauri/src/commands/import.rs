@@ -7,6 +7,7 @@ use crate::error::AppError;
 use crate::import::storage;
 use crate::import::youtube::{YouTubeImportResult, YouTubeImporter};
 use crate::import::ytdlp::{YtDlpManager, YtDlpStatus};
+use crate::network::guard::NetworkGuard;
 use crate::transcription::postprocess::{FillerConfig, FillerWordRemover};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -39,6 +40,7 @@ pub async fn import_youtube(
     url: String,
     app: AppHandle,
     db: State<'_, Arc<Database>>,
+    network: State<'_, Arc<NetworkGuard>>,
 ) -> Result<YouTubeImportResult, AppError> {
     // Download in a per-job temp directory, then promote only a completed WAV
     // into durable app data. This keeps interrupted jobs disposable without
@@ -66,11 +68,12 @@ pub async fn import_youtube(
     storage::cleanup_stale_staging(&app_data_dir, storage::ABANDONED_IMPORT_MAX_AGE);
     let staging_dir = staging_root.join(&job_id);
     let durable_job_dir = durable_root.join(job_id);
+    let network = Arc::clone(network.inner());
 
     // Wrap in spawn_blocking because YouTubeImporter::import uses std::process::Command
     // which blocks the thread — must not block the tokio async runtime.
     tokio::task::spawn_blocking(move || {
-        let result = match YouTubeImporter::import(&url, &staging_dir, Some(&app)) {
+        let result = match YouTubeImporter::import(&url, &staging_dir, Some(&app), &network) {
             Ok(mut imported) => {
                 match storage::promote_audio(
                     std::path::Path::new(&imported.audio_path),

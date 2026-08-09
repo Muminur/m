@@ -215,7 +215,7 @@ async fn run_translation_download(
     let total_bytes = file_size_mb.saturating_mul(1024 * 1024);
     let mut bytes_downloaded: u64 = 0;
 
-    let guard = app_handle.state::<NetworkGuard>();
+    let guard = app_handle.state::<Arc<NetworkGuard>>();
     let base = base_url.trim_end_matches('/');
 
     // model.bin last so is_downloaded() only flips true once everything is present.

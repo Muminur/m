@@ -4,8 +4,10 @@ use std::process::Command;
 use tauri::{AppHandle, Emitter};
 use url::Url;
 
-use crate::error::{AppError, ImportErrorCode};
+use crate::error::{AppError, ImportErrorCode, NetworkErrorCode};
 use crate::import::ytdlp::YtDlpManager;
+use crate::network::guard::NetworkGuard;
+use crate::settings::NetworkPolicy;
 
 // ── Result types ───────────────────────────────────────────────────────────────
 
@@ -51,6 +53,7 @@ impl YouTubeImporter {
         url: &str,
         output_dir: &Path,
         app: Option<&AppHandle>,
+        network: &NetworkGuard,
     ) -> Result<YouTubeImportResult, AppError> {
         // 1. Validate URL
         Self::validate_url(url)?;
@@ -87,6 +90,9 @@ impl YouTubeImporter {
         //    --audio-quality 0  best quality
         //    --print-json    write metadata JSON to stdout
         //    --no-playlist   never download entire playlists by accident
+        // yt-dlp owns its networking. Re-check the shared policy immediately
+        // before spawning it so settings changes during import preparation win.
+        ensure_youtube_network_allowed(network)?;
         let output = Command::new(&binary)
             .args([
                 "-x",
@@ -253,11 +259,52 @@ impl YouTubeImporter {
     }
 }
 
+/// yt-dlp may access arbitrary external hosts while resolving and downloading
+/// media, so it is permitted only under the global AllowAll policy.
+fn ensure_youtube_network_allowed(network: &NetworkGuard) -> Result<(), AppError> {
+    match network.policy() {
+        NetworkPolicy::AllowAll => Ok(()),
+        NetworkPolicy::Offline => Err(AppError::NetworkError {
+            code: NetworkErrorCode::PolicyBlocked,
+            message: "Network is disabled (offline mode)".into(),
+        }),
+        NetworkPolicy::LocalOnly => Err(AppError::NetworkError {
+            code: NetworkErrorCode::PolicyBlocked,
+            message: "Network policy 'local_only' blocks external YouTube imports".into(),
+        }),
+    }
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn youtube_import_requires_allow_all_network_policy() {
+        let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
+        assert!(ensure_youtube_network_allowed(&guard).is_ok());
+
+        for policy in [NetworkPolicy::Offline, NetworkPolicy::LocalOnly] {
+            guard.set_policy(policy);
+            assert!(matches!(
+                ensure_youtube_network_allowed(&guard),
+                Err(AppError::NetworkError {
+                    code: NetworkErrorCode::PolicyBlocked,
+                    ..
+                })
+            ));
+        }
+    }
+
+    #[test]
+    fn youtube_import_recheck_observes_runtime_policy_changes() {
+        let guard = NetworkGuard::new(NetworkPolicy::AllowAll).unwrap();
+        assert!(ensure_youtube_network_allowed(&guard).is_ok());
+        guard.set_policy(NetworkPolicy::Offline);
+        assert!(ensure_youtube_network_allowed(&guard).is_err());
+    }
 
     #[test]
     fn test_validate_url_accepts_youtube_com() {

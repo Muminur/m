@@ -5,15 +5,20 @@ import { TranscriptDetail } from "@/components/library/TranscriptDetail";
 import { useTranscriptStore } from "@/stores/transcriptStore";
 
 const mockInvoke = vi.fn();
-const { mockWaveformSeek } = vi.hoisted(() => ({
+const { mockWaveformSeek, mockListen, mockToastError } = vi.hoisted(() => ({
   mockWaveformSeek: vi.fn(),
+  mockListen: vi.fn(),
+  mockToastError: vi.fn(),
 }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }));
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn(() => Promise.resolve(() => {})),
+  listen: (...args: unknown[]) => mockListen(...args),
   emit: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("sonner", () => ({
+  toast: { error: mockToastError, warning: vi.fn() },
 }));
 
 // Mock i18n
@@ -143,6 +148,10 @@ describe("TranscriptDetail", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
     mockWaveformSeek.mockReset();
+    mockListen.mockReset();
+    mockToastError.mockReset();
+    mockListen.mockImplementation(() => Promise.resolve(() => {}));
+    Element.prototype.scrollIntoView = vi.fn();
     mockInvoke.mockResolvedValue(undefined);
     useTranscriptStore.setState({
       current: null,
@@ -328,5 +337,54 @@ describe("TranscriptDetail", () => {
       const updateCalls = mockInvoke.mock.calls.filter(([command]) => command === "update_segment");
       expect(updateCalls).toEqual([["update_segment", { segmentId: "s1", text: "Hello planet" }]]);
     });
+  });
+
+  it("only handles scoped transcription errors for the open transcript", async () => {
+    const listeners = new Map<string, (event: { payload: Record<string, unknown> }) => void>();
+    mockListen.mockImplementation(
+      (eventName: string, handler: (event: { payload: Record<string, unknown> }) => void) => {
+        listeners.set(eventName, handler);
+        return Promise.resolve(() => {});
+      }
+    );
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_transcript") return Promise.resolve(MOCK_DETAIL);
+      return Promise.resolve();
+    });
+
+    const { container } = renderWithRoute("/library/t1");
+    await waitFor(() => expect(listeners.get("transcription:segment")).toBeDefined());
+
+    await act(async () => {
+      listeners.get("transcription:segment")?.({
+        payload: {
+          transcriptId: "t1",
+          segment: { index: 2, startMs: 10000, endMs: 15000, text: "Streaming", confidence: 1 },
+        },
+      });
+    });
+    expect(container.querySelector("svg.animate-spin")).toBeInTheDocument();
+
+    await act(async () => {
+      listeners.get("transcription:error")?.({ payload: { error: "Unscoped failure" } });
+      listeners.get("transcription:error")?.({
+        payload: { transcriptId: "other", error: "Other transcript failure" },
+      });
+    });
+    expect(container.querySelector("svg.animate-spin")).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    await act(async () => {
+      listeners.get("transcription:error")?.({
+        payload: { transcriptId: "t1", error: "Current transcript failure" },
+      });
+    });
+    expect(container.querySelector("svg.animate-spin")).not.toBeInTheDocument();
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Transcription failed: Current transcript failure",
+      {
+        duration: 10000,
+      }
+    );
   });
 });

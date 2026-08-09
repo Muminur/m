@@ -21,7 +21,7 @@ pub async fn transcribe_with_cloud(
     provider: String,
     language: Option<String>,
     db: State<'_, Arc<Database>>,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<String, AppError> {
     let path = std::path::Path::new(&file_path);
     if !path.exists() {
@@ -50,7 +50,7 @@ pub async fn transcribe_with_cloud(
     // Get API key from keychain
     let api_key = get_provider_api_key(&provider)?;
 
-    let guard_arc = Arc::new(NetworkGuard::new(guard.policy().clone())?);
+    let guard_arc = Arc::clone(guard.inner());
 
     // Create the appropriate provider
     let cloud_provider: Box<dyn cloud_transcription::CloudTranscriptionProvider> =
@@ -186,10 +186,10 @@ pub async fn refine_with_cloud(
     transcript_id: String,
     provider: String,
     db: State<'_, Arc<Database>>,
-    guard: State<'_, NetworkGuard>,
+    guard: State<'_, Arc<NetworkGuard>>,
 ) -> Result<(), AppError> {
     let api_key = get_provider_api_key(&provider)?;
-    let guard_arc = Arc::new(NetworkGuard::new(guard.policy().clone())?);
+    let guard_arc = Arc::clone(guard.inner());
     let hybrid = HybridTranscriber::new(guard_arc);
     hybrid
         .refine_with_cloud(&transcript_id, &provider, &api_key, &db)

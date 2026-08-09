@@ -5,6 +5,7 @@ import { DEFAULT_PARAMS } from "@/components/transcription/transcriptionParams";
 import { useSettingsStore } from "@/stores/settingsStore";
 import type { AppSettings, WhisperModel } from "./types";
 import { formatError } from "./formatError";
+import i18n from "@/i18n";
 
 interface WatchFileDetectedEvent {
   eventId?: string;
@@ -177,7 +178,7 @@ async function processNext(): Promise<void> {
         file.eventId,
         "failed",
         undefined,
-        "Watch folder was disabled or removed before processing"
+        i18n.t("watch_folders.inactive_before_processing")
       );
       removeQueuedFile(file);
       return;
@@ -186,10 +187,18 @@ async function processNext(): Promise<void> {
     const models = await invoke<WhisperModel[]>("list_models");
     const model = selectModel(models, folder.modelId);
     if (!model) {
-      throw new Error("No transcription model is downloaded. Open Models to download one.");
+      throw new Error(i18n.t("watch_folders.no_model_downloaded"));
     }
 
     if (folder.modelId && folder.modelId !== model.id) {
+      toast.info(
+        i18n.t("watch_folders.model_fallback", {
+          configuredModel: folder.modelId,
+          path: folder.path,
+          model: model.displayName,
+        }),
+        { duration: 8_000 }
+      );
       console.warn(
         `[watchFolder] configured model '${folder.modelId}' is unavailable; using '${model.id}'`
       );
@@ -209,9 +218,15 @@ async function processNext(): Promise<void> {
       transcriptId: result.transcriptId,
       file,
     };
-    toast.info(`Transcribing ${displayName(file)} with ${model.displayName}…`, {
-      duration: 4_000,
-    });
+    toast.info(
+      i18n.t("watch_folders.transcribing", {
+        file: displayName(file),
+        model: model.displayName,
+      }),
+      {
+        duration: 4_000,
+      }
+    );
 
     // Very short/invalid files can emit a terminal event before the invoke
     // promise is delivered to the webview. Replay it once the job is known.
@@ -233,9 +248,15 @@ async function processNext(): Promise<void> {
     removeQueuedFile(file);
     console.error("[watchFolder] failed to start transcription:", error);
     void updateWatchEvent(file.eventId, "failed", undefined, message);
-    toast.error(`Could not transcribe ${displayName(file)}: ${message}`, {
-      duration: 10_000,
-    });
+    toast.error(
+      i18n.t("watch_folders.transcription_failed", {
+        file: displayName(file),
+        error: message,
+      }),
+      {
+        duration: 10_000,
+      }
+    );
   } finally {
     processing = false;
     if (!activeJob && !retryTimer && queue.length > 0) queueMicrotask(() => void processNext());
@@ -264,19 +285,29 @@ function finishActiveJob(terminal: EarlyTerminal) {
 
   if (terminal.kind === "complete") {
     void updateWatchEvent(finished.file.eventId, "transcribed", terminal.payload.transcriptId);
-    toast.success(`Finished transcribing ${displayName(finished.file)}`, {
-      duration: 6_000,
-    });
+    toast.success(
+      i18n.t("watch_folders.transcription_finished", {
+        file: displayName(finished.file),
+      }),
+      {
+        duration: 6_000,
+      }
+    );
   } else if (terminal.kind === "cancelled") {
     void updateWatchEvent(
       finished.file.eventId,
       "failed",
       finished.transcriptId,
-      "Transcription cancelled"
+      i18n.t("watch_folders.transcription_cancelled")
     );
-    toast.info(`Transcription cancelled for ${displayName(finished.file)}`, {
-      duration: 6_000,
-    });
+    toast.info(
+      i18n.t("watch_folders.transcription_cancelled_for", {
+        file: displayName(finished.file),
+      }),
+      {
+        duration: 6_000,
+      }
+    );
   } else {
     void updateWatchEvent(
       finished.file.eventId,
@@ -284,9 +315,15 @@ function finishActiveJob(terminal: EarlyTerminal) {
       finished.transcriptId,
       terminal.payload.error
     );
-    toast.error(`Could not transcribe ${displayName(finished.file)}: ${terminal.payload.error}`, {
-      duration: 10_000,
-    });
+    toast.error(
+      i18n.t("watch_folders.transcription_failed", {
+        file: displayName(finished.file),
+        error: terminal.payload.error,
+      }),
+      {
+        duration: 10_000,
+      }
+    );
   }
 
   void processNext();
@@ -298,7 +335,9 @@ async function currentSettings(): Promise<AppSettings> {
     await state.loadSettings();
     state = useSettingsStore.getState();
   }
-  if (!state.settings) throw new Error(state.error ?? "Could not load watch-folder settings");
+  if (!state.settings) {
+    throw new Error(state.error ?? i18n.t("watch_folders.settings_load_failed"));
+  }
   return state.settings;
 }
 
